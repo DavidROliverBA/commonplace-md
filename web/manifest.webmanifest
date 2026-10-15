@@ -1,0 +1,13 @@
+{
+  "name": "Commonplace",
+  "short_name": "Commonplace",
+  "description": "A shared markdown knowledge base.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f7f6fb",
+  "theme_color": "#6d5bd0",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

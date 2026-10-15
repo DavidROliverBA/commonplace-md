@@ -1,0 +1,491 @@
+/* The editor (web/components/Editor.tsx): CodeMirror's surface, Live Preview, the editable
+   properties panel, collaborators' cursors, tables edited cell by cell and the block handle. */
+.editor {
+  height: 100%;
+}
+.editor .cm-editor {
+  height: 100%;
+  font-size: var(--text-input); /* 16px stops iOS zooming on focus */
+  background: var(--bg);
+}
+/* The writing surface shows its caret, not a ring around the whole note (the global
+   :focus-visible ring lands on it after any keyboard shortcut). */
+.editor .cm-content:focus-visible {
+  box-shadow: none;
+}
+.editor .cm-editor.cm-focused {
+  outline: none;
+}
+.editor .cm-scroller {
+  font-family: var(--sans);
+  line-height: 1.65;
+  padding: 24px 0 40vh;
+}
+.editor .cm-content {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 0 28px;
+  caret-color: var(--accent);
+}
+.editor .cm-line {
+  padding: 0;
+}
+.editor .cm-cursor {
+  border-left-color: var(--accent);
+  border-left-width: 2px;
+}
+.editor .cm-selectionBackground,
+.editor .cm-focused .cm-selectionBackground {
+  background: var(--accent-soft) !important;
+}
+.editor .cm-wikilink {
+  color: var(--accent);
+}
+.editor .cm-tag {
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: var(--radius-sm);
+  padding: 0 2px;
+}
+.editor .cm-placeholder {
+  color: var(--faint);
+}
+.editor .cm-tooltip {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+/* CodeMirror's own theme sets a monospace font here, with a more specific selector. */
+.editor .cm-tooltip.cm-tooltip-autocomplete > ul {
+  font-family: var(--sans);
+  font-size: var(--text-ui);
+  max-height: 300px;
+  min-width: 220px;
+}
+.editor .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+  padding: 6px 10px !important;
+  display: flex;
+  align-items: center;
+}
+@media (pointer: coarse) {
+  .editor .cm-tooltip.cm-tooltip-autocomplete > ul > li {
+    min-height: var(--tap);
+    font-size: var(--text-input);
+  }
+}
+.editor .cm-tooltip-autocomplete > ul > li[aria-selected] {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.editor .cm-tooltip-autocomplete .icon {
+  color: var(--muted);
+  vertical-align: -3px;
+  margin-right: 8px;
+}
+.editor .cm-completionDetail {
+  color: var(--faint);
+  font-style: normal;
+  margin-left: 8px;
+}
+.editor .cm-tooltip.cm-open-link-tip {
+  background: none;
+  border: none;
+  box-shadow: none;
+}
+.cm-open-link {
+  box-shadow: var(--shadow);
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: var(--text-small);
+  padding: 4px 8px;
+  border-radius: var(--radius-md);
+}
+/* Live Preview (web/lib/livePreview.ts): rendered markdown inside the editor */
+.live-preview .cm-lp-h {
+  line-height: 1.3;
+  padding-top: 0.5em !important;
+  padding-bottom: 0.15em !important;
+}
+.live-preview .cm-lp-link {
+  color: var(--accent);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.live-preview .cm-lp-link * {
+  color: inherit;
+}
+.live-preview .cm-lp-unresolved {
+  opacity: 0.65;
+  text-decoration-style: dashed;
+}
+.live-preview .cm-lp-code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  border-radius: var(--radius-sm);
+  padding: 1px 3px;
+}
+.live-preview .cm-lp-codeblock {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  padding: 0 12px !important;
+}
+.live-preview .cm-lp-fence {
+  color: var(--faint);
+}
+.live-preview .cm-lp-highlight {
+  background: var(--mark);
+  border-radius: var(--radius-xs);
+}
+.live-preview .cm-lp-quote {
+  border-left: 3px solid var(--line);
+  padding-left: 14px !important;
+  color: var(--muted);
+}
+.live-preview .cm-lp-callout {
+  --c: var(--accent);
+  border-left: 4px solid var(--c);
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  color: var(--text);
+}
+.live-preview .cm-lp-callout-title {
+  font-weight: 650;
+  color: var(--c);
+  padding-top: 6px !important;
+}
+.live-preview .cm-lp-bullet {
+  color: var(--accent);
+  display: inline-block;
+  width: 0.9em;
+}
+.live-preview .cm-lp-task {
+  width: 1.05em;
+  height: 1.05em;
+  margin: 0 0.45em 0 0;
+  vertical-align: -0.15em;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.live-preview .cm-lp-done {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.live-preview .cm-lp-hr {
+  display: inline-block;
+  width: 100%;
+  border-top: 1px solid var(--line);
+  vertical-align: middle;
+}
+.live-preview .cm-lp-image {
+  display: block;
+  max-width: 100%;
+  max-height: 480px;
+  border-radius: var(--radius);
+  margin: 6px 0;
+}
+
+.live-preview .cm-lp-block {
+  white-space: normal; /* the editor's pre-wrap would render whitespace between table tags */
+  padding: 4px 0 8px;
+  overflow-x: auto;
+  cursor: text;
+}
+.live-preview .cm-lp-block > table {
+  margin: 0;
+}
+.live-preview .cm-lp-block a {
+  cursor: pointer;
+}
+
+/* Editable properties (web/lib/propertiesWidget.ts) */
+.live-preview .cm-lp-props {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 10px 8px;
+  margin: 2px 0 10px;
+  cursor: default;
+  font-size: var(--text-ui);
+}
+.props-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  color: var(--muted);
+  font-size: var(--text-small);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin-bottom: 4px;
+}
+.props-yaml {
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: var(--text-small);
+  text-transform: none;
+  letter-spacing: 0;
+  padding: 2px 4px;
+}
+.props-yaml:hover {
+  color: var(--accent);
+}
+.prop-row,
+.prop-add {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 34px;
+  border-top: 1px solid var(--line);
+}
+.prop-row:first-of-type {
+  border-top: none;
+}
+.cm-lp-props input,
+.cm-lp-props select {
+  font: inherit;
+  font-size: var(--text-input); /* 16px stops iOS zooming on focus */
+  color: var(--text);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-md);
+  padding: 3px 6px;
+  min-width: 0;
+}
+.cm-lp-props input:hover:not(:disabled),
+.cm-lp-props input:focus {
+  border-color: var(--line);
+  outline: none;
+  background: var(--bg);
+}
+.prop-new-type,
+.prop-add-btn {
+  flex: 0 0 auto;
+}
+.prop-key {
+  flex: 0 0 34%;
+  width: 34%;
+  color: var(--muted) !important;
+}
+/* Inputs have an intrinsic minimum width; basis 0 lets them shrink on a phone. */
+.prop-row > .prop-input:not(.prop-check),
+.prop-pills,
+.prop-new-key {
+  flex: 1 1 0;
+  width: 0;
+}
+.prop-check {
+  flex: 0 0 auto !important;
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+.prop-pills {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 0;
+}
+.prop-pills .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: var(--text-ui-sm);
+}
+.pill-x {
+  background: none;
+  border: none;
+  padding: 0 2px;
+  color: inherit;
+  opacity: 0.6;
+  font-size: var(--text-ui);
+  line-height: 1;
+}
+.pill-x:hover {
+  opacity: 1;
+}
+.prop-pill-input {
+  flex: 1 1 40px;
+  width: 40px;
+}
+.prop-del {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--faint);
+  font-size: var(--text-title);
+  line-height: 1;
+  padding: 2px 6px;
+}
+.prop-del:hover {
+  color: var(--danger);
+}
+.prop-add-btn {
+  font-size: var(--text-ui-sm);
+  padding: 4px 10px;
+}
+@media (hover: hover) {
+  .prop-del {
+    visibility: hidden;
+  }
+  .prop-row:hover .prop-del,
+  .prop-row:focus-within .prop-del {
+    visibility: visible;
+  }
+}
+
+/* collaborators' cursors (y-codemirror.next) */
+.cm-ySelectionInfo {
+  font-family: var(--sans);
+  font-size: var(--text-caption);
+  padding: 1px 4px;
+  border-radius: var(--radius-sm) var(--radius-sm) var(--radius-sm) 0;
+  opacity: 1 !important;
+  top: -1.3em !important;
+}
+
+/* Tables edited cell by cell (F8) */
+.cm-table-edit {
+  position: relative;
+}
+.cm-table-edit td,
+.cm-table-edit th {
+  cursor: text;
+  min-width: 3em;
+  outline: none;
+}
+.cm-table-edit td:focus,
+.cm-table-edit th:focus {
+  box-shadow: inset 0 0 0 2px var(--accent);
+  background: var(--accent-soft);
+}
+/* It floats over the space above the table, so showing it never moves the cells. */
+.table-bar {
+  display: none;
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  z-index: var(--z-menu);
+  flex-wrap: wrap;
+  gap: 2px;
+  padding: 4px;
+  margin-bottom: 2px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  font-family: var(--sans);
+}
+.cm-table-edit:focus-within .table-bar {
+  display: flex;
+}
+.table-bar button {
+  background: var(--bg2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  padding: 2px 8px;
+  font-size: var(--text-small);
+  gap: 4px;
+  color: var(--muted);
+}
+.table-bar button:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+.table-bar button.align {
+  min-width: 28px;
+  justify-content: center;
+}
+@media (pointer: coarse) {
+  .table-bar button {
+    min-height: var(--tap);
+  }
+}
+
+/* The block handle (web/lib/blockHandle.ts): + inserts below, ⋮⋮ drags or opens the block menu. */
+.cm-block-handle {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  transform: translateY(-50%);
+  color: var(--faint);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+.cm-block-handle[hidden],
+.cm-block-drop[hidden] {
+  display: none;
+}
+.cm-block-btn {
+  width: 22px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: none;
+}
+.cm-block-btn:hover,
+.cm-block-btn:focus-visible,
+.cm-block-grip.dragging {
+  background: var(--bg3);
+  color: var(--muted);
+}
+.cm-block-grip {
+  cursor: grab;
+  touch-action: none; /* a long press then a drag moves the block instead of scrolling */
+}
+.cm-block-dragging,
+.cm-block-dragging .cm-block-grip {
+  cursor: grabbing;
+}
+.cm-block-dragging .cm-content {
+  user-select: none;
+}
+/* The phone has no hover: just the ⋮⋮ by the cursor's block (its menu has "Insert below"),
+   narrow enough for the page margin, with a finger-sized target around it. */
+.cm-block-handle.touch .cm-block-plus {
+  display: none;
+}
+.cm-block-handle.touch .cm-block-btn {
+  width: 18px;
+  position: relative;
+}
+.cm-block-handle.touch .cm-block-btn::after {
+  content: "";
+  position: absolute;
+  inset: -10px -6px;
+}
+.cm-block-drop {
+  position: absolute;
+  z-index: 2;
+  height: 2px;
+  border-radius: var(--radius-xs);
+  background: var(--accent);
+  pointer-events: none;
+}
+/* On a laptop the page margin has room for the handle; reading view matches, so switching views
+   never moves the text. */
+@media (hover: hover) and (pointer: fine) {
+  .editor .cm-content {
+    padding: 0 52px;
+  }
+  .pane.preview.markdown {
+    padding-left: 52px;
+    padding-right: 52px;
+  }
+}

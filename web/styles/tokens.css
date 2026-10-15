@@ -1,0 +1,147 @@
+/* Design tokens: the only place colours, type sizes, radii, shadows, motion and layers are set.
+   Components use these variables and nothing else (docs/PRINCIPLES.md §2). Spacing follows a
+   4 px grid (4, 8, 12, 16, 24). */
+
+:root {
+  /* colour */
+  --bg: #ffffff;
+  --bg2: #f7f6fb;
+  --bg3: #eeecf6;
+  --text: #22212b;
+  --muted: #6b6880;
+  --faint: #706d83; /* still text: 4.5:1 on --bg3 and lighter (WCAG AA, test/ui axe) */
+  --line: #e2e0ec;
+  --accent: #6352c4; /* 4.5:1 as text on --accent-soft, and white on it */
+  --accent-soft: #6352c41f;
+  --accent-text: #ffffff;
+  --on-color: #ffffff; /* text on a user's colour (avatars) */
+  --code: #b5386b;
+  --code-bg: #f3f1f8;
+  --mark: #fff3a3;
+  --node: #8f8aa8;
+  --danger: #b83535;
+  --ok: #2f8a4f;
+  --warn: #c27a12;
+  --info: #2d7fc0;
+  --scrim: #0f0e1659;
+
+  /* colours a note can use (F10): text and highlight, the palette in web/lib/colours.ts */
+  --tc-red: #d93025;
+  --tc-orange: #e8710a;
+  --tc-yellow: #b98900;
+  --tc-green: #188038;
+  --tc-blue: #1a73e8;
+  --tc-purple: #8430ce;
+  --tc-pink: #c2185b;
+  --tc-cyan: #00838f;
+  --tc-grey: #6b6880;
+  --hl-red: #ff5582a6;
+  --hl-orange: #ffb86ca6;
+  --hl-yellow: #fff3a3a6;
+  --hl-green: #bbfabba6;
+  --hl-blue: #adccffa6;
+  --hl-purple: #d2b3ffa6;
+  --hl-pink: #ffb8eba6;
+  --hl-cyan: #abf7f7a6;
+  --hl-grey: #cacfd9a6;
+
+  /* type: one scale for the whole app; markdown headings scale from the body in em */
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  --text-caption: 11px; /* badges, keyboard hints, cursor labels */
+  --text-small: 12px; /* metadata, section labels */
+  --text-ui-sm: 13px; /* secondary UI, help text */
+  --text-ui: 14px; /* lists, menus, the file tree */
+  --text-body: 15px; /* the app's base size */
+  --text-input: 16px; /* editor and inputs: 16px stops iOS zooming on focus */
+  --text-title: 17px; /* note titles, dialog titles */
+  --text-display: 22px;
+
+  /* shape */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius: 8px;
+  --radius-lg: 14px; /* dialogs, sheets, cards */
+  --radius-pill: 999px;
+  --shadow: 0 10px 40px #1c1b2a26, 0 2px 8px #1c1b2a14;
+
+  /* motion: short, and only to show where something came from or went */
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur: 200ms;
+  --dur-loop: 1s; /* the loading bar */
+
+  /* focus */
+  --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* layers */
+  --z-menu: 30;
+  --z-scrim: 35;
+  --z-drawer: 40;
+  --z-modal: 50;
+  --z-toast: 60;
+  --z-drag: 1000;
+
+  /* touch: the smallest tap target on a phone (Apple HIG) */
+  --tap: 44px;
+
+  /* layout */
+  --sidebar-w: 272px;
+  --right-w: 280px;
+  --right-ai-w: 380px; /* the side panel on its AI tab */
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b22;
+    --bg2: #232229;
+    --bg3: #2c2b34;
+    --text: #e6e4ef;
+    --muted: #a19eb3;
+    --faint: #8e8ba0;
+    --line: #34323e;
+    --accent: #9d8cf5;
+    --accent-soft: #9d8cf526;
+    --accent-text: #15141a;
+    --code: #f28fb4;
+    --code-bg: #2a2931;
+    --mark: #6b5d1e;
+    --node: #77738c;
+    --danger: #f07171;
+    --ok: #6fcf8f;
+    --warn: #e9a94b;
+    --info: #6cb4ea;
+    --scrim: #0009;
+
+    --tc-red: #ff8a80;
+    --tc-orange: #ffb067;
+    --tc-yellow: #f2cc60;
+    --tc-green: #7ee2a8;
+    --tc-blue: #8ab4f8;
+    --tc-purple: #d7aefb;
+    --tc-pink: #f48fb1;
+    --tc-cyan: #78d9ec;
+    --tc-grey: #a19eb3;
+    --hl-red: #ff558259;
+    --hl-orange: #ffb86c4d;
+    --hl-yellow: #e6d25a4d;
+    --hl-green: #6fdc6f40;
+    --hl-blue: #6f9cff4d;
+    --hl-purple: #a57cff4d;
+    --hl-pink: #ff8fd94d;
+    --hl-cyan: #5fd8d840;
+    --hl-grey: #9aa1b04d;
+    --shadow: 0 10px 40px #0009, 0 2px 8px #0006;
+    color-scheme: dark;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur: 0ms;
+    --dur-loop: 0s;
+  }
+}

@@ -1,0 +1,51 @@
+# Render Blueprint for Commonplace. Deploy: Render dashboard → New → Blueprint → this repo.
+#
+# This file is what a fresh Blueprint deploy creates. A deployment made another way (by hand, or
+# with the Render API) takes its settings from the Render dashboard, not from here: changes to
+# env vars in this file don't reach it.
+# Region frankfurt (closest to the UK). Approx cost: web starter $7 + Postgres basic-256mb $6.
+#
+# Exactly one instance: live-editing rooms and event streams live in the server's memory, so a
+# second instance would split people editing the same note. Don't add scaling.
+#
+# Storage (N9): the database has 1 GB and storage autoscaling is OFF on purpose, so a runaway
+# write can't quietly grow the bill. The server guards the disk instead (src/storage.ts): at 90%
+# of DB_DISK_GB it refuses new data, so the database never fills (Render suspends a full one).
+# If the disk is ever enlarged, set DB_DISK_GB to match.
+#
+# First boot: read SETUP_TOKEN from the service's Environment tab and enter it when creating the
+# first (admin) account. ALLOW_SIGNUP=false, so after that only an admin can add accounts.
+
+services:
+  - type: web
+    name: commonplace
+    runtime: docker
+    region: frankfurt
+    plan: starter            # never free: it sleeps after 15 min idle and drops live sessions
+    numInstances: 1
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: commonplace-db
+          property: connectionString
+      - key: SETUP_TOKEN
+        generateValue: true
+      - key: ALLOW_SIGNUP
+        value: "false"
+      - key: COOKIE_SECURE
+        value: "true"
+      - key: EMBEDDING_PROVIDER
+        value: relaxai       # Mistral-7b-embedding, UK; notes re-embed at boot after a switch
+      - key: RELAX_API_KEY   # relaxAI, for embeddings (people's assistants use their own keys)
+        sync: false
+      - key: SECRETS_KEY          # encrypts people's AI API keys (bring your own AI)
+        generateValue: true
+      - key: DB_DISK_GB           # the database disk; the storage guard stops new data at 90%
+        value: "1"
+
+databases:
+  - name: commonplace-db
+    region: frankfurt
+    plan: basic-256mb        # never free: it expires after 30 days
+    postgresMajorVersion: "18"

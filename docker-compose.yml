@@ -1,0 +1,39 @@
+# Local stack. `docker compose up -d` runs Postgres+pgvector and the app;
+# `docker compose up -d db` runs just the database for `bun run dev`.
+services:
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: commonplace
+      POSTGRES_PASSWORD: commonplace
+      POSTGRES_DB: commonplace
+    ports:
+      - "127.0.0.1:5434:5432" # this machine only: the password above is not a secret
+    volumes:
+      # From 18 the image keeps data in a versioned subfolder (/var/lib/postgresql/18/docker),
+      # so the volume mounts one level up. A 17 volume can't be reused; it's a fresh cluster.
+      - pgdata18:/var/lib/postgresql
+      # Runs on first start only: creates commonplace_test for the e2e suite.
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commonplace"]
+      interval: 5s
+      retries: 10
+  app:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://commonplace:commonplace@db:5432/commonplace
+      PORT: "3000"
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-hash}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-false}
+      # No SETUP_TOKEN here on purpose: the server makes one for the first account and prints it
+      # in the log (`docker compose logs app`).
+    ports:
+      - "3000:3000"
+volumes:
+  pgdata18:

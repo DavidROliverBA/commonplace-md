@@ -1,0 +1,129 @@
+/* ── note ───────────────────────────────────────────────────────────────────────── */
+/* The note screen (web/components/NoteView.tsx): header, title, peers, connection dot, view
+   modes and panes. Its header is shared by the vault home, graph and other full screens. */
+.note-view,
+.graph-view,
+.vault-home {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.note-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: calc(8px + env(safe-area-inset-top)) 12px 8px 16px;
+  border-bottom: 1px solid var(--line);
+  min-height: 52px;
+}
+.note-title-wrap {
+  flex: 1;
+  min-width: 0;
+}
+.breadcrumb {
+  font-size: var(--text-small);
+  color: var(--faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.note-title {
+  margin: 0;
+  font-size: var(--text-title);
+  font-weight: 650;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  cursor: text;
+  flex: 1;
+}
+.title-input {
+  width: 100%;
+  font-size: var(--text-title);
+  font-weight: 650;
+  padding: 2px 6px;
+}
+.note-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.peers {
+  display: flex;
+  padding-left: 6px;
+}
+.conn {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--faint);
+}
+.conn-connected {
+  background: var(--ok);
+}
+.conn-disconnected {
+  background: var(--danger);
+}
+.segmented {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.segmented button {
+  border: none;
+  border-radius: 0;
+  background: none;
+  padding: 5px 8px;
+  color: var(--muted);
+}
+.segmented button.on {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.note-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+.pane {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mode-split .edit-pane {
+  border-right: 1px solid var(--line);
+}
+.loading-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  background-size: 50% 100%;
+  animation: slide var(--dur-loop) linear infinite;
+  z-index: 5;
+}
+@keyframes slide {
+  from {
+    background-position: -50% 0;
+  }
+  to {
+    background-position: 150% 0;
+  }
+}
+
+/* The empty vault's offer of a tour (src/tour.ts) */
+.tour-offer {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--bg2);
+  max-width: 520px;
+}
+.tour-offer p {
+  margin: 0 0 12px;
+}

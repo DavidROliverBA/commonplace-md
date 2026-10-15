@@ -1,0 +1,20 @@
+/* Commonplace's stylesheet, in parts. Order matters: tokens first, phone overrides last.
+   Rules: values come from tokens.css only, and each component's styles live in one file
+   (docs/PRINCIPLES.md §2). */
+
+@import "./styles/tokens.css";
+@import "./styles/base.css";
+@import "./styles/layout.css";
+@import "./styles/sidebar.css";
+@import "./styles/note.css";
+@import "./styles/editor.css";
+@import "./styles/markdown.css";
+@import "./styles/format-bar.css";
+@import "./styles/panels.css";
+@import "./styles/overlays.css";
+@import "./styles/ai.css";
+@import "./styles/types.css";
+@import "./styles/git.css";
+@import "./styles/login.css";
+@import "./styles/site.css";
+@import "./styles/phone.css";

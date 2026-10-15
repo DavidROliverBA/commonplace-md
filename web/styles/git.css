@@ -1,0 +1,139 @@
+/* GitHub vaults (F14): the branch bar, the changes page, the pull request form. */
+
+.branch-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 4px 12px 4px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg2);
+  font-size: var(--text-ui-sm);
+  color: var(--muted);
+  flex-shrink: 0;
+}
+.branch-bar > .icon {
+  flex-shrink: 0;
+}
+.branch-what {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  min-width: 0;
+  flex: 1;
+}
+.branch-line {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+.branch-line code {
+  font-size: var(--text-small);
+}
+.branch-from {
+  color: var(--muted);
+}
+.branch-count {
+  font-size: var(--text-ui-sm);
+  white-space: nowrap;
+}
+.branch-clash {
+  color: var(--warn);
+}
+.branch-pr {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  text-decoration: none;
+  white-space: nowrap;
+  color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+}
+.branch-pr.pr-merged {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.branch-pr.pr-closed {
+  color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+}
+.branch-bar .primary {
+  white-space: nowrap;
+}
+
+/* the changes page */
+.change-list {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.change {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+}
+.change-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.change-kind {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 76px;
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+.change-added .change-kind {
+  color: var(--ok);
+}
+.change-deleted .change-kind {
+  color: var(--danger);
+}
+.change-clash .change-kind {
+  color: var(--warn);
+}
+.change-path {
+  font-family: var(--mono);
+  font-size: var(--text-ui-sm);
+  overflow-wrap: anywhere;
+}
+.change-from,
+.change-note {
+  font-size: var(--text-small);
+  margin: 4px 0;
+}
+.change-unpushed {
+  font-size: var(--text-caption);
+  color: var(--warn);
+}
+.change-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 4px;
+}
+.change .diff {
+  margin-top: 8px;
+}
+
+/* connecting and picking */
+.github-connect .row input {
+  flex: 1;
+  min-width: 0;
+}
+.field.grow {
+  flex: 1;
+  min-width: 140px;
+}
+.pr-form textarea {
+  font-family: var(--sans);
+  font-size: var(--text-input);
+  resize: vertical;
+}

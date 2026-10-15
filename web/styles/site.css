@@ -1,0 +1,76 @@
+/* Published sites (F18, src/publish.ts): the reading theme. The server sends it with tokens.css
+   and markdown.css as /p/<site>/_site/style.css; everything here is under .site, so loading it in
+   the app (web/styles.css) changes nothing there. */
+
+body.site {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: var(--text-body);
+}
+.site a {
+  color: var(--accent);
+}
+.site-skip {
+  position: absolute;
+  left: 16px;
+  top: -48px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.site-skip:focus {
+  top: 8px;
+}
+.site-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 16px;
+  border-bottom: 1px solid var(--line);
+}
+.site .site-name {
+  color: var(--text);
+  font-size: var(--text-title);
+  font-weight: 600;
+  text-decoration: none;
+}
+.site-head nav a {
+  font-size: var(--text-ui);
+}
+.site-main.markdown {
+  padding: 24px 16px 96px;
+}
+/* Links in running text are underlined, not told apart by colour alone (WCAG 1.4.1). */
+.site-main.markdown a {
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+.site mark {
+  background: var(--mark);
+  color: inherit;
+}
+.site-crumbs {
+  color: var(--muted);
+  font-size: var(--text-ui-sm);
+  margin-bottom: 4px;
+}
+.site-main h1 {
+  margin-top: 0;
+}
+.site-embed {
+  border-left: 3px solid var(--line);
+  padding-left: 16px;
+  margin: 16px auto;
+}
+.site-embed > .internal-link {
+  font-weight: 600;
+}
+.site-main input.task {
+  margin-right: 4px;
+}

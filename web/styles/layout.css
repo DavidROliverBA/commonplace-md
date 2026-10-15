@@ -1,0 +1,82 @@
+/* ── layout ─────────────────────────────────────────────────────────────────────── */
+/* Three columns: the file panel, the note, the links panel. Hiding a panel animates its column
+   to nothing, so the note widens smoothly and the panel slides out at its full width (F15). The
+   widths are registered properties so they can transition. */
+@property --left {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+@property --right {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
+.app {
+  --left: 0px;
+  --right: 0px;
+  display: grid;
+  grid-template-columns: var(--left) minmax(0, 1fr) var(--right);
+  /* --vvh tracks the visual viewport so the iOS keyboard shrinks the app instead of covering it */
+  height: var(--vvh, 100dvh);
+  overflow: hidden;
+}
+.app.ready {
+  transition:
+    --left var(--dur) var(--ease),
+    --right var(--dur) var(--ease);
+}
+.app.left-open {
+  --left: var(--sidebar-w);
+}
+.app.right-open {
+  --right: var(--right-w);
+}
+.sidebar {
+  width: var(--sidebar-w);
+  margin-left: calc(var(--left) - var(--sidebar-w));
+}
+.right-panel {
+  width: var(--right-w);
+}
+/* Visibility flips only once the slide ends, and takes a hidden panel out of the tab order. */
+.app.ready .sidebar,
+.app.ready .right-panel {
+  transition: visibility var(--dur);
+}
+.app:not(.left-open) .sidebar,
+.app:not(.right-open) .right-panel {
+  visibility: hidden;
+}
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+.only-narrow {
+  display: none;
+}
+
+/* Focus mode: only the note's text, at reading width. The panels slide away as when hidden;
+   the note's header fades until the pointer or keyboard comes to it. */
+.app.focus-mode {
+  --left: 0px;
+  --right: 0px;
+}
+.app.focus-mode .sidebar,
+.app.focus-mode .right-panel {
+  visibility: hidden;
+}
+.app.focus-mode .note-header {
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.app.focus-mode .note-header:hover,
+.app.focus-mode .note-header:focus-within {
+  opacity: 1;
+}
+.app.focus-mode .editor .cm-content {
+  max-width: 680px;
+}

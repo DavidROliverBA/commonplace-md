@@ -1,0 +1,43 @@
+# Daily off-site backup: every vault as markdown (opens in any Markdown editor) plus history, members and
+# Trash as JSON, kept as a workflow artifact for 14 days. Independent of Render, whose own
+# point-in-time recovery only covers 3 days on the Hobby plan.
+#
+# ⚠ Only in a PRIVATE repository: anyone who can read a repository can download its artifacts,
+# and a backup holds every note. On a public repository, leave BACKUP_URL unset.
+#
+# Needs repository secret BACKUP_TOKEN (same value as the service's BACKUP_TOKEN env var) and
+# repository variable BACKUP_URL (https://<service>/api/backup). Run it by hand from the Actions
+# tab ("Run workflow") to check it; download a backup from the run's Artifacts section.
+name: Backup
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC daily
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    # Does nothing until BACKUP_URL is set, so a copy of this repository doesn't fail every night.
+    if: vars.BACKUP_URL != ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download backup
+        env:
+          BACKUP_TOKEN: ${{ secrets.BACKUP_TOKEN }}
+          BACKUP_URL: ${{ vars.BACKUP_URL }}
+        run: |
+          test -n "$BACKUP_TOKEN" && test -n "$BACKUP_URL" || { echo "Set the BACKUP_TOKEN secret and BACKUP_URL variable"; exit 1; }
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 --max-time 600 \
+            -H "Authorization: Bearer $BACKUP_TOKEN" -o backup.zip "$BACKUP_URL"
+          unzip -l backup.zip | tail -1
+          echo "STAMP=$(date -u +%Y-%m-%d)" >> "$GITHUB_ENV"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: commonplace-backup-${{ env.STAMP }}
+          path: backup.zip
+          retention-days: 14
+          compression-level: 0

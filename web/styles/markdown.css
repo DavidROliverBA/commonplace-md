@@ -1,0 +1,303 @@
+/* Rendered markdown (.markdown, web/lib/render.ts): reading view, split view and AI replies, plus
+   what Live Preview shares with them (callouts, embeds, link cards, colours). Published sites
+   load this file too (site.css). */
+.markdown {
+  padding: 24px 28px 30vh;
+  line-height: 1.7;
+  font-size: var(--text-input);
+}
+.markdown > * {
+  max-width: 760px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  line-height: 1.3;
+  margin-top: 1.4em;
+  margin-bottom: 0.5em;
+}
+.markdown h1 {
+  font-size: 1.75em;
+}
+.markdown h2 {
+  font-size: 1.4em;
+}
+.markdown h3 {
+  font-size: 1.2em;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown code {
+  font-family: var(--mono);
+  font-size: 0.88em;
+  background: var(--code-bg);
+  color: var(--code);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+.markdown pre {
+  background: var(--code-bg);
+  padding: 12px 16px;
+  border-radius: var(--radius);
+  overflow-x: auto;
+}
+.markdown pre code {
+  background: none;
+  color: var(--text);
+  padding: 0;
+}
+.markdown blockquote {
+  border-left: 3px solid var(--accent);
+  margin-left: auto;
+  padding-left: 16px;
+  color: var(--muted);
+}
+.markdown img,
+.markdown video {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+.markdown table {
+  border-collapse: collapse;
+  display: block;
+  overflow-x: auto;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+}
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--line);
+}
+.markdown .internal-link {
+  text-decoration: none;
+  color: var(--accent);
+}
+.markdown .internal-link:hover {
+  text-decoration: underline;
+}
+.markdown .internal-link.unresolved {
+  opacity: 0.65;
+  text-decoration: underline dotted;
+}
+.markdown .tag {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  text-decoration: none;
+  font-size: 0.9em;
+}
+.markdown li:has(> input.task) {
+  list-style: none;
+  margin-left: -1.3em;
+}
+.markdown input.task {
+  width: 16px;
+  height: 16px;
+  vertical-align: -2px;
+  accent-color: var(--accent);
+  margin-right: 4px;
+}
+.markdown li:has(> input.task:checked) {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+.properties {
+  font-size: var(--text-ui-sm);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  margin-bottom: 1.5em !important;
+  width: 100%;
+  display: table !important;
+}
+.properties th {
+  color: var(--muted);
+  font-weight: 500;
+  width: 30%;
+  border: none !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+.properties td {
+  border: none !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+.callout {
+  --c: var(--accent);
+  border-left: 4px solid var(--c);
+  background: color-mix(in srgb, var(--c) 9%, transparent);
+  border-radius: var(--radius);
+  padding: 10px 14px;
+  margin: 1em auto;
+}
+/* Callout colours, shared by reading view (.callout) and Live Preview (.cm-lp-callout). The
+   types are the common callout types, so callouts look the same in other Markdown editors. */
+:is(.callout, .cm-lp-callout)[data-callout="warning"],
+:is(.callout, .cm-lp-callout)[data-callout="caution"],
+:is(.callout, .cm-lp-callout)[data-callout="attention"] {
+  --c: var(--warn);
+}
+:is(.callout, .cm-lp-callout)[data-callout="danger"],
+:is(.callout, .cm-lp-callout)[data-callout="error"],
+:is(.callout, .cm-lp-callout)[data-callout="bug"],
+:is(.callout, .cm-lp-callout)[data-callout="failure"] {
+  --c: var(--danger);
+}
+:is(.callout, .cm-lp-callout)[data-callout="tip"],
+:is(.callout, .cm-lp-callout)[data-callout="success"],
+:is(.callout, .cm-lp-callout)[data-callout="check"],
+:is(.callout, .cm-lp-callout)[data-callout="done"] {
+  --c: var(--ok);
+}
+:is(.callout, .cm-lp-callout)[data-callout="question"],
+:is(.callout, .cm-lp-callout)[data-callout="faq"],
+:is(.callout, .cm-lp-callout)[data-callout="help"] {
+  --c: var(--info);
+}
+.callout-title {
+  font-weight: 650;
+  /* Toward the text colour, so every type reads at 4.5:1 on its tint (the status colours alone
+     don't, in light or dark). */
+  color: color-mix(in srgb, var(--c) 70%, var(--text));
+}
+.callout-body > :first-child {
+  margin-top: 4px;
+}
+.callout-body > :last-child {
+  margin-bottom: 0;
+}
+
+/* ── Notes inside notes (F2) and link cards (F16 step 5): reading view and Live Preview ──── */
+.note-embed {
+  display: block;
+  margin: 1em auto;
+  padding: 10px 16px 6px;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--bg2);
+}
+.note-embed-head {
+  margin-bottom: 4px;
+  font-size: var(--text-small);
+  font-weight: 600;
+}
+.note-embed-head .internal-link {
+  color: var(--muted);
+  text-decoration: none;
+}
+.note-embed-head .internal-link::before {
+  content: "↪ ";
+}
+.note-embed-head .internal-link:hover {
+  color: var(--accent);
+}
+.note-embed-body {
+  padding: 0;
+  font-size: inherit;
+}
+.note-embed-body > :first-child {
+  margin-top: 0;
+}
+.note-embed-body > * {
+  max-width: none;
+}
+.note-embed .note-embed {
+  background: var(--bg);
+}
+.note-embed-missing {
+  color: var(--faint);
+  font-style: italic;
+  margin: 4px 0 6px;
+}
+.link-card.is-card {
+  margin: 0.6em auto;
+}
+.link-card-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--bg);
+  color: var(--text);
+  text-decoration: none;
+  flex-wrap: wrap;
+}
+.link-card-box:hover {
+  border-color: var(--type-c);
+}
+.link-card-icon {
+  display: inline-flex;
+  width: 34px;
+  height: 34px;
+  border-radius: var(--radius-md);
+  align-items: center;
+  justify-content: center;
+  color: var(--type-c);
+  background: color-mix(in srgb, var(--type-c) 14%, transparent);
+}
+.link-card-main {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.link-card-title {
+  font-weight: 650;
+}
+.link-card-type {
+  font-size: var(--text-small);
+  color: var(--type-c);
+}
+.link-card-props {
+  display: flex;
+  gap: 16px;
+  margin-left: auto;
+  font-size: var(--text-ui-sm);
+  flex-wrap: wrap;
+}
+.link-card-prop small {
+  color: var(--faint);
+  margin-right: 2px;
+}
+.cm-lp-embed,
+.cm-lp-card {
+  cursor: pointer;
+}
+.cm-lp-embed.note-embed {
+  padding: 10px 16px 6px;
+  margin: 0.6em 0;
+}
+
+/* Colours (F10): palette colours by class, so they read in light and dark; any other colour a
+   note carries comes through as its own (sanitised) style. */
+.tc-red { color: var(--tc-red); }
+.tc-orange { color: var(--tc-orange); }
+.tc-yellow { color: var(--tc-yellow); }
+.tc-green { color: var(--tc-green); }
+.tc-blue { color: var(--tc-blue); }
+.tc-purple { color: var(--tc-purple); }
+.tc-pink { color: var(--tc-pink); }
+.tc-cyan { color: var(--tc-cyan); }
+.tc-grey { color: var(--tc-grey); }
+mark.hl-red, .hl-red { background: var(--hl-red); color: inherit; }
+mark.hl-orange, .hl-orange { background: var(--hl-orange); color: inherit; }
+mark.hl-yellow, .hl-yellow { background: var(--hl-yellow); color: inherit; }
+mark.hl-green, .hl-green { background: var(--hl-green); color: inherit; }
+mark.hl-blue, .hl-blue { background: var(--hl-blue); color: inherit; }
+mark.hl-purple, .hl-purple { background: var(--hl-purple); color: inherit; }
+mark.hl-pink, .hl-pink { background: var(--hl-pink); color: inherit; }
+mark.hl-cyan, .hl-cyan { background: var(--hl-cyan); color: inherit; }
+mark.hl-grey, .hl-grey { background: var(--hl-grey); color: inherit; }
+.markdown mark[style],
+.cm-lp-colour {
+  border-radius: var(--radius-xs);
+}

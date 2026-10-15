@@ -1,0 +1,245 @@
+/* Base elements and the shared controls: buttons, inputs, pills, notices. */
+
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: var(--text-body)/1.5 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+button {
+  cursor: pointer;
+}
+a {
+  color: var(--accent);
+}
+[hidden] {
+  display: none !important;
+}
+
+input:not([type="checkbox"]),
+select {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+  min-width: 0;
+}
+textarea {
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 8px 10px;
+}
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+/* One visible focus ring for keyboard users, everywhere (principle 9). */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+button,
+.button {
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+button,
+.button {
+  background: var(--bg3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 7px 12px;
+  text-decoration: none;
+  color: var(--text);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+button:hover,
+.button:hover {
+  border-color: var(--faint);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+/* Button variants: default (secondary), .primary (the action), .danger (destroys something),
+   .quiet (no chrome, for toolbars and lists), .link (text only). */
+button.primary,
+.button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 600;
+  justify-content: center;
+}
+button.primary:hover {
+  background: color-mix(in srgb, var(--accent) 88%, var(--text));
+}
+button.danger {
+  color: var(--danger);
+}
+button.primary.danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--accent-text);
+}
+button.quiet {
+  background: none;
+  border-color: transparent;
+}
+button.quiet:hover {
+  background: var(--bg3);
+}
+button.link,
+.danger-link {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--accent);
+}
+.danger-link {
+  color: var(--danger);
+}
+.icon-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  border-radius: var(--radius-md);
+  color: var(--muted);
+}
+.icon-btn:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+.icon-btn {
+  justify-content: center;
+}
+/* Phones: every tap target at least --tap (principle 4). */
+@media (pointer: coarse) {
+  .icon-btn {
+    min-width: var(--tap);
+    min-height: var(--tap);
+  }
+  .sidebar-actions button,
+  .tabs button,
+  .segmented button,
+  .modal-body button,
+  .modal-body .button,
+  .quick-actions button {
+    min-height: var(--tap);
+  }
+  .segmented button {
+    min-width: 40px;
+    justify-content: center;
+  }
+  /* keyboard shortcut hints mean nothing on a phone */
+  kbd,
+  .keys-hint {
+    display: none;
+  }
+}
+.icon {
+  flex: none;
+}
+kbd {
+  font: var(--text-caption) var(--mono);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 1px 4px;
+  margin-left: auto;
+}
+.muted {
+  color: var(--muted);
+}
+.small {
+  font-size: var(--text-ui-sm);
+}
+.pad {
+  padding: 12px;
+}
+.pill,
+.badge {
+  display: inline-block;
+  font-size: var(--text-caption);
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent);
+  vertical-align: middle;
+}
+.badge {
+  background: var(--bg3);
+  color: var(--muted);
+}
+.error,
+.notice {
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger);
+  margin-bottom: 12px;
+}
+.notice {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.row.wrap {
+  flex-wrap: wrap;
+}
+.row > input {
+  flex: 1;
+}
+.check {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: var(--text-ui-sm);
+  color: var(--muted);
+}
+.splash {
+  height: 100%;
+  background: var(--bg2);
+}
+.empty-state {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  padding: 24px;
+  text-align: center;
+}

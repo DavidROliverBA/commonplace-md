@@ -1,0 +1,359 @@
+/* ── sidebar ────────────────────────────────────────────────────────────────────── */
+/* The file panel (web/components/Sidebar.tsx): vault switcher, tabs, the tree, search, tags and
+   the footer; also the list, count, meter and avatar styles other screens reuse. */
+.sidebar {
+  background: var(--bg2);
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding-top: env(safe-area-inset-top);
+}
+.vault-switch {
+  display: flex;
+  gap: 4px;
+  padding: 10px 10px 6px;
+}
+.vault-switch select {
+  flex: 1;
+  font-weight: 600;
+  background: var(--bg2);
+}
+.sidebar-actions {
+  display: flex;
+  gap: 4px;
+  padding: 4px 10px 8px;
+}
+.sidebar-actions button {
+  flex: 1;
+  justify-content: center;
+  font-size: var(--text-ui-sm);
+  padding: 6px 4px;
+  background: var(--bg);
+}
+.sidebar-actions button.narrow-btn {
+  flex: 0 0 34px;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--line);
+  padding: 0 6px;
+}
+.tabs button {
+  flex: 1;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  justify-content: center;
+  font-size: var(--text-ui-sm);
+  color: var(--muted);
+  padding: 8px 4px;
+}
+.tabs button.on {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 6px 0 12px;
+  -webkit-overflow-scrolling: touch;
+}
+.tree,
+.tree ul,
+.tag-list,
+.search-results,
+.outline,
+.link-list,
+.members,
+.recent,
+.history-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tree-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 30px;
+  padding-right: 6px;
+  margin: 0 6px;
+  border-radius: var(--radius-md);
+  color: var(--text);
+  text-decoration: none;
+  font-size: var(--text-ui);
+  cursor: pointer;
+  user-select: none;
+}
+.tree-row:hover {
+  background: var(--bg3);
+}
+/* Drag to move (web/lib/useTreeDrag.tsx): no text selection or iOS link menu on long press. */
+.tree-row {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+.tree-row.dragging {
+  opacity: 0.4;
+}
+.tree-row.drop-over {
+  background: var(--accent-soft);
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+  color: var(--accent);
+}
+.sidebar-scroll.drop-root {
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+.drag-ghost {
+  position: fixed;
+  z-index: var(--z-drag);
+  pointer-events: none;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-md);
+  padding: 4px 10px;
+  font-size: var(--text-ui-sm);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tree-row.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 550;
+}
+.tree-row.folder {
+  color: var(--muted);
+  font-weight: 550;
+}
+.tree-label {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chev {
+  display: inline-flex;
+  transition: transform var(--dur-fast) var(--ease);
+  color: var(--faint);
+}
+.chev.open {
+  transform: rotate(90deg);
+}
+.row-actions {
+  display: none;
+  align-items: center;
+  gap: 0;
+}
+.row-actions button {
+  background: none;
+  border: none;
+  padding: 3px;
+  min-width: 0;
+  min-height: 0;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+}
+.row-actions button:hover {
+  background: var(--line);
+  color: var(--text);
+}
+.tree-row:hover .row-actions,
+.tree-row:focus-within .row-actions,
+.row-actions:has(.menu-button.open) {
+  display: inline-flex;
+}
+/* Touch has no hover: always show the folder's + and ⋯, at a finger's size. */
+@media (hover: none) {
+  .row-actions {
+    display: inline-flex;
+  }
+  .row-actions button {
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+  }
+}
+.tag-list button {
+  width: 100%;
+  background: none;
+  border: none;
+  justify-content: space-between;
+  padding: 6px 14px;
+  border-radius: 0;
+}
+.tag-list button:hover {
+  background: var(--bg3);
+}
+.count {
+  font-size: var(--text-small);
+  color: var(--faint);
+  font-weight: 400;
+}
+.sidebar-foot {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 6px 10px calc(10px + env(safe-area-inset-bottom));
+}
+.sidebar-foot .icon-btn {
+  color: var(--muted);
+}
+.meter {
+  height: 8px;
+  border-radius: var(--radius-sm);
+  background: var(--bg3);
+  overflow: hidden;
+  margin: 4px 0 8px;
+}
+.meter span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+.meter.warn span {
+  background: var(--danger);
+}
+.trash-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 14px;
+}
+.trash-list li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+.trash-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.trash-name span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  padding: 8px;
+  color: var(--muted);
+}
+.account:hover {
+  background: var(--bg3);
+}
+.account-name {
+  flex: 1;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--on-color);
+  font-size: var(--text-small);
+  font-weight: 700;
+  background: var(--accent);
+  border: 2px solid var(--bg);
+  margin-left: -6px;
+}
+.avatar.small {
+  width: 24px;
+  height: 24px;
+  margin: 0;
+}
+.avatar.more {
+  background: var(--faint);
+}
+
+/* search */
+.search-panel {
+  padding: 4px 10px;
+}
+.search-panel input {
+  width: 100%;
+}
+.search-meta {
+  font-size: var(--text-small);
+  padding: 6px 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.search-save {
+  font-size: var(--text-small);
+  padding: 2px 6px;
+  gap: 4px;
+}
+.search-save.on {
+  color: var(--accent);
+}
+.search-results a {
+  display: block;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: var(--text);
+}
+.search-results a:hover {
+  background: var(--bg3);
+}
+.hit-title {
+  font-weight: 600;
+  font-size: var(--text-ui);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.hit-path {
+  font-size: var(--text-small);
+  color: var(--faint);
+}
+.hit-snippet {
+  font-size: var(--text-ui-sm);
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.hit-snippet mark,
+.markdown mark {
+  background: var(--mark);
+  color: inherit;
+  border-radius: var(--radius-xs);
+}
+
+/* Offline (F4): a quiet badge, shown only while the app has no connection. */
+.offline-badge {
+  display: none;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  background: color-mix(in srgb, var(--warn) 18%, transparent);
+  color: var(--warn);
+  margin-right: 4px;
+}
+.app.offline .offline-badge {
+  display: inline-block;
+}
