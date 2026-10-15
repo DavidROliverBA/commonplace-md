@@ -22,7 +22,7 @@ import { startFakeGitHub, TOKEN } from "../fakeGitHub";
 import { chromePath } from "./chrome";
 import { addDays, dailyPath, formatDate } from "../../web/lib/templates";
 
-const PORT = 3198;
+const PORT = 3298;
 const BASE = `http://localhost:${PORT}`;
 const ADMIN_DB = process.env.UI_ADMIN_DATABASE_URL ?? "postgres://commonplace:commonplace@localhost:5434/commonplace";
 const DB = ADMIN_DB.replace(/\/[^/]+$/, "/commonplace_ui");
@@ -109,7 +109,7 @@ function watchdog(page: Page) {
 const openNote = async (id: number, phone = false) => {
   const page = await open(`/v/${vaultId}/n/${id}`, phone);
   await page.waitForSelector(".cm-content");
-  await Bun.sleep(700); // live sync
+  await page.waitForSelector(".note-body[data-synced]", { timeout: 10_000 }); // live sync
   return page;
 };
 const content = (p: Page) => p.$eval(".cm-content", (e) => e.textContent ?? "");
@@ -166,7 +166,7 @@ beforeAll(async () => {
 
 function startServer() {
   return Bun.spawn(["bun", "src/server.ts"], {
-    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", SETUP_TOKEN: "", EMBEDDING_PROVIDER: "hash", SECRETS_KEY: "ui-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3186", NODE_ENV: process.env.UI_NODE_ENV ?? "production" },
+    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", SETUP_TOKEN: "", EMBEDDING_PROVIDER: "hash", SECRETS_KEY: "ui-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3286", NODE_ENV: process.env.UI_NODE_ENV ?? "production" },
     stdout: "ignore",
     stderr: "inherit",
   });
@@ -781,7 +781,7 @@ describe("block handle (F12)", () => {
 
 describe("GitHub vaults (F14)", () => {
   beforeAll(freshBrowser);
-  const gh = startFakeGitHub(3186);
+  const gh = startFakeGitHub(3286);
   afterAll(() => gh.stop());
   let gv = 0;
   const barText = (p: Page) => p.$eval(".branch-bar", (e) => e.textContent ?? "");
@@ -1043,7 +1043,7 @@ describe("connect Claude (MCP)", () => {
 
 describe("bring your own AI", () => {
   beforeAll(freshBrowser);
-  const fake = startFakeAi(3196);
+  const fake = startFakeAi(3296);
   afterAll(() => fake.stop());
   const noteText = async (id: number) => (await api(`/vaults/${vaultId}/notes/${id}`)).content as string;
   const typeAtEnd = async (p: Page, text: string) => {
@@ -1540,7 +1540,7 @@ describe("small wins", () => {
 describe("weblinks", () => {
   beforeAll(freshBrowser);
   const page = Bun.serve({
-    port: 3187,
+    port: 3287,
     fetch: () => new Response(`<head><meta property="og:title" content="A Good Read"><meta property="og:description" content="Worth the time."></head>`, { headers: { "content-type": "text/html" } }),
   });
   afterAll(() => page.stop(true));
@@ -1553,7 +1553,7 @@ describe("weblinks", () => {
     await p.waitForSelector(".palette input");
     await p.keyboard.type("save a web link");
     await p.keyboard.press("Enter");
-    await answer(p, "http://localhost:3187/read");
+    await answer(p, "http://localhost:3287/read");
     await p.waitForSelector(".cm-content");
     await until(async () => (await content(p)).includes("Worth the time."));
     expect(await p.$eval(".type-chip", (e) => e.textContent?.trim())).toBe("Weblink");
@@ -1617,7 +1617,7 @@ describe("accessibility (axe)", () => {
   // critical problems fail; A11Y_REPORT=1 prints every finding.
   const AXE = Bun.file(require.resolve("axe-core/axe.min.js")).text();
   async function audit(p: Page, where: string, scope?: string) {
-    if (!(await p.evaluate(() => "axe" in window))) await p.addScriptTag({ content: await AXE });
+    if (!(await p.evaluate(() => "axe" in window))) await p.evaluate(await AXE); // through the debugger, not an inline <script>: the app's CSP allows none
     const found = (await p.evaluate(
       (sel) =>
         (window as any).axe
@@ -1781,6 +1781,174 @@ describe("website (F18)", () => {
   });
 });
 
+describe("review fixes (N13, client)", () => {
+  beforeAll(freshBrowser);
+  const searchTab = (p: Page) =>
+    p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".sidebar-tabs button, .tabs button")].find((b) => b.textContent?.includes("Search"))!.click());
+  const dbNames = (p: Page) => p.evaluate(async () => (await indexedDB.databases()).map((d) => d.name ?? ""));
+  const clearBox = async (p: Page, sel: string) => {
+    await p.$eval(sel, (e) => (e as HTMLInputElement).select());
+    await p.keyboard.press("Backspace");
+  };
+
+  test("someone else signing in on this browser doesn't get the last person's offline copies; the same person keeps theirs", async () => {
+    const me = (await api("/session")).user.id as number;
+    const instance = (await api("/session")).instance as string;
+    const n = await note("Private/Diary.md", "# Diary\n\nMine alone.\n");
+    const r = await fetch(`${BASE}/api/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: BASE },
+      body: JSON.stringify({ email: "other@example.com", password: "password-other", name: "Other" }),
+    });
+    const otherCookie = r.headers.get("set-cookie")!.split(";")[0]!.split("=")[1]!;
+    const ctx = await browser.createBrowserContext(); // a browser of its own: nothing left from other tests
+    const p = await ctx.newPage();
+    p.on("pageerror", (e) => errors.push(e instanceof Error ? e.message : String(e)));
+    await p.setViewport({ width: 1200, height: 850 });
+    // Copies from before they were named by person, and a cached read: nobody can say whose they are.
+    await p.goto(`${BASE}/health`);
+    await p.evaluate(async (legacy) => {
+      await new Promise((ok) => (indexedDB.open(legacy).onsuccess = ok));
+      await (await caches.open("cp-api-v1")).put("/api/vaults/999/notes", new Response("[]"));
+    }, `cp-${instance}-${n.id}`);
+    await p.setCookie({ name: "cp_session", value: cookie.split("=")[1]!, url: BASE });
+    await p.goto(`${BASE}/v/${vaultId}/n/${n.id}`, { waitUntil: "load" });
+    await p.waitForSelector(".cm-content");
+    await until(async () => (await content(p)).includes("Mine alone."));
+    const mine = `cp-${instance}-u${me}-${n.id}`;
+    await until(async () => {
+      const names = await dbNames(p);
+      return names.includes(mine) && !names.includes(`cp-${instance}-${n.id}`);
+    });
+    expect(await p.evaluate(async () => !!(await (await caches.open("cp-api-v1")).match("/api/vaults/999/notes")))).toBe(false);
+
+    // The same person coming back keeps their copy.
+    await p.reload({ waitUntil: "load" });
+    await p.waitForSelector(".cm-content");
+    await Bun.sleep(300);
+    expect(await dbNames(p)).toContain(mine);
+
+    // Their session ends, and someone else signs in here: the first person's copies go.
+    await p.setCookie({ name: "cp_session", value: otherCookie, url: BASE });
+    await p.goto(`${BASE}/`, { waitUntil: "load" });
+    await p.waitForSelector(".sidebar");
+    await until(async () => !(await dbNames(p)).some((d) => d.includes(`-u${me}-`)));
+    await ctx.close();
+  });
+
+  test("search: clearing the box mid-debounce or mid-request clears it for good; a failed search says so and can try again", async () => {
+    await note("Search fixes/Boiler service.md", "# Boiler service\n\nAnnual check of the combi boiler.\n");
+    const p = await open(`/v/${vaultId}`);
+    await p.waitForSelector(".tree-row");
+    await searchTab(p);
+    await p.waitForSelector(".search-panel input");
+    const meta = () => p.$eval(".search-meta span", (e) => e.textContent ?? "");
+    const hits = () => p.$$eval(".search-results li", (l) => l.length);
+
+    // Cleared before the debounce fires: not stuck on "Searching…".
+    await p.type(".search-panel input", "combi");
+    await clearBox(p, ".search-panel input");
+    await Bun.sleep(400);
+    expect(await meta()).not.toContain("Searching");
+
+    // A slow reply to a search that's been cleared doesn't bring its results back.
+    let mode: "slow" | "fail" | "pass" = "slow";
+    let asked = 0;
+    await p.setRequestInterception(true);
+    p.on("request", (req) => {
+      if (req.isInterceptResolutionHandled()) return;
+      if (!req.url().includes("/search?")) return void req.continue();
+      asked++;
+      if (mode === "slow") return void setTimeout(() => void req.continue().catch(() => {}), 900);
+      if (mode === "fail") return void req.respond({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "Search is resting for a moment." }) });
+      void req.continue();
+    });
+    await p.type(".search-panel input", "combi");
+    await until(() => asked > 0);
+    await clearBox(p, ".search-panel input");
+    await Bun.sleep(1300);
+    expect(await hits()).toBe(0);
+    expect(await meta()).not.toContain("Searching");
+
+    // A failed search shows why, with a way to try again.
+    serverDown = true; // the refused request is expected here
+    mode = "fail";
+    await p.type(".search-panel input", "combi");
+    await p.waitForFunction(() => document.querySelector(".search-error")?.textContent?.includes("Search is resting for a moment."));
+    expect(await meta()).toBe("Couldn't search");
+    mode = "pass";
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".search-error button")].find((b) => b.textContent === "Try again")!.click());
+    await p.waitForFunction(() => document.querySelector(".search-results")?.textContent?.includes("Boiler service"));
+    expect(await p.$(".search-error")).toBeNull();
+    serverDown = false;
+    await p.close();
+  });
+
+  test("the links panel starts empty for each note, and says when its links couldn't load", async () => {
+    const a = await note("Links fixes/Alpha.md", "# Alpha\n\nSee [[Beta]].\n");
+    const b = await note("Links fixes/Beta.md", "# Beta\n\nNothing here.\n");
+    const p = await openNote(a.id);
+    await p.waitForFunction(() => document.querySelector(".links-panel")?.textContent?.includes("Links fixes/Beta"));
+    serverDown = true;
+    await p.setBypassServiceWorker(true); // the worker would fetch the links itself, past the interception
+    await p.setRequestInterception(true);
+    p.on("request", (req) => {
+      if (req.isInterceptResolutionHandled()) return;
+      if (/\/notes\/\d+\/links$/.test(new URL(req.url()).pathname)) return void req.respond({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The server is busy." }) });
+      void req.continue();
+    });
+    await p.evaluate((u) => (history.pushState(null, "", u), dispatchEvent(new PopStateEvent("popstate"))), `/v/${vaultId}/n/${b.id}`);
+    await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Beta");
+    // Alpha's outgoing link must not stay up as Beta's.
+    expect(await p.$eval(".links-panel", (e) => e.textContent ?? "")).not.toContain("Links fixes/Beta");
+    await p.waitForFunction(() => document.querySelector(".links-panel")?.textContent?.includes("Couldn't load this note's links. The server is busy."));
+    serverDown = false;
+    await p.close();
+  });
+
+  test("keyboard: folder rows open and close, the title renames, and the quick switcher keeps and returns focus", async () => {
+    await note("Keyfolder/Inside note.md", "# Inside note\n");
+    const n = await note("Keyfolder/Renamed by keys.md", "Text.\n"); // no heading: the title is the file's name
+    const p = await openNote(n.id);
+    const toggle = 'button.tree-toggle[aria-expanded]';
+    const expanded = () => p.evaluate(() => [...document.querySelectorAll(".tree-toggle")].find((b) => b.textContent === "Keyfolder")?.getAttribute("aria-expanded"));
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".tree-toggle")].find((b) => b.textContent === "Keyfolder")!.focus());
+    expect(await p.evaluate((s) => document.activeElement?.matches(s), toggle)).toBe(true);
+    const was = await expanded();
+    await p.keyboard.press("Enter");
+    await until(async () => (await expanded()) !== was);
+    await p.keyboard.press("Space");
+    await until(async () => (await expanded()) === was);
+
+    // The title: a focusable button named for what it does; Enter renames, and focus comes back.
+    expect(await p.$eval(".note-title .title-button", (e) => e.getAttribute("aria-label"))).toBe("Rename “Renamed by keys”");
+    await p.focus(".note-title .title-button");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.activeElement?.classList.contains("title-input"));
+    await p.$eval(".title-input", (e) => (e as HTMLInputElement).select());
+    await p.keyboard.type("Renamed with keys");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Renamed with keys");
+    await p.waitForFunction(() => document.activeElement?.classList.contains("title-button"));
+
+    // ⌘O: a modal that keeps Tab inside, and Escape puts focus back where it was.
+    await p.keyboard.down("Meta");
+    await p.keyboard.press("o");
+    await p.keyboard.up("Meta");
+    await p.waitForSelector('.switcher[role="dialog"][aria-modal="true"] input');
+    await p.waitForFunction(() => document.activeElement?.matches(".switcher input"));
+    for (let i = 0; i < 5; i++) {
+      await p.keyboard.press("Tab");
+      expect(await p.evaluate(() => !!document.activeElement?.closest(".switcher"))).toBe(true);
+    }
+    await p.keyboard.press("Escape");
+    await p.waitForFunction(() => !document.querySelector(".switcher"));
+    await p.waitForFunction(() => document.activeElement?.classList.contains("title-button"));
+    expect((await api(`/vaults/${vaultId}/notes/${n.id}`)).path).toBe("Keyfolder/Renamed with keys.md");
+    await p.close();
+  });
+});
+
 describe("keyboard only", () => {
   test("find a note, edit it, open Settings and get back, without the mouse; Tab stays inside a dialog", async () => {
     await freshBrowser();
@@ -1855,6 +2023,7 @@ describe("collaboration and home", () => {
     const noteWidth = () => p.$eval(".main", (e) => e.getBoundingClientRect().width);
     expect(await shown()).toBe(true);
     const before = await noteWidth();
+    await p.waitForSelector(".app.ready"); // the panels animate only once the first layout has settled
     // It slides: the column passes through widths between open and closed.
     const widths = await p.evaluate(async () => {
       document.querySelector<HTMLButtonElement>('button[aria-label="Files"]')!.click();

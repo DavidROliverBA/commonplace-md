@@ -112,7 +112,7 @@ export function useTreeDrag(opts: { enabled: boolean; onDrop: (item: DragItem, f
   function bind(item: DragItem, label: string) {
     return {
       onPointerDown(e: React.PointerEvent) {
-        if (!optsRef.current.enabled || e.button !== 0 || (e.target as HTMLElement).closest("button")) return;
+        if (!optsRef.current.enabled || e.button !== 0 || (e.target as HTMLElement).closest("button:not(.tree-toggle)")) return; // a folder row's own toggle still drags
         h.cleanup();
         const touch = e.pointerType !== "mouse";
         const p: Pending = { item, label, x: e.clientX, y: e.clientY, touch, active: false };

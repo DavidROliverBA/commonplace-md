@@ -15,10 +15,16 @@ export class ErrorBoundary extends Component<{ children: ReactNode; resetKey?: u
   render() {
     if (!this.state.error) return this.props.children;
     return (
-      <div className="empty-state">
-        <p>Something went wrong showing this page.</p>
-        <p className="muted small">{this.state.error.message}</p>
-        <button onClick={() => this.setState({ error: null })}>Try again</button>
+      <div className="empty-state" role="alert">
+        <p>This page couldn't be shown: Commonplace hit a fault while drawing it.</p>
+        <p className="muted small">Try again, or open another note from the sidebar. If it keeps happening, reload the page.</p>
+        <p className="muted small">Details: {this.state.error.message}</p>
+        <div className="row">
+          <button className="primary" onClick={() => this.setState({ error: null })}>
+            Try again
+          </button>
+          <button onClick={() => location.reload()}>Reload the page</button>
+        </div>
       </div>
     );
   }

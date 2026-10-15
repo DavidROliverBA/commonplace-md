@@ -143,7 +143,7 @@ All server code is in `src/`. Most modules are small and own one concern.
 | Area | Modules | Responsibility |
 |---|---|---|
 | **Entry and routing** | `server.ts`, `api.ts` | Static routes, the WebSocket upgrade and `/p/*`. `api.ts` declares every `/api` route through one `route()` wrapper, which maps `HttpError` to JSON, enforces same-origin on writes and parses ids. |
-| **Identity** | `auth.ts`, `tokens.ts`, `vaults.ts` | Accounts (argon2id), server-side sessions, bearer tokens (stored hashed, with scopes), vault membership and roles (`owner`, `editor`, `viewer`). |
+| **Identity** | `auth.ts`, `tokens.ts`, `vaults.ts` | Accounts (argon2id), server-side sessions, bearer tokens (stored hashed, with scopes), vault membership, invitations (accepted before they grant anything) and roles (`owner`, `editor`, `viewer`). |
 | **Notes core** | `notes.ts`, `markdown.ts`, `props.ts`, `ydoc.ts` | Create, read, update and delete notes. `persist()` re-derives the index in the same transaction. Also revisions, Trash and link resolution. `markdown.ts` is pure and shared with the browser. |
 | **Live editing** | `collab.ts`, `events.ts` | Yjs rooms over the standard y-websocket protocol, with awareness (cursors). Debounced persistence. A vault-level event bus streamed to browsers over SSE. |
 | **Search** | `search.ts`, `embed.ts` | Full-text search (title-weighted), trigram title search and pgvector similarity over heading-sized chunks, fused with Reciprocal Rank Fusion. Embedding runs in a debounced in-process queue. |
@@ -191,6 +191,7 @@ erDiagram
   users ||--o{ sessions : "signs in with"
   users ||--o{ vault_members : ""
   vaults ||--o{ vault_members : "has"
+  vaults ||--o{ vault_invites : "pending, by email"
   vaults ||--o{ notes : "contains"
   vaults ||--o{ attachments : "contains"
   vaults ||--o{ folders : "empty folders"
@@ -232,6 +233,9 @@ erDiagram
 - **Embeddings are `vector(1024)` for every provider** (longer vectors are truncated), behind an
   HNSW index. `embedded_hash` records which provider and content produced them, so switching
   providers re-embeds in the background.
+- **Invitations are not memberships.** `vault_invites` holds pending invitations by email (so
+  one can wait for an account that doesn't exist yet); only Accept inserts into `vault_members`,
+  and every access check reads `vault_members` alone, so a pending invitation grants nothing.
 - **Snapshots are separate from live data.** Trash, revisions, the GitHub base (`git_files`) and
   published sites (`site_pages`, `site_files`) are their own tables. Live queries never need to
   filter them out, and the published site never reads from `notes`.
@@ -377,11 +381,13 @@ the token's inbox note, through `overwriteContent`:
 | Sessions | A random token in an `HttpOnly`, `SameSite=Lax` cookie, `Secure` behind HTTPS. Only its SHA-256 is stored. Signing out or deleting a user closes their sockets and streams at once. | `auth.ts`, `api.ts` |
 | CSRF | Writes and WebSocket upgrades must come from the same origin. A request with no `Origin` header comes from a non-browser client, which has no ambient cookie to abuse. | `auth.ts: sameOrigin` |
 | Authorisation | Roles per vault, checked on every route and on every WebSocket sync message. Viewers are read-only everywhere. Non-members get 404. | `vaults.ts`, `api.ts`, `collab.ts` |
+| Consent to share | Nobody is added to a vault without accepting: an owner's invite creates a pending row in `vault_invites` that grants no access (notes, search, events, sockets, tokens, MCP and the in-app AI all read `vault_members`). The reply is the same whether or not the email has an account, so it doesn't reveal who has one. An invitation closes if its sender stops being an owner. | `vaults.ts`, `api.ts` |
 | Bearer tokens | Prefixed (`cpc_`, `cpm_`), stored hashed, scoped, revocable, shown once, never accepted in a URL. | `tokens.ts` |
 | Secrets at rest | People's AI keys and GitHub tokens are sealed with AES-256-GCM under a key derived from `SECRETS_KEY`. They are never returned to the browser (only the last four characters are shown) and never included in backups. | `secrets.ts`, `assistants.ts` |
 | XSS in the app | Rendered markdown goes through DOMPurify. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
+| Security headers | The app's page has a CSP: scripts only from the bundle's own files (`'unsafe-inline'` only in development, for Bun's dev script), inline styles (React, CodeMirror), images from `https:` (remote images in notes), connections to itself and its own ws/wss. Nothing may frame it (`frame-ancestors 'none'`, `X-Frame-Options`). Every app response has `nosniff`, `Referrer-Policy: same-origin` (a remote image never learns which note it's in) and, when the cookie is `Secure`, HSTS. Bun's HTML-bundle route takes no headers, so the bundle is mounted at a random private path and `"/*"` serves its HTML with them. | `server.ts` |
 | XSS on sites | Pages are rendered on the server with a tag allow-list and no attributes, and served with a no-script, sandboxed CSP. | `publish.ts` |
-| SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set. | `weblinks.ts`, `assistants.ts` |
+| SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |
 | Resource abuse | Limits on note size (5 MB), file and upload size (25 MB), zip entries and expanded size, WebSocket messages (16 MB), tool-loop steps, and image megapixels. A daily £ limit per assistant. | `storage.ts`, `transfer.ts`, `ai.ts`, `imageWorker.ts` |
 | First account | The first account becomes admin. When `SETUP_TOKEN` is set (the Render Blueprint generates one), creating it needs that token, so a fresh deploy can't be claimed by a stranger. Set it on any public deploy. | `auth.ts` |
 

@@ -25,6 +25,103 @@ const purge = () =>
 void purge();
 setInterval(purge, 6 * 60 * 60 * 1000).unref();
 
+// ── security headers (N13) ──────────────────────────────────────────────────────────────────
+// Bun's HTML-bundle route takes no headers, so the bundle is mounted at a private path and the app's
+// own "/*" route serves its HTML with them: fetched once from that path over loopback in
+// production (the bundle never changes there), and on every request in development (it rebuilds
+// on edits). Its scripts, styles and icons are still served by Bun itself.
+
+const development = process.env.NODE_ENV !== "production";
+const SHELL_PATH = `/__app-shell-${crypto.randomUUID()}`;
+
+/** As the session cookie decides `Secure` (src/auth.ts), so HSTS is sent exactly when it is. */
+const isHttps = (req: Request) =>
+  settings.cookieSecure ?? (req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "")) === "https";
+
+/** The app page's policy. Scripts are the bundle's own files only (Bun's dev server adds one inline
+ *  script, so development allows inline script). Styles allow inline: React and CodeMirror set
+ *  them. Notes may show remote https images (Referrer-Policy keeps the note's address from them).
+ *  The live socket is same-origin ws/wss. Nothing may frame the app. */
+function appCsp(req: Request): string {
+  const host = req.headers.get("host");
+  const ws = host ? ` ${isHttps(req) ? "wss" : "ws"}://${host}` : "";
+  return [
+    "default-src 'self'",
+    `script-src 'self'${development ? " 'unsafe-inline'" : ""}`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${ws}`,
+    "worker-src 'self'",
+    "manifest-src 'self'",
+    "frame-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+}
+
+/** Headers every app response carries, unless it set its own (attachments have a sandboxing CSP). */
+function securityHeaders(req: Request, res: Response, html = false): Response {
+  const want: [string, string][] = [
+    ["X-Content-Type-Options", "nosniff"],
+    ["Referrer-Policy", "same-origin"],
+    ["X-Frame-Options", "DENY"],
+    ["Content-Security-Policy", html ? appCsp(req) : "default-src 'none'; frame-ancestors 'none'"],
+  ];
+  if (isHttps(req)) want.push(["Strict-Transport-Security", "max-age=31536000"]);
+  const set = (h: Headers) => {
+    for (const [k, v] of want) if (!h.has(k)) h.set(k, v);
+  };
+  try {
+    set(res.headers);
+    return res;
+  } catch {
+    // An immutable response (e.g. one passed through from fetch): copy it.
+    const copy = new Response(res.body, res);
+    set(copy.headers);
+    return copy;
+  }
+}
+
+type AnyHandler = (req: any, srv: any) => Response | undefined | void | Promise<Response | undefined | void>;
+const guard =
+  <H extends AnyHandler>(fn: H) =>
+  async (req: Request, srv: Bun.Server<CollabData>) => {
+    const res = await fn(req, srv);
+    return res instanceof Response ? securityHeaders(req, res) : res;
+  };
+/** Every route of a route table with the security headers added. */
+function guarded<T extends Record<string, unknown>>(table: T): T {
+  const out: Record<string, unknown> = {};
+  for (const [path, v] of Object.entries(table)) {
+    if (typeof v === "function") out[path] = guard(v as AnyHandler);
+    else if (v instanceof Response) throw new Error(`route ${path}: give a function, so its headers can be added`);
+    else if (v && typeof v === "object") out[path] = Object.fromEntries(Object.entries(v).map(([m, h]) => [m, typeof h === "function" ? guard(h as AnyHandler) : h]));
+    else out[path] = v;
+  }
+  return out as T;
+}
+
+let shellCache: Promise<{ body: ArrayBuffer; type: string }> | null = null;
+async function appShell(req: Request, srv: Bun.Server<CollabData>): Promise<Response> {
+  const load = async () => {
+    const r = await fetch(`http://127.0.0.1:${srv.port}${SHELL_PATH}`);
+    if (!r.ok) throw new Error(`the app's page answered ${r.status}`);
+    return { body: await r.arrayBuffer(), type: r.headers.get("content-type") ?? "text/html;charset=utf-8" };
+  };
+  let shell;
+  try {
+    shell = await (development ? load() : (shellCache ??= load().catch((e) => ((shellCache = null), Promise.reject(e)))));
+  } catch (e) {
+    console.error("serving the app page failed:", e);
+    return securityHeaders(req, new Response("The app is starting; try again in a moment.", { status: 503, headers: { "Retry-After": "2" } }));
+  }
+  return securityHeaders(req, new Response(shell.body, { headers: { "Content-Type": shell.type, "Cache-Control": "no-cache" } }), true);
+}
+
 const server = Bun.serve<CollabData>({
   port: settings.port,
   hostname: "0.0.0.0", // reachable from a phone on the same network
@@ -32,23 +129,27 @@ const server = Bun.serve<CollabData>({
   // The largest request is an import; anything bigger is refused before it's read, whether or not
   // it says its length up front.
   maxRequestBodySize: settings.maxImportBytes + 1024 * 1024,
-  development: process.env.NODE_ENV !== "production",
+  development,
   routes: {
-    "/manifest.webmanifest": () =>
-      new Response(Bun.file(new URL("../web/manifest.webmanifest", import.meta.url)), { headers: { "Content-Type": "application/manifest+json" } }),
-    "/icon.svg": new Response(Bun.file(new URL("../web/icon.svg", import.meta.url)), { headers: { "Content-Type": "image/svg+xml" } }),
-    "/apple-touch-icon.png": new Response(Bun.file(new URL("../web/apple-touch-icon.png", import.meta.url)), { headers: { "Content-Type": "image/png" } }),
-    // The service worker (F4), at the root so it can serve every page; never cached itself, so a
-    // new version reaches people on their next visit.
-    "/sw.js": new Response(Bun.file(new URL("../web/sw.js", import.meta.url)), {
-      headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/" },
+    [SHELL_PATH]: index, // served to the world only through "/*" below, with its headers
+    ...guarded({
+      "/manifest.webmanifest": () => new Response(Bun.file(new URL("../web/manifest.webmanifest", import.meta.url)), { headers: { "Content-Type": "application/manifest+json" } }),
+      "/icon.svg": () => new Response(Bun.file(new URL("../web/icon.svg", import.meta.url)), { headers: { "Content-Type": "image/svg+xml" } }),
+      "/apple-touch-icon.png": () => new Response(Bun.file(new URL("../web/apple-touch-icon.png", import.meta.url)), { headers: { "Content-Type": "image/png" } }),
+      // The service worker (F4), at the root so it can serve every page; never cached itself, so a
+      // new version reaches people on their next visit. A worker runs under its own script's CSP,
+      // and it fetches the app's pages and reads, so it gets 'self' rather than the API's 'none'.
+      "/sw.js": () =>
+        new Response(Bun.file(new URL("../web/sw.js", import.meta.url)), {
+          headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/", "Content-Security-Policy": "default-src 'self'" },
+        }),
+      "/health": async () => {
+        await sql`select 1`;
+        return Response.json({ ok: true });
+      },
+      ...apiRoutes,
+      "/api/*": () => Response.json({ error: "Not found" }, { status: 404 }),
     }),
-    "/health": async () => {
-      await sql`select 1`;
-      return Response.json({ ok: true });
-    },
-    ...apiRoutes,
-    "/api/*": () => Response.json({ error: "Not found" }, { status: 404 }),
 
     // Published sites (F18): served from their snapshot, with no app around them.
     "/p/*": (req: Request) => serveSite(req),
@@ -72,8 +173,8 @@ const server = Bun.serve<CollabData>({
       return new Response("Expected a WebSocket", { status: 426 });
     },
 
-    // Everything else is the single-page app (client-side routing).
-    "/*": index,
+    // Everything else is the single-page app (client-side routing), with its security headers.
+    "/*": (req: Request, srv: Bun.Server<CollabData>) => appShell(req, srv),
   },
   websocket: {
     open: (ws) => void onOpen(ws),

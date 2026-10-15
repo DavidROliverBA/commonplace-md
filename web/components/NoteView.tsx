@@ -80,6 +80,13 @@ export function NoteView(props: Props) {
   const [peers, setPeers] = useState<Peer[]>([]);
   const [mode, setMode] = useState<Mode>(() => (localStorage.getItem("cp:mode") as Mode) || "edit");
   const [renaming, setRenaming] = useState(false);
+  const titleButton = useRef<HTMLButtonElement>(null);
+  const titleFocus = useRef(false);
+  useEffect(() => {
+    if (renaming || !titleFocus.current) return;
+    titleFocus.current = false;
+    titleButton.current?.focus();
+  }, [renaming]);
   const [history, setHistory] = useState(false);
   const editor = useRef<EditorHandle>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -130,7 +137,7 @@ export function NoteView(props: Props) {
     const ydoc = new Y.Doc();
     // Offline (F4): the note's CRDT state is kept on this device too, so it opens and takes edits
     // with no signal, and merges them when the socket reconnects. Same document, so no duplicates.
-    const name = offlineName(props.instance, noteId);
+    const name = offlineName(props.instance, user.id, noteId);
     const local = new IndexeddbPersistence(name, ydoc);
     rememberOpened(name);
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -423,14 +430,26 @@ export function NoteView(props: Props) {
               autoFocus
               defaultValue={note?.title}
               onBlur={(e) => rename(e.currentTarget.value)}
+              aria-label="Note title"
               onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
+                // Finished from the keyboard: focus goes back to the title, not to the page.
+                if (e.key === "Enter" || e.key === "Escape") titleFocus.current = true;
+                // preventDefault: no keypress follows to "click" the title button focus returns to.
+                if (e.key === "Enter") (e.preventDefault(), e.currentTarget.blur());
                 if (e.key === "Escape") setRenaming(false);
               }}
             />
-          ) : (
-            <h1 className="note-title" onClick={() => !readOnly && setRenaming(true)} title={readOnly ? note?.path : "Rename"}>
+          ) : readOnly ? (
+            <h1 className="note-title" title={note?.path}>
               {note?.title ?? "…"}
+            </h1>
+          ) : (
+            // A button inside the heading: the title is still the page's heading, and Tab, Enter or
+            // a click renames it.
+            <h1 className="note-title">
+              <button ref={titleButton} type="button" className="title-button" onClick={() => setRenaming(true)} title="Rename" aria-label={`Rename “${note?.title ?? ""}”`}>
+                {note?.title ?? "…"}
+              </button>
             </h1>
           )}
         </div>
@@ -494,7 +513,8 @@ export function NoteView(props: Props) {
       </header>
 
       {note && isTypePath(note.path) && <TypeEditor vaultId={vaultId} name={note.title} readOnly={readOnly} />}
-      <div className="note-body">
+      {/* data-synced: the live socket has synced (tests wait on it instead of sleeping). */}
+      <div className="note-body" data-synced={synced || undefined}>
         {!synced && !localReady && <div className="loading-bar" />}
         <div className="pane edit-pane" hidden={effectiveMode === "read"}>
           <Editor

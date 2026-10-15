@@ -55,8 +55,8 @@ Nothing calls a real provider. The servers under test are pointed at these fakes
 - **Each test file starts with a header comment** saying what it covers and what it needs.
 - **The servers are real.** e2e, the browser tests and screens each start `bun src/server.ts` on
   a port of their own, with `EMBEDDING_PROVIDER=hash` so nothing is fetched. The fakes and the
-  test web pages also use fixed ports (3185–3199). Some of those ports overlap, so run one
-  database-backed suite at a time.
+  test web pages also use fixed ports, a range per suite: e2e 3187–3199, the browser tests
+  3286–3298, screens 3385–3399. With their own databases too, the three suites can run at once.
 - **e2e has one `describe` per feature**, tagged with its backlog id where it has one (for
   example `GitHub vaults (F14)`). The describes run in order and share state: the users Alice and
   Bob, their first vault, and the `ids` of its notes. A describe may rely on the ones before it,

@@ -1,4 +1,4 @@
-// Settings → This vault: name, members, import, export, and leave or delete.
+// Settings → This vault: name, members and invitations, import, export, and leave or delete.
 
 import { useEffect, useRef, useState } from "react";
 import { api, type Role, type User, type Vault } from "../lib/api";
@@ -9,6 +9,13 @@ interface Member {
   id: number;
   email: string;
   name: string;
+  role: Role;
+}
+
+/** Someone invited but not yet in (N13): they get no access until they accept. */
+interface Invite {
+  id: number;
+  email: string;
   role: Role;
 }
 
@@ -24,6 +31,7 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
   const isOwner = vault.role === "owner";
   const canWrite = vault.role !== "viewer";
   const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [name, setName] = useState(vault.name);
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<Role>("editor");
@@ -34,7 +42,11 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
   const filesInput = useRef<HTMLInputElement>(null);
   const dirInput = useRef<HTMLInputElement>(null);
 
-  const load = () => api<Member[]>(`/vaults/${vault.id}/members`).then(setMembers);
+  const load = () =>
+    Promise.all([
+      api<Member[]>(`/vaults/${vault.id}/members`).then(setMembers),
+      isOwner ? api<Invite[]>(`/vaults/${vault.id}/invites`).then(setInvites) : setInvites([]),
+    ]);
   useEffect(() => {
     void load();
   }, [vault.id]);
@@ -54,16 +66,31 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
     }
   }
 
-  // Removing a member is easy to reverse (add them back with the same role): offer Undo.
+  // Removing a member is easy to reverse (the server puts them back with the same role for a few
+  // minutes): offer Undo.
   function removeMember(m: Member) {
     void run("Removing…", async () => {
       await api(`/vaults/${vault.id}/members/${m.id}`, { method: "DELETE" });
       await load();
       toast(`Removed ${m.name} from “${vault.name}”`, {
-        undo: async () => {
-          await api(`/vaults/${vault.id}/members`, { method: "PUT", body: { email: m.email, role: m.role } });
-          await load();
-        },
+        undo: () =>
+          api(`/vaults/${vault.id}/members/${m.id}/restore`, { method: "POST" })
+            .then(load)
+            .catch(toastError),
+      });
+    });
+  }
+
+  // Cancelling an invitation is undone by sending it again.
+  function cancelInvite(i: Invite) {
+    void run("Cancelling…", async () => {
+      await api(`/vaults/${vault.id}/invites/${i.id}`, { method: "DELETE" });
+      await load();
+      toast(`Cancelled the invitation to ${i.email}`, {
+        undo: () =>
+          api(`/vaults/${vault.id}/members`, { method: "PUT", body: { email: i.email, role: i.role } })
+            .then(load)
+            .catch(toastError),
       });
     });
   }
@@ -71,7 +98,7 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
   async function leave() {
     const ok = await confirmDialog({
       title: "Leave this vault?",
-      message: `You'll lose access to “${vault.name}” until an owner adds you back.`,
+      message: `You'll lose access to “${vault.name}” until an owner invites you again.`,
       action: "Leave vault",
       danger: true,
     });
@@ -165,30 +192,42 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
               )}
             </li>
           ))}
+          {invites.map((i) => (
+            <li key={`invite-${i.id}`}>
+              <div>
+                <b>{i.email}</b> <span className="muted">invited as {i.role}, not joined yet</span>
+              </div>
+              <button className="danger-link" onClick={() => cancelInvite(i)}>
+                Cancel invitation
+              </button>
+            </li>
+          ))}
         </ul>
         {isOwner && (
           <form
             className="row wrap"
             onSubmit={(e) => {
               e.preventDefault();
-              void run("Adding…", async () => {
-                await api(`/vaults/${vault.id}/members`, { method: "PUT", body: { email, role } });
+              const to = email.trim();
+              void run("Inviting…", async () => {
+                const r = await api<{ status: "invited" | "updated" }>(`/vaults/${vault.id}/members`, { method: "PUT", body: { email: to, role } });
                 setEmail("");
                 await load();
                 onChanged();
-              }, `Added ${email}`);
+                toast(r.status === "invited" ? `Invited ${to}. They'll see it when they sign in.` : `${to} is now ${role === "owner" ? "an owner" : `a ${role}`}`);
+              });
             }}
           >
-            <input type="email" placeholder="Their account email" aria-label="Their account email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <input type="email" placeholder="Their email" aria-label="Their email" value={email} onChange={(e) => setEmail(e.target.value)} required />
             <select value={role} onChange={(e) => setRole(e.target.value as Role)} aria-label="Their role">
               <option value="editor">Editor — can edit</option>
               <option value="viewer">Viewer — read only</option>
               <option value="owner">Owner — can manage</option>
             </select>
-            <button type="submit">Add member</button>
+            <button type="submit">Invite</button>
           </form>
         )}
-        <p className="muted">People need an account first: they can sign up (if open), or an admin can create one in Settings → Admin.</p>
+        <p className="muted">They join when they accept the invitation. No account yet? It waits for them: they can sign up (if open), or an admin can create one in Settings → Admin.</p>
       </section>
 
       {canWrite && (

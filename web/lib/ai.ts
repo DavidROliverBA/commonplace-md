@@ -73,14 +73,23 @@ let assistants: Assistant[] = [];
 let loaded: Promise<Assistant[]> | null = null;
 const assistantListeners = new Set<() => void>();
 
-/** Your assistants, fetched once and shared (force refetches after a change); onAssistants hears updates. */
+/** Your assistants, fetched once and shared (force refetches after a change); onAssistants hears
+ *  updates. A failed fetch isn't kept, so the next call asks again. */
 export function loadAssistants(force = false): Promise<Assistant[]> {
-  if (!loaded || force)
-    loaded = api<Assistant[]>("/me/assistants").then((list) => {
-      assistants = list;
-      assistantListeners.forEach((f) => f());
-      return list;
-    });
+  if (!loaded || force) {
+    const p: Promise<Assistant[]> = api<Assistant[]>("/me/assistants").then(
+      (list) => {
+        assistants = list;
+        assistantListeners.forEach((f) => f());
+        return list;
+      },
+      (e) => {
+        if (loaded === p) loaded = null;
+        throw e;
+      },
+    );
+    loaded = p;
+  }
   return loaded;
 }
 export const cachedAssistants = () => assistants;

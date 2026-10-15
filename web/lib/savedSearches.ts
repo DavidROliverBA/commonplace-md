@@ -13,9 +13,17 @@ export interface SavedSearch {
 let state: { vaultId: number | null; list: SavedSearch[] } = { vaultId: null, list: [] };
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((f) => f());
-const set = (vaultId: number, list: SavedSearch[]) => ((state = { vaultId, list }), emit());
+// The vault the sidebar is showing: a reply for any other (a quick vault switch) is dropped.
+let current: number | null = null;
+const set = (vaultId: number, list: SavedSearch[]) => {
+  if (current !== null && vaultId !== current) return;
+  state = { vaultId, list };
+  emit();
+};
 
 export async function loadSavedSearches(vaultId: number) {
+  current = vaultId;
+  if (state.vaultId !== vaultId) set(vaultId, []); // not the last vault's meanwhile
   set(vaultId, await api<SavedSearch[]>(`/vaults/${vaultId}/searches`));
 }
 const subscribe = (f: () => void) => (listeners.add(f), () => void listeners.delete(f));

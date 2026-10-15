@@ -13,8 +13,10 @@ key flows, decisions); read it before structural changes, and keep it current wh
 - **Markdown is the source of truth.** Every write goes through `notes.persist()` (re-derives
   tags/links/frontmatter in the same transaction). Writes from outside the editor go through
   `notes.overwriteContent()` so they reach open live rooms.
-- **Offline copies (F4)** live in IndexedDB as `cp-<instance>-<noteId>` (`web/lib/offline.ts`);
-  `instance` comes from `server_info`, so a replaced database never merges with old copies. The
+- **Offline copies (F4)** live in IndexedDB as `cp-<instance>-u<userId>-<noteId>` (`web/lib/offline.ts`);
+  `instance` comes from `server_info`, so a replaced database never merges with old copies, and
+  when someone else signs in on the browser, `claimDevice` drops the last person's copies and
+  cached reads first. The
   service worker (`web/sw.js`) is network-first and caches only the reads listed in `API_KEEP`;
   never add writes, the event stream, AI or exports to it.
 - **Never replace a note's Yjs state with one rebuilt from text** — diff into it
@@ -54,6 +56,12 @@ key flows, decisions); read it before structural changes, and keep it current wh
   (`site_pages`, `site_files`), never `notes` or `attachments`; anything new on a page must be
   written into the snapshot at Publish, and must leave out what isn't published (titles
   included). Pages run no script: keep the CSP, and never let a note's HTML attributes through.
+- **Sharing is by invitation** (N13, `src/vaults.ts`): adding someone writes `vault_invites`;
+  only Accept writes `vault_members`, which every access check reads, so a pending invite grants
+  nothing. Never reveal whether an email has an account.
+- **Outgoing requests to addresses people give** (weblinks, assistants' base URLs) go through
+  `src/egress.ts` (`vetAddresses` + `pinnedFetch`), never a bare `fetch`, so they can't reach
+  private addresses. The app's CSP allows no inline script: keep it that way.
 - No secrets in the repo; `.env` is gitignored and `.env.example` documents the shape.
 
 ## Principles

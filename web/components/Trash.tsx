@@ -1,5 +1,6 @@
 // Trash: deleted notes, kept with their history for the server's TRASH_DAYS (src/notes.ts), to
-// restore or delete forever. Editors see it; only the vault's owner can empty it all at once.
+// restore or delete forever. Editors see it and can restore; only the vault's owner deletes for
+// good, one note or all at once (the server refuses anyone else).
 
 import { useEffect, useState } from "react";
 import { api, type Note, type Vault } from "../lib/api";
@@ -81,14 +82,16 @@ export function Trash({ vault, onRestored, onClose }: { vault: Vault; onRestored
               >
                 <Icon name="undo" size={14} /> Restore
               </button>
-              <button
-                className="danger"
-                title="Delete forever"
-                aria-label={`Delete ${t.title} forever`}
-                onClick={() => void deleteForever(t)}
-              >
-                <Icon name="trash" size={14} />
-              </button>
+              {vault.role === "owner" && (
+                <button
+                  className="danger"
+                  title="Delete forever"
+                  aria-label={`Delete ${t.title} forever`}
+                  onClick={() => void deleteForever(t)}
+                >
+                  <Icon name="trash" size={14} />
+                </button>
+              )}
             </li>
           ))}
         </ul>

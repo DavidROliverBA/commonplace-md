@@ -81,59 +81,6 @@ claims speed at 10,000 notes but nothing measures it; the backup has never been 
 
 ---
 
-### N13 — Findings from the pre-publication review still open
-
-**Size** M overall · **Evidence** the code and security review of 2026-10-14 (fixed items are in
-the changelog under v0.0.33)
-
-Security:
-
-- **Pin the address a weblink is fetched from** (`src/weblinks.ts: checkUrl / safeFetch`). The
-  name is resolved and checked, then `fetch` resolves it again, so a domain that answers with a
-  public address first and a private one second (DNS rebinding) gets past the check. Fix: connect
-  to the checked address with the Host header and TLS server name set, or send fetches through an
-  egress proxy that does the check. The same applies to assistants' base URLs.
-- **Security headers on the app itself** (`src/server.ts`, the `"/*": index` route): no CSP,
-  `frame-ancestors`, HSTS or Referrer-Policy, so the app can be framed (clickjacking) and
-  DOMPurify is the only defence against script in a note. Remote `<img>` in a shared note can also
-  tell its author when members open it. Bun's HTML-bundle route takes no headers, so this needs a
-  wrapper route.
-- **Offline copies on a shared browser** (`web/lib/offline.ts`): IndexedDB copies and the service
-  worker's cache are cleared on Sign out, but not when a session expires and someone else signs in
-  on the same browser. Key the stores by user as well as instance, or clear them when the
-  signed-in user changes.
-- **Membership without consent** (`src/vaults.ts: addMember`): an owner can add anyone by email,
-  and the reply says whether the email has an account. Consider an invitation to accept.
-- **Editors can delete one Trash item for good** (`src/api.ts`, `DELETE /trash/:id`) while
-  emptying Trash is owner-only. Decide which is intended and make them match.
-- **Dockerfile** runs as root on the floating `oven/bun:1-slim` tag: pin the version and add a
-  non-root user.
-
-Client:
-
-- `web/components/SearchPanel.tsx`: a failed search shows nothing, clearing the box during the
-  debounce leaves "Searching…" up, and a slow reply can repopulate a cleared search.
-- `web/lib/ai.ts: loadAssistants` caches a failed first load until something forces a reload.
-- Switching vaults quickly can let the old vault's bookmarks, saved searches or types land in the
-  new one (`web/lib/bookmarks.ts`, `savedSearches.ts`, `types.ts`): check the reply is for the
-  current vault.
-- `web/App.tsx: loadNotes` and `web/components/RightPanel.tsx` swallow fetch errors; the right
-  panel shows the previous note's links until the new ones arrive.
-- Accessibility: folder rows in the file tree are `div`s with click handlers (no keyboard), the
-  title rename is a click on an unfocusable `<h1>`, and the quick switcher builds its own backdrop
-  instead of using `Modal` (no focus trap or focus return).
-- `web/components/ErrorBoundary.tsx` says "Something went wrong", which PRINCIPLES.md §6 rules
-  out.
-
-Tests:
-
-- Some e2e and UI tests wait with fixed sleeps (`Bun.sleep(30)` before a debounced save, 700 ms
-  for live sync); replace with waits on a condition.
-- The HEIC conversion test is skipped silently where macOS `sips` is missing.
-- The database suites share ports (3187, 3198, 3199) and can't run at the same time.
-
-**Done when** each item is fixed or moved to **Decided against** with the reason.
-
 ## Next: in this order
 
 **Decided 2026-10-12, after taking stock.** Small writing improvements come between the large
@@ -469,6 +416,10 @@ needed a feature the web app doesn't have.
 
 One line each. Promote to **Next** with a "done when".
 
+- Three editions, as Longview has: the private repo (personal, deployed, with backups) feeds the
+  public one (`commonplace-md`, a snapshot per release), which a work edition could start from in
+  the employer's own repository, with its own sign-in and hosting. Nothing from the work edition
+  comes back.
 - Folder and tag colours in the sidebar, stored per vault (other editors keep these in plugin
   settings, not in notes; see F10)
 - Graph view filters (by tag or folder) and a local graph for the current note

@@ -97,6 +97,28 @@ async function until(fn: () => Promise<boolean> | boolean, ms = 5000) {
   throw new Error("condition not met in time");
 }
 
+/**
+ * Alice invites someone to a vault and they accept (N13): the way into a vault someone else owns.
+ * When they're already a member, the same call just changes their role.
+ */
+async function addMember(vaultId: number, who: Client, role: "owner" | "editor" | "viewer") {
+  const email = `${who.name}@example.com`;
+  const r = await alice.ok(`/vaults/${vaultId}/members`, { method: "PUT", body: { email, role } });
+  if (r.status === "updated") return;
+  const invite = (await who.ok("/invitations")).find((i: any) => i.vault_id === vaultId);
+  if (!invite) throw new Error(`${who.name} has no invitation to vault ${vaultId}`);
+  await who.ok(`/invitations/${invite.id}/accept`, { method: "POST" });
+}
+
+/** Wait until the server's live room for a note holds `text`: a second live client sees it only
+ *  once the server has it, so a test can rely on an edit having arrived (no fixed sleep). */
+async function reachedServer(c: Client, noteId: number, text: string) {
+  const w = c.live(noteId);
+  await w.synced;
+  await until(() => w.text.toString().includes(text));
+  w.provider.destroy();
+}
+
 const alice = new Client("alice");
 const bob = new Client("bob");
 let vault: number;
@@ -222,7 +244,7 @@ describe("notes, links, tags and search", () => {
 
 describe("sharing and roles", () => {
   test("viewer can read but not write", async () => {
-    await alice.ok(`/vaults/${vault}/members`, { method: "PUT", body: { email: "bob@example.com", role: "viewer" } });
+    await addMember(vault, bob, "viewer");
     const n = await bob.ok(`/vaults/${vault}/notes/${ids.alpha}`);
     expect(n.role).toBe("viewer");
     expect((await bob.req(`/vaults/${vault}/notes/${ids.alpha}/content`, { method: "PUT", body: { content: "hacked" } })).status).toBe(403);
@@ -246,7 +268,9 @@ describe("live collaboration", () => {
     await until(() => b.text.toString().includes("Live line from Alice."));
 
     b.text.insert(0, "VIEWER WAS HERE ");
-    await Bun.sleep(1500);
+    // Alice types after the viewer; once her line is saved, the viewer's edit had its chance.
+    a.text.insert(a.text.length, "After the viewer.\n");
+    await until(async () => (await alice.ok(`/vaults/${vault}/notes/${ids.alpha}`)).content.includes("After the viewer."), 10000);
     const stored = await alice.ok(`/vaults/${vault}/notes/${ids.alpha}`);
     expect(stored.content).toContain("Live line from Alice.");
     expect(stored.content).not.toContain("VIEWER WAS HERE");
@@ -279,7 +303,7 @@ describe("live collaboration", () => {
   }, 15000);
 
   test("concurrent editors converge; REST writes reach open editors", async () => {
-    await alice.ok(`/vaults/${vault}/members`, { method: "PUT", body: { email: "bob@example.com", role: "editor" } });
+    await addMember(vault, bob, "editor");
     const a = alice.live(ids.beta);
     const b = bob.live(ids.beta);
     await Promise.all([a.synced, b.synced]);
@@ -349,10 +373,13 @@ describe("review regressions", () => {
     enc.writeVarUint(e, 1);
     enc.writeVarUint8Array(e, encodeAwarenessUpdate(forged, [a.doc.clientID]));
     (b.provider as any).ws.send(enc.toUint8Array(e));
-    await Bun.sleep(300);
+    // Bob's next, honest update travels on the same socket, so once Alice sees it the server has
+    // handled the forged one.
+    b.provider.awareness.setLocalStateField("user", { name: "Bob, after" });
+    await until(() => a.provider.awareness.getStates().get(b.doc.clientID)?.user?.name === "Bob, after");
     const c = alice.live(ids.beta);
     await c.synced;
-    await Bun.sleep(300);
+    await until(() => c.provider.awareness.getStates().get(b.doc.clientID)?.user?.name === "Bob, after");
     expect(c.provider.awareness.getStates().get(a.doc.clientID)?.user?.name).toBe("Alice");
     [a, b, c].forEach((x) => x.provider.destroy());
   });
@@ -360,7 +387,7 @@ describe("review regressions", () => {
   test("signing out closes that session's live sockets", async () => {
     const carol = new Client("carol");
     await carol.ok("/register", { body: { email: "carol@example.com", password: "password-c" } });
-    await alice.ok(`/vaults/${vault}/members`, { method: "PUT", body: { email: "carol@example.com", role: "editor" } });
+    await addMember(vault, carol, "editor");
     const s = carol.live(ids.beta);
     await s.synced;
     const closed = new Promise<number>((r) => s.provider.on("connection-close", (e: any) => r(e?.code)));
@@ -553,7 +580,7 @@ describe("trash", () => {
     expect((await alice.req(`/vaults/${tv}/trash/${t1}/restore`, { method: "POST" })).status).toBe(404);
     const other = (await alice.ok(`/vaults/${tv}/notes`))[0];
     await alice.ok(`/vaults/${tv}/notes/${other.id}`, { method: "DELETE" });
-    await alice.ok(`/vaults/${tv}/members`, { method: "PUT", body: { email: "bob@example.com", role: "editor" } });
+    await addMember(tv, bob, "editor");
     expect((await bob.req(`/vaults/${tv}/trash`, { method: "DELETE" })).status).toBe(403);
     expect((await alice.ok(`/vaults/${tv}/trash`, { method: "DELETE" })).deleted).toBe(1);
   });
@@ -696,7 +723,7 @@ describe("publish a vault as a website (F18)", () => {
 
   test("only owners publish; outsiders can't see the settings", async () => {
     expect((await bob.req(`/vaults/${pv}/site`)).status).toBe(404);
-    await alice.ok(`/vaults/${pv}/members`, { method: "PUT", body: { email: "bob@example.com", role: "editor" } });
+    await addMember(pv, bob, "editor");
     expect((await bob.req(`/vaults/${pv}/site`)).status).toBe(200);
     expect((await bob.req(`/vaults/${pv}/site/publish`, { body: {} })).status).toBe(403);
     expect((await bob.req(`/vaults/${pv}/site/settings`, { method: "PUT", body: { include: [] } })).status).toBe(403);
@@ -902,7 +929,7 @@ describe("capture from the iPhone", () => {
     const a = alice.live(n.id);
     await a.synced;
     a.text.insert(0, "TYPING ");
-    await Bun.sleep(30); // before the room's debounced save
+    await reachedServer(alice, n.id, "TYPING ");
     expect((await share("from the phone")).status).toBe(200);
     await until(async () => (await inbox())!.includes("from the phone") && (await inbox())!.startsWith("TYPING # Inbox"));
     expect(a.text.toString()).toContain("from the phone");
@@ -910,7 +937,7 @@ describe("capture from the iPhone", () => {
   });
 
   test("a token stops working when revoked, or when its owner can no longer edit the vault", async () => {
-    await alice.ok(`/vaults/${cv}/members`, { method: "PUT", body: { email: "bob@example.com", role: "editor" } });
+    await addMember(cv, bob, "editor");
     const bobs = await bob.ok("/me/tokens", { body: { vaultId: cv, name: "Bob's phone", notePath: "Bob/Inbox" } });
     expect(bobs.row.note_path).toBe("Bob/Inbox.md");
     expect((await share("ok", {}, bobs.token)).status).toBe(200);
@@ -988,7 +1015,7 @@ describe("MCP server", () => {
     const live = alice.live(id);
     await live.synced;
     live.text.insert(live.text.length, "Typed by Alice.\n");
-    await Bun.sleep(30); // before the room saves
+    await reachedServer(alice, id, "Typed by Alice.");
     expect((await call(c, "append_to_note", { vault: av, note: "Summary", text: "- Boiler service due in March" })).error).toBe(false);
     await until(() => live.text.toString().includes("- Boiler service due in March"));
     expect(live.text.toString()).toContain("Typed by Alice.");
@@ -1021,7 +1048,7 @@ describe("MCP server", () => {
     expect((await r.listTools()).tools.map((t: any) => t.name)).not.toContain("create_note");
     expect((await call(r, "create_note", { vault: av, path: "X" })).error).toBe(true);
     await r.close();
-    await alice.ok(`/vaults/${av}/members`, { method: "PUT", body: { email: "bob@example.com", role: "viewer" } });
+    await addMember(av, bob, "viewer");
     const bobTok = (await bob.ok("/me/tokens", { body: { kind: "mcp", name: "Bob" } })).token;
     const b = await connect(bobTok);
     const denied = await call(b, "append_to_note", { vault: "Agent", note: "Plumber", text: "x" });
@@ -1086,7 +1113,7 @@ describe("types (F16)", () => {
     const live = alice.live(id);
     await live.synced;
     live.text.insert(live.text.length, "Typed while the table changed.\n");
-    await Bun.sleep(30);
+    await reachedServer(alice, id, "Typed while the table changed.");
     await alice.ok(`/vaults/${tv}/notes/${id}/properties`, { method: "PATCH", body: { set: { role: "Friend", company: "[[Acme]]" } } });
     await until(() => live.text.toString().includes("role: Friend"));
     expect(live.text.toString()).toContain("Typed while the table changed.");
@@ -1170,7 +1197,7 @@ describe("small wins: tasks, mentions, bookmarks", () => {
     const live = alice.live(a);
     await live.synced;
     live.text.insert(0, "Typed first. ");
-    await Bun.sleep(30);
+    await reachedServer(alice, a, "Typed first. ");
     await alice.ok(`/vaults/${sv}/notes/${a}/tasks`, { method: "PATCH", body: { line: tiles.line, text: tiles.text, done: true } });
     await until(() => live.text.toString().includes("- [x] Choose tiles"));
     expect(live.text.toString()).toStartWith("Typed first. ");
@@ -1396,7 +1423,7 @@ describe("bring your own AI", () => {
   });
 
   test("a viewer's assistant gets only the read tools; OpenAI-compatible providers work too", async () => {
-    await alice.ok(`/vaults/${av}/members`, { method: "PUT", body: { email: "bob@example.com", role: "viewer" } });
+    await addMember(av, bob, "viewer");
     const bobs = await bob.ok("/me/assistants", { body: { name: "Router", provider: "compatible", baseUrl: `${FAKE}/v1`, model: "some/model", apiKey: "fake-bob-key" } });
     seen.length = 0;
     script.push({ calls: [{ name: "read_note", input: { note: "Kitchen" } }] }, { text: "It's about tiles." });
@@ -1573,7 +1600,7 @@ describe("GitHub vaults (F14)", () => {
     expect(await read("Garden.md")).toBe("# Garden\n\nPlant bulbs.\n");
     expect(st.changes).toHaveLength(3);
     // A viewer can look but not change anything.
-    await alice.ok(`/vaults/${v}/members`, { method: "PUT", body: { email: "bob@example.com", role: "viewer" } });
+    await addMember(v, bob, "viewer");
     expect((await bob.req(`/vaults/${v}/git`)).status).toBe(200);
     expect((await bob.req(`/vaults/${v}/git/push`, { body: { message: "x" } })).status).toBe(403);
   });
@@ -1709,5 +1736,162 @@ describe("storage guard", () => {
     live.text.insert(live.text.length, "\nStill typing.");
     await until(async () => (await a.ok(`/vaults/${vault}/notes/${ids.beta}`)).content.includes("Still typing."));
     live.provider.destroy();
+  });
+});
+
+describe("invitations (N13)", () => {
+  const { Client: McpClient } = require("@modelcontextprotocol/sdk/client/index.js");
+  const { StreamableHTTPClientTransport } = require("@modelcontextprotocol/sdk/client/streamableHttp.js");
+  const dave = new Client("dave");
+  let iv: number;
+  let noteId: number;
+  const invite = (email: string, role = "editor") => alice.req(`/vaults/${iv}/members`, { method: "PUT", body: { email, role } });
+  const pending = async (who: Client) => (await who.ok("/invitations")).find((i: any) => i.vault_id === iv);
+
+  test("inviting says the same whether or not the email has an account", async () => {
+    await dave.ok("/register", { body: { email: "dave@example.com", password: "password-d", name: "Dave" } });
+    iv = (await alice.ok("/vaults", { body: { name: "Invites" } })).id;
+    noteId = (await alice.ok(`/vaults/${iv}/notes`, { body: { path: "Secret.md", content: "# Secret\n\nThe plan." } })).id;
+    const known = await invite("Dave@Example.com");
+    const unknown = await invite("nobody-yet@example.com");
+    expect(known).toEqual({ status: 200, data: { status: "invited" } });
+    expect(unknown).toEqual(known);
+    expect((await alice.ok(`/vaults/${iv}/invites`)).map((i: any) => i.email).sort()).toEqual(["dave@example.com", "nobody-yet@example.com"]);
+    // Nobody but an owner manages or sees them.
+    expect((await dave.req(`/vaults/${iv}/invites`)).status).toBe(404);
+    expect((await bob.req(`/vaults/${iv}/members`, { method: "PUT", body: { email: "bob@example.com", role: "owner" } })).status).toBe(404);
+  });
+
+  test("a pending invitation grants no access anywhere", async () => {
+    const i = await pending(dave);
+    expect(i).toMatchObject({ vault_name: "Invites", role: "editor", invited_by: "Alice" });
+    expect((await dave.ok("/vaults")).some((v: any) => v.id === iv)).toBe(false);
+    for (const path of [`/vaults/${iv}/notes`, `/vaults/${iv}/notes/${noteId}`, `/vaults/${iv}/search?q=plan`, `/vaults/${iv}/members`, `/vaults/${iv}/events`, `/vaults/${iv}/export`]) {
+      expect((await dave.req(path)).status).toBe(404);
+    }
+    expect((await dave.req(`/vaults/${iv}/notes`, { body: { path: "Mine.md", content: "x" } })).status).toBe(404);
+    // No capture token for it, and no live socket.
+    expect((await dave.req("/me/tokens", { body: { vaultId: iv, name: "Phone" } })).status).toBe(404);
+    const ws = await fetch(`${BASE}/ws/${noteId}`, { headers: { cookie: dave.cookie, upgrade: "websocket", connection: "upgrade", "sec-websocket-version": "13", "sec-websocket-key": "dGhlIHNhbXBsZSBub25jZQ==" } });
+    expect(ws.status).toBe(404);
+    // And nothing over MCP (the AI tools run as the person, with their vault roles).
+    const token = (await dave.ok("/me/tokens", { body: { kind: "mcp", name: "Dave's agent" } })).token;
+    const c = new McpClient({ name: "e2e", version: "1" });
+    await c.connect(new StreamableHTTPClientTransport(new URL(`${BASE}/mcp`), { requestInit: { headers: { Authorization: `Bearer ${token}` } } }));
+    const listed = await c.callTool({ name: "list_vaults", arguments: {} });
+    expect(listed.structuredContent.vaults.some((v: any) => v.id === iv || v.name === "Invites")).toBe(false);
+    const read = await c.callTool({ name: "read_note", arguments: { vault: "Invites", note: "Secret" } });
+    expect(read.isError).toBe(true);
+    await c.close();
+    // Someone else can't accept it for them.
+    expect((await bob.req(`/invitations/${i.id}/accept`, { method: "POST" })).status).toBe(404);
+    expect((await bob.req(`/invitations/${i.id}`, { method: "DELETE" })).status).toBe(404);
+  });
+
+  test("Accept joins with the invited role; the invitation is used up", async () => {
+    const i = await pending(dave);
+    const v = await dave.ok(`/invitations/${i.id}/accept`, { method: "POST" });
+    expect(v).toMatchObject({ id: iv, name: "Invites", role: "editor", member_count: 2 });
+    expect((await dave.ok(`/vaults/${iv}/notes/${noteId}`)).content).toContain("The plan.");
+    expect(await pending(dave)).toBeUndefined();
+    expect((await dave.req(`/invitations/${i.id}/accept`, { method: "POST" })).status).toBe(404);
+    expect((await alice.ok(`/vaults/${iv}/invites`)).map((x: any) => x.email)).toEqual(["nobody-yet@example.com"]);
+    // Inviting a member again changes their role, straight away.
+    expect((await invite("dave@example.com", "viewer")).data).toEqual({ status: "updated" });
+    expect((await dave.ok(`/vaults/${iv}/notes/${noteId}`)).role).toBe("viewer");
+  });
+
+  test("an invitation waits for someone who signs up later", async () => {
+    const late = new Client("nobody-yet");
+    await late.ok("/register", { body: { email: "nobody-yet@example.com", password: "password-n" } });
+    expect((await late.ok("/vaults")).some((v: any) => v.id === iv)).toBe(false);
+    const i = await pending(late);
+    expect(i.role).toBe("editor");
+    // Decline drops it, and grants nothing.
+    await late.ok(`/invitations/${i.id}`, { method: "DELETE" });
+    expect(await pending(late)).toBeUndefined();
+    expect((await late.req(`/vaults/${iv}/notes`)).status).toBe(404);
+    expect(await alice.ok(`/vaults/${iv}/invites`)).toEqual([]);
+  });
+
+  test("an owner can cancel an invitation before it's answered", async () => {
+    await invite("bob@example.com", "viewer");
+    const i = await pending(bob);
+    await alice.ok(`/vaults/${iv}/invites/${i.id}`, { method: "DELETE" });
+    expect(await pending(bob)).toBeUndefined();
+    expect((await bob.req(`/invitations/${i.id}/accept`, { method: "POST" })).status).toBe(404);
+    expect((await bob.req(`/vaults/${iv}/notes`)).status).toBe(404);
+  });
+
+  test("Undo after removing a member puts them back; leaving needs a new invitation", async () => {
+    const d = (await dave.ok("/session")).user;
+    await alice.ok(`/vaults/${iv}/members/${d.id}`, { method: "DELETE" });
+    expect((await dave.req(`/vaults/${iv}/notes`)).status).toBe(404);
+    expect((await dave.req(`/vaults/${iv}/members/${d.id}/restore`, { method: "POST" })).status).toBe(404);
+    await alice.ok(`/vaults/${iv}/members/${d.id}/restore`, { method: "POST" });
+    expect((await dave.ok(`/vaults/${iv}/notes/${noteId}`)).role).toBe("viewer");
+    expect((await alice.req(`/vaults/${iv}/members/${d.id}/restore`, { method: "POST" })).status).toBe(404); // once
+    await dave.ok(`/vaults/${iv}/members/${d.id}`, { method: "DELETE" }); // leaves
+    expect((await alice.req(`/vaults/${iv}/members/${d.id}/restore`, { method: "POST" })).status).toBe(404);
+    expect((await dave.req(`/vaults/${iv}/notes`)).status).toBe(404);
+  });
+});
+
+describe("security headers and Trash purge rules (N13)", () => {
+  test("the app's page has a CSP, can't be framed, and keeps its address from other sites; HSTS only over https", async () => {
+    const res = await fetch(`${BASE}/v/1/n/2`); // any app path is the page
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<div id="root">');
+    const csp = res.headers.get("content-security-policy") ?? "";
+    expect(csp).toContain("default-src 'self'");
+    expect(csp).toMatch(/script-src 'self'(;|$)/); // no inline script in production
+    expect(csp).toContain("frame-ancestors 'none'");
+    expect(csp).toContain("object-src 'none'");
+    expect(csp).toContain("img-src 'self' data: blob: https:"); // remote images in notes still show
+    expect(csp).toContain(`connect-src 'self' ws://localhost:${PORT}`);
+    expect(res.headers.get("x-frame-options")).toBe("DENY");
+    expect(res.headers.get("referrer-policy")).toBe("same-origin");
+    expect(res.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(res.headers.get("strict-transport-security")).toBeNull();
+
+    const https = await fetch(`${BASE}/`, { headers: { "x-forwarded-proto": "https" } });
+    expect(https.headers.get("strict-transport-security")).toBe("max-age=31536000");
+    expect(https.headers.get("content-security-policy")).toContain(`connect-src 'self' wss://localhost:${PORT}`);
+
+    // The API, too: nothing to sniff or frame.
+    const api = await fetch(`${BASE}/api/session`);
+    expect(api.headers.get("x-content-type-options")).toBe("nosniff");
+    expect(api.headers.get("content-security-policy")).toBe("default-src 'none'; frame-ancestors 'none'");
+    // The page's own scripts are still served.
+    const html = await (await fetch(`${BASE}/`)).text();
+    const script = /<script[^>]+src="([^"]+)"/.exec(html)![1]!;
+    const js = await fetch(new URL(script, BASE));
+    expect(js.status).toBe(200);
+    expect(js.headers.get("content-type")).toContain("javascript");
+  });
+
+  test("an attachment keeps its own sandboxing CSP", async () => {
+    const v = (await alice.ok("/vaults", { body: { name: "Headers" } })).id;
+    const form = new FormData();
+    form.append("file", new File(["<svg xmlns='http://www.w3.org/2000/svg'/>"], "x.svg", { type: "image/svg+xml" }));
+    const up = await alice.ok(`/vaults/${v}/files`, { form });
+    const res = await fetch(`${BASE}/api/vaults/${v}/files?path=${encodeURIComponent(up.path)}`, { headers: { cookie: alice.cookie } });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("content-security-policy")).toContain("sandbox");
+  });
+
+  test("only the owner deletes from Trash for good, one note or all; editors can still restore", async () => {
+    const v = (await alice.ok("/vaults", { body: { name: "Purge" } })).id;
+    await addMember(v, bob, "editor");
+    const a = await alice.ok(`/vaults/${v}/notes`, { body: { path: "A.md", content: "# A" } });
+    const b = await alice.ok(`/vaults/${v}/notes`, { body: { path: "B.md", content: "# B" } });
+    const { trashId: ta } = await bob.ok(`/vaults/${v}/notes/${a.id}`, { method: "DELETE" });
+    const { trashId: tb } = await bob.ok(`/vaults/${v}/notes/${b.id}`, { method: "DELETE" });
+    expect((await bob.req(`/vaults/${v}/trash/${ta}`, { method: "DELETE" })).status).toBe(403);
+    expect((await bob.req(`/vaults/${v}/trash`, { method: "DELETE" })).status).toBe(403);
+    expect((await bob.ok(`/vaults/${v}/trash`)).items).toHaveLength(2); // nothing was lost
+    await bob.ok(`/vaults/${v}/trash/${ta}/restore`, { method: "POST" });
+    expect((await alice.ok(`/vaults/${v}/trash/${tb}`, { method: "DELETE" })).deleted).toBe(1);
+    expect((await alice.ok(`/vaults/${v}/trash`)).items).toHaveLength(0);
   });
 });

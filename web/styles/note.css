@@ -38,6 +38,26 @@
   cursor: text;
   flex: 1;
 }
+/* The title as a rename button: looks like the heading, works from the keyboard. */
+.title-button {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+.title-button:hover {
+  background: none;
+  color: inherit;
+}
 .title-input {
   width: 100%;
   font-size: var(--text-title);

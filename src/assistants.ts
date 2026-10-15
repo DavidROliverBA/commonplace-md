@@ -8,7 +8,7 @@ import { isIP } from "node:net";
 import { isPrivateAddress } from "./addresses";
 import { HttpError, type User } from "./auth";
 import { sql } from "./db";
-import { complete, DEFAULT_BASE, type Provider, ProviderError, type Usage } from "./llm";
+import { complete, DEFAULT_BASE, isLocalModelHost, localModelsAllowed, type Provider, ProviderError, type Usage } from "./llm";
 import { costOf, listPrice, type Price, pounds } from "./prices";
 import { settings } from "./settings";
 import { open, seal } from "./secrets";
@@ -65,7 +65,8 @@ function checkMoney(d: Pick<Draft, "price" | "dailyCap" | "provider" | "model">,
 }
 
 /** A base URL the server may call: https, or http only to this machine (in development, or with
- *  ALLOW_LOCAL_AI=true for a model on the same host as the server). */
+ *  ALLOW_LOCAL_AI=true for a model on the same host as the server). Checked when saved; at each
+ *  call, src/llm.ts also resolves the name, refuses private addresses and pins the connection. */
 export function checkBaseUrl(provider: Provider, raw: string | undefined): string {
   const v = (raw ?? "").trim().replace(/\/+$/, "");
   if (!v) {
@@ -78,13 +79,13 @@ export function checkBaseUrl(provider: Provider, raw: string | undefined): strin
   } catch {
     throw new HttpError(400, "That base URL isn't a URL");
   }
-  const local = ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+  const local = isLocalModelHost(u);
   // Never a private or internal address the server can reach but the person can't (SSRF).
   const host = u.hostname.replace(/^\[|\]$/g, "");
   const internal = !local && ((isIP(host) && isPrivateAddress(host)) || /\.localhost$|\.local$|\.internal$/i.test(host));
   if (internal) throw new HttpError(400, "That base URL is a private address. Give it a public https URL.");
   if (u.protocol === "https:" && !local) return v;
-  if (u.protocol === "http:" && local && (process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_AI === "true")) return v;
+  if (u.protocol === "http:" && local && localModelsAllowed()) return v;
   if (local) throw new HttpError(400, "The server can't reach a model on your own computer. Give it a public https URL (e.g. through a tunnel).");
   throw new HttpError(400, "The base URL must start with https://");
 }

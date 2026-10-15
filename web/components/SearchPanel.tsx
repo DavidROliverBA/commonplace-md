@@ -1,6 +1,6 @@
 // The sidebar's Search tab: keyword search, plus semantic (by meaning) when the server has an
 // embeddings provider (src/search.ts). Debounced as you type; a later query's reply always wins
-// over an earlier one's. The query lives in App, so it survives switching tabs, and can be saved
+// over an earlier one's, and a failed search says so with a way to try again. The query lives in App, so it survives switching tabs, and can be saved
 // to the sidebar as a smart folder (web/lib/savedSearches.ts). Snippets are sanitised down to <mark>.
 
 import DOMPurify from "dompurify";
@@ -22,6 +22,8 @@ export function SearchPanel({ vaultId, session, query, setQuery, onNavigate }: {
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [semantic, setSemantic] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [retry, setRetry] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const seq = useRef(0);
   const { list } = useSavedSearches();
@@ -31,11 +33,15 @@ export function SearchPanel({ vaultId, session, query, setQuery, onNavigate }: {
 
   useEffect(() => {
     const q = query.trim();
+    // Every change (clearing included) starts a new round, so a slower reply to an earlier query
+    // can never land on top of this one.
+    const mine = ++seq.current;
+    setError(null);
     if (!q) {
       setHits(null);
+      setBusy(false);
       return;
     }
-    const mine = ++seq.current;
     setBusy(true);
     const t = setTimeout(async () => {
       try {
@@ -44,12 +50,17 @@ export function SearchPanel({ vaultId, session, query, setQuery, onNavigate }: {
           setHits(r.hits);
           setSemantic(r.semantic);
         }
+      } catch (e) {
+        if (mine === seq.current) {
+          setHits(null);
+          setError(e instanceof Error ? e.message : String(e));
+        }
       } finally {
         if (mine === seq.current) setBusy(false);
       }
     }, 220);
     return () => clearTimeout(t);
-  }, [query, vaultId]);
+  }, [query, vaultId, retry]);
 
   return (
     <div className="search-panel">
@@ -63,7 +74,7 @@ export function SearchPanel({ vaultId, session, query, setQuery, onNavigate }: {
       />
       <div className="search-meta muted">
         <span>
-          {busy ? "Searching…" : hits ? `${hits.length} result${hits.length === 1 ? "" : "s"}` : session.search.semantic ? `Keyword + semantic (${session.search.provider})` : "Keyword search"}
+          {busy ? "Searching…" : error ? "Couldn't search" : hits ? `${hits.length} result${hits.length === 1 ? "" : "s"}` : session.search.semantic ? `Keyword + semantic (${session.search.provider})` : "Keyword search"}
           {hits && semantic && !busy && " · incl. semantic"}
         </span>
         {query.trim() && (
@@ -77,6 +88,14 @@ export function SearchPanel({ vaultId, session, query, setQuery, onNavigate }: {
           </button>
         )}
       </div>
+      {error && !busy && (
+        <div className="error search-error" role="alert">
+          <span>{error}</span>
+          <button className="quiet" onClick={() => setRetry((n) => n + 1)}>
+            Try again
+          </button>
+        </div>
+      )}
       <ul className="search-results">
         {hits?.map((h) => (
           <li key={h.id}>

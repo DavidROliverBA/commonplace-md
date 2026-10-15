@@ -4,6 +4,21 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-15** — The review's remaining findings (release v0.0.34, N13). Being added to a
+  vault is now an invitation to accept (Join vault / Decline in the sidebar; owners see and cancel
+  pending ones), which grants nothing until accepted, and the reply no longer says whether an
+  email has an account. Outgoing fetches (weblinks, assistants) connect to the address that was
+  checked, so DNS rebinding can't swap in a private one (`src/egress.ts`). The app sends a CSP
+  (no inline script), `frame-ancestors 'none'`, Referrer-Policy, nosniff and HSTS. Offline copies
+  are kept per person, and someone else signing in on the same browser clears the last person's.
+  Only an owner deletes from Trash for good. The Docker image is pinned and runs as non-root.
+  In the app: search shows its errors and can't be repopulated after clearing, vault switches
+  can't mix vaults' bookmarks, saved searches or types, the links panel resets per note, folders
+  and the title work from the keyboard, the quick switcher and command palette use the shared
+  dialog (focus trap and return), and the error screen says what to do. Tests wait on conditions
+  instead of fixed sleeps, the HEIC test runs everywhere (a fixture), and each suite has its own
+  ports so they can run at once.
+
 - **2026-10-15** — Ready for public review (release v0.0.33). A high-level design
   (`docs/ARCHITECTURE.md`: context, components, data model, key flows, security model, decisions),
   `SECURITY.md`, `CONTRIBUTING.md`, `test/README.md` and an MIT licence; a header on every file and
@@ -13,7 +28,7 @@ same notes.
   used another vault; sign-in pauses after ten wrong passwords and a new password signs out other
   devices; signup is off unless set, and production without `SETUP_TOKEN` makes one; zip imports
   expand to at most 256 MB and pass the storage guard; only owners can import `publish.json`; MCP
-  batches are capped. What's still open is N13.
+  batches are capped. The rest followed in v0.0.34 (N13, above).
 
 - **2026-10-13** — Publish a vault as a website (release v0.0.32, F18 step 1). Settings →
   Website (owners): the whole vault or chosen folders, `publish: false` to keep a note out, a

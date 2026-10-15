@@ -38,15 +38,17 @@ type Item = { id: number; path: string; title: string; type: string | null };
 
 export function RightPanel(p: Props) {
   const [links, setLinks] = useState<Links | null>(null);
+  const [linksError, setLinksError] = useState<string | null>(null);
   const version = p.notes.find((n) => n.id === p.noteId)?.updated_at;
 
   useEffect(() => {
     let live = true;
     // Debounced: while someone types, updated_at ticks every few seconds.
     const t = setTimeout(() => {
-      api<Links>(`/vaults/${p.vaultId}/notes/${p.noteId}/links`)
-        .then((l) => live && setLinks(l))
-        .catch(() => {});
+      api<Links>(`/vaults/${p.vaultId}/notes/${p.noteId}/links`).then(
+        (l) => live && (setLinks(l), setLinksError(null)),
+        (e) => live && setLinksError(e instanceof Error ? e.message : String(e)),
+      );
     }, 300);
     return () => {
       live = false;
@@ -79,10 +81,24 @@ export function RightPanel(p: Props) {
   // Mentions of this note's title that aren't links yet, with a one-click Link (after Capacities'
   // "Related content").
   const [unlinked, setUnlinked] = useState<{ id: number; path: string; title: string; snippet: string }[]>([]);
-  const loadMentions = () => api<typeof unlinked>(`/vaults/${p.vaultId}/notes/${p.noteId}/mentions`).then(setUnlinked, () => {});
+  // Another note: nothing of the last one's stays up while this one's links load.
   useEffect(() => {
-    const t = setTimeout(() => void loadMentions(), 500);
-    return () => clearTimeout(t);
+    setLinks(null);
+    setLinksError(null);
+    setUnlinked([]);
+  }, [p.vaultId, p.noteId]);
+  const loadMentions = (live = () => true) =>
+    api<typeof unlinked>(`/vaults/${p.vaultId}/notes/${p.noteId}/mentions`).then(
+      (m) => live() && setUnlinked(m),
+      () => {},
+    );
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(() => void loadMentions(() => live), 500);
+    return () => {
+      live = false;
+      clearTimeout(t);
+    };
   }, [p.vaultId, p.noteId, p.notes]);
   const link = async (sourceId: number, title: string) => {
     setUnlinked((m) => m.filter((x) => x.id !== sourceId));
@@ -141,6 +157,13 @@ export function RightPanel(p: Props) {
           <button className="link" onClick={() => (p.onDaily(new Date(links.created_at)), p.onNavigate())} title="Open that day's note">
             Made {formatDate(new Date(links.created_at), "dddd D MMMM YYYY")}
           </button>
+        </section>
+      )}
+      {linksError && !links && (
+        <section>
+          <p className="muted" role="status">
+            Couldn't load this note's links. {linksError}
+          </p>
         </section>
       )}
       <section>

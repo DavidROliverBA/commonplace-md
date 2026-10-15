@@ -37,7 +37,7 @@ import { api, type Note, type NoteSummary, type Session, type Vault } from "./li
 import { COMMANDS, currentCtx, provide } from "./lib/commands";
 import { relativeTime, resolveLocal } from "./lib/links";
 import { loadAssistants } from "./lib/ai";
-import { useOnline } from "./lib/offline";
+import { claimDevice, useOnline } from "./lib/offline";
 import { createTypedNote, loadTypes, typesState } from "./lib/types";
 import { allFolders } from "./lib/move";
 import { pickTemplate, templatesIn } from "./lib/templateActions";
@@ -49,7 +49,16 @@ type Outline = { level: number; text: string; line: number }[];
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
-  const loadSession = useCallback(() => api<Session>("/session").then(setSession), []);
+  // Before anyone's notes show: if this isn't the person whose offline copies are on this device,
+  // those go first (a shared browser, a session that expired; web/lib/offline.ts).
+  const loadSession = useCallback(
+    () =>
+      api<Session>("/session").then(async (s) => {
+        if (s.user) await claimDevice(s.instance, s.user.id);
+        setSession(s);
+      }),
+    [],
+  );
   useEffect(() => {
     void loadSession();
   }, []);
@@ -143,21 +152,39 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
     if (vaultId) localStorage.setItem("cp:vault", String(vaultId));
   }, [vaultId]);
 
-  const loadNotes = useCallback(async () => {
-    if (!vaultId) return;
-    const [n, t, f] = await Promise.all([
-      api<NoteSummary[]>(`/vaults/${vaultId}/notes`),
-      api<{ tag: string; count: number }[]>(`/vaults/${vaultId}/tags`),
-      api<string[]>(`/vaults/${vaultId}/folders`),
-    ]);
-    setNotes(n);
-    setTags(t);
-    setFolders(f);
-    setLoadedFor(vaultId);
-    void loadTypes(vaultId).catch(() => {});
-    void loadBookmarks(vaultId).catch(() => {});
-    void loadSavedSearches(vaultId).catch(() => {});
-  }, [vaultId]);
+  // The vault's notes, tags and folders. A failed load keeps the last list; a load someone asked
+  // for (opening the vault, after a move or a restore) says so once, until one succeeds, while the
+  // refreshes the event stream triggers stay quiet (they retry by themselves, and offline has
+  // its own notice). A reply for a vault that's no longer open is dropped.
+  const shownVault = useRef(vaultId);
+  shownVault.current = vaultId;
+  const loadFailed = useRef(false);
+  const loadNotes = useCallback(
+    async (background = false) => {
+      if (!vaultId) return;
+      void loadTypes(vaultId).catch(() => {});
+      void loadBookmarks(vaultId).catch(() => {});
+      void loadSavedSearches(vaultId).catch(() => {});
+      try {
+        const [n, t, f] = await Promise.all([
+          api<NoteSummary[]>(`/vaults/${vaultId}/notes`),
+          api<{ tag: string; count: number }[]>(`/vaults/${vaultId}/tags`),
+          api<string[]>(`/vaults/${vaultId}/folders`),
+        ]);
+        if (shownVault.current !== vaultId) return;
+        setNotes(n);
+        setTags(t);
+        setFolders(f);
+        setLoadedFor(vaultId);
+        loadFailed.current = false;
+      } catch (e) {
+        if (shownVault.current !== vaultId || background || loadFailed.current || !navigator.onLine) return;
+        loadFailed.current = true;
+        toast(`Couldn't load this vault's notes. ${e instanceof Error ? e.message : String(e)}`, { tone: "error", action: { label: "Try again", run: () => void loadNotes() } });
+      }
+    },
+    [vaultId],
+  );
 
   // Live vault changes from every member, over SSE.
   useEffect(() => {
@@ -169,10 +196,10 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
     const es = new EventSource(`/api/vaults/${vaultId}/events`);
     es.onmessage = () => {
       clearTimeout(timer);
-      timer = setTimeout(() => void loadNotes(), 400);
+      timer = setTimeout(() => void loadNotes(true), 400);
     };
     // EventSource reconnects by itself; refetch when it does, in case we missed events.
-    es.onopen = () => void loadNotes();
+    es.onopen = () => void loadNotes(true);
     // A page leaving (or frozen in the back/forward cache) must let go of its stream: browsers
     // allow six connections per site, and held streams would stall the next page load.
     const leave = () => es.close();

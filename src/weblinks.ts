@@ -4,13 +4,13 @@
 //
 // The server fetches pages people send it, so it must never be turned against things only it can
 // reach: only http(s) on the usual ports, never a private, loopback, link-local or metadata
-// address (checked again at every redirect), and small limits on time and size.
+// address (checked again at every redirect), and small limits on time and size. The connection goes
+// to the address that was checked, not to a fresh lookup (src/egress.ts), so DNS rebinding can't
+// slip a private address in between.
 
-import { lookup } from "node:dns/promises";
-import { isIP } from "node:net";
-import { isPrivateAddress } from "./addresses";
 import { HttpError } from "./auth";
 import { sql } from "./db";
+import { bareHost, EgressError, pinnedFetch, type Resolve, vetAddresses } from "./egress";
 import { preparePhoto } from "./images";
 import { normalisePath } from "./markdown";
 import * as notes from "./notes";
@@ -29,7 +29,16 @@ const MAX_REDIRECTS = 3;
 /** Tests serve their pages from this machine; nothing else should ever set this. */
 const allowLocal = () => process.env.WEBLINKS_ALLOW_LOCAL === "true";
 
-async function checkUrl(raw: string): Promise<URL> {
+/** What fetching can be given in tests: the resolver, and fetch itself. */
+export interface FetchDeps {
+  resolve?: Resolve;
+  fetch?: (input: string, init: BunFetchRequestInit) => Promise<Response>;
+}
+
+/** A link the server may fetch, and the checked addresses to fetch it from (src/egress.ts): the
+ *  name is resolved here, once, and the connection goes to these addresses, never to a second
+ *  lookup's answer (DNS rebinding). */
+async function checkUrl(raw: string, deps: FetchDeps = {}): Promise<{ url: URL; addresses: string[] }> {
   let u: URL;
   try {
     u = new URL(raw);
@@ -38,29 +47,36 @@ async function checkUrl(raw: string): Promise<URL> {
   }
   if (u.protocol !== "http:" && u.protocol !== "https:") throw new HttpError(400, "Only http and https links can be saved");
   if (u.username || u.password) throw new HttpError(400, "Links with a name and password in them can't be saved");
-  if (allowLocal()) return u; // tests serve their pages from this machine
-  if (u.port && u.port !== "80" && u.port !== "443") throw new HttpError(400, "Only links on the usual web ports can be fetched");
-  const host = u.hostname.replace(/^\[|\]$/g, "");
-  if (/^localhost$|\.localhost$|\.local$|\.internal$/i.test(host)) throw new HttpError(400, "That address isn't on the public web");
-  const addrs = isIP(host) ? [{ address: host }] : await lookup(host, { all: true }).catch(() => []);
-  if (!addrs.length) throw new HttpError(400, `Couldn't find ${host}`);
-  if (addrs.some((a) => isPrivateAddress(a.address))) throw new HttpError(400, "That address isn't on the public web");
-  return u;
+  const local = allowLocal(); // tests serve their pages from this machine
+  if (!local && u.port && u.port !== "80" && u.port !== "443") throw new HttpError(400, "Only links on the usual web ports can be fetched");
+  if (!local && /^localhost$|\.localhost$|\.local$|\.internal$/i.test(bareHost(u))) throw new HttpError(400, "That address isn't on the public web");
+  try {
+    return { url: u, addresses: await vetAddresses(u, { allowPrivate: local, resolve: deps.resolve }) };
+  } catch (e) {
+    if (e instanceof EgressError) throw new HttpError(400, e.message);
+    throw e;
+  }
 }
 
-/** Fetch a public URL, following a few redirects, each checked again. */
-async function safeFetch(raw: string, accept: string): Promise<{ res: Response; url: URL }> {
-  let url = await checkUrl(raw);
-  // Tests never reach the internet: only their own pages on this machine are fetched.
-  if (allowLocal() && !["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("tests don't fetch the internet");
+/** Fetch a public URL, following a few redirects, each resolved, checked and pinned again. */
+export async function safeFetch(raw: string, accept: string, deps: FetchDeps = {}): Promise<{ res: Response; url: URL }> {
+  let { url, addresses } = await checkUrl(raw, deps);
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const res = await fetch(url, {
-      redirect: "manual",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
-      headers: { accept, "user-agent": "Mozilla/5.0 (compatible; Commonplace; +https://github.com/DavidROliverBA/commonplace-md)", "accept-language": "en-GB,en;q=0.8" },
-    });
+    // Tests never reach the internet: only their own pages on this machine are fetched.
+    if (allowLocal() && !["localhost", "127.0.0.1"].includes(url.hostname)) throw new Error("tests don't fetch the internet");
+    const res = await pinnedFetch(
+      url,
+      addresses,
+      {
+        redirect: "manual",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+        headers: { accept, "user-agent": "Mozilla/5.0 (compatible; Commonplace; +https://github.com/DavidROliverBA/commonplace-md)", "accept-language": "en-GB,en;q=0.8" },
+      },
+      deps.fetch,
+    );
     if (res.status >= 300 && res.status < 400 && res.headers.get("location")) {
-      url = await checkUrl(new URL(res.headers.get("location")!, url).toString());
+      void res.body?.cancel();
+      ({ url, addresses } = await checkUrl(new URL(res.headers.get("location")!, url).toString(), deps));
       continue;
     }
     return { res, url };
@@ -193,7 +209,7 @@ async function ensureWeblinkType(vaultId: number, userId: number): Promise<void>
 
 /** Save a link as a Weblink note, or return the one that already has this address. */
 export async function saveWeblink(vaultId: number, userId: number, raw: string, sharedTitle = ""): Promise<{ id: number; path: string; title: string; existed: boolean }> {
-  const url = (await checkUrl(raw.trim())).toString();
+  const url = (await checkUrl(raw.trim())).url.toString();
   const [dup] = await sql`select id, path, title from notes where vault_id = ${vaultId} and lower(type_name) = 'weblink' and frontmatter->>'url' = ${url} limit 1`;
   if (dup) return { id: Number(dup.id), path: dup.path, title: dup.title, existed: true };
   await ensureWeblinkType(vaultId, userId);

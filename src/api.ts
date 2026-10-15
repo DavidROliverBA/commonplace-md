@@ -327,14 +327,36 @@ export const apiRoutes = {
   },
   "/api/vaults/:v/members": {
     GET: route(async (ctx) => vaults.listMembers((await vaultCtx(ctx, "viewer")).vaultId)),
+    // A member's email changes their role; anyone else's gets an invitation (N13). The reply for an
+    // invitation is the same whether or not the email has an account.
     PUT: route(async (ctx) => {
-      const { vaultId } = await vaultCtx(ctx, "owner");
-      const b = await body(ctx.req, z.object({ email: z.string(), role: Role }));
-      await vaults.setMember(vaultId, b.email, b.role);
-      const [u] = await sql`select id from users where email = ${b.email.trim().toLowerCase()}`;
+      const { vaultId, user } = await vaultCtx(ctx, "owner");
+      const b = await body(ctx.req, z.object({ email: z.string().max(320), role: Role }));
+      const r = await vaults.setMember(vaultId, b.email, b.role, user);
+      if (r.status === "invited") return { status: "invited" };
       // Reconnect them so a demotion to viewer takes effect in open editors.
-      if (u) kick({ vaultId, userId: u.id }, "role changed");
+      kick({ vaultId, userId: r.userId }, "role changed");
+      return { status: "updated" };
     }),
+  },
+  "/api/vaults/:v/invites": {
+    GET: route(async (ctx) => vaults.listInvites((await vaultCtx(ctx, "owner")).vaultId)),
+  },
+  "/api/vaults/:v/invites/:id": {
+    DELETE: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "owner");
+      await vaults.cancelInvite(vaultId, id(ctx.req.params.id));
+    }),
+  },
+  // The signed-in person's own invitations: accept to join, decline to drop it.
+  "/api/invitations": {
+    GET: route(async ({ req }) => vaults.myInvites(await requireUser(req))),
+  },
+  "/api/invitations/:id/accept": {
+    POST: route(async ({ req }) => vaults.acceptInvite(await requireUser(req), id(req.params.id))),
+  },
+  "/api/invitations/:id": {
+    DELETE: route(async ({ req }) => vaults.declineInvite(await requireUser(req), id(req.params.id))),
   },
   "/api/vaults/:v/members/:uid": {
     DELETE: route(async (ctx) => {
@@ -343,8 +365,15 @@ export const apiRoutes = {
       const uid = id(ctx.req.params.uid);
       // Owners remove anyone; anyone may leave.
       await vaults.requireRole(vaultId, user, uid === user.id ? "viewer" : "owner");
-      await vaults.removeMember(vaultId, uid);
+      await vaults.removeMember(vaultId, uid, user);
       kick({ vaultId, userId: uid }, "removed from vault");
+    }),
+  },
+  // Undo of Remove, for the owner who just did it (a few minutes); otherwise invite them again.
+  "/api/vaults/:v/members/:uid/restore": {
+    POST: route(async (ctx) => {
+      const { vaultId, user } = await vaultCtx(ctx, "owner");
+      await vaults.restoreMember(vaultId, id(ctx.req.params.uid), user);
     }),
   },
   "/api/vaults/:v/events": {
@@ -637,8 +666,9 @@ export const apiRoutes = {
     }),
   },
   "/api/vaults/:v/trash/:id": {
+    // Gone for good, like emptying Trash: the owner's call. Editors can still restore (N13).
     DELETE: route(async (ctx) => {
-      const { vaultId } = await vaultCtx(ctx, "editor");
+      const { vaultId } = await vaultCtx(ctx, "owner");
       return { deleted: await notes.purgeFromTrash(vaultId, id(ctx.req.params.id)) };
     }),
   },

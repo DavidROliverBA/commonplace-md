@@ -3,6 +3,8 @@
 // kept in one neutral shape (`Msg`) and translated per provider here, so the rest of the app never
 // sees a provider's format. Keys go only in headers.
 
+import { EgressError, pinnedFetch, type Resolve, vetAddresses } from "./egress";
+
 export type Provider = "anthropic" | "openai" | "relaxai" | "compatible";
 
 /** Where each provider is when no base URL is given. */
@@ -220,10 +222,36 @@ function parseArgs(json: string): Record<string, unknown> {
   }
 }
 
+/** A model on this machine (`http://localhost:…`): allowed in development, or in production with
+ *  ALLOW_LOCAL_AI=true for a model on the same host as the server. */
+export const isLocalModelHost = (u: URL) => ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname);
+export const localModelsAllowed = () => process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_AI === "true";
+
+/** Where a call may go, checked again at call time (the rules, or what a name resolves to, may
+ *  have changed since the assistant was saved): https to a public address, or a local model where
+ *  allowed. The name is resolved here and the connection pinned to the checked addresses
+ *  (src/egress.ts), so DNS rebinding can't point a stored base URL at the server's own network.
+ *  Streaming is unaffected: the pinned request is an ordinary fetch whose body is read as it comes. */
+export async function callAddresses(u: URL, resolve?: Resolve): Promise<string[]> {
+  if (isLocalModelHost(u)) {
+    if (!localModelsAllowed()) throw new ProviderError(400, "The server can't reach a model on this machine (set ALLOW_LOCAL_AI=true for one on the same host)");
+    return u.hostname === "localhost" ? ["127.0.0.1", "::1"] : [u.hostname.replace(/^\[|\]$/g, "")];
+  }
+  if (u.protocol !== "https:") throw new ProviderError(400, "The base URL must start with https://");
+  try {
+    return await vetAddresses(u, { resolve });
+  } catch (e) {
+    if (e instanceof EgressError) throw new ProviderError(400, e.reason === "private" ? `The AI provider's address (${u.host}) is a private address, which the server won't call` : `Couldn't find the AI provider at ${u.host}`);
+    throw e;
+  }
+}
+
 async function post(url: string, headers: Record<string, string>, body: unknown, signal: AbortSignal): Promise<Response> {
+  const u = new URL(url);
+  const addresses = await callAddresses(u);
   let res: Response;
   try {
-    res = await fetch(url, { method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream", ...headers }, body: JSON.stringify(body), signal, redirect: "error" });
+    res = await pinnedFetch(u, addresses, { method: "POST", headers: { "content-type": "application/json", accept: "text/event-stream", ...headers }, body: JSON.stringify(body), signal, redirect: "error" });
   } catch (e) {
     if (signal.aborted) throw e;
     throw new ProviderError(502, `Couldn't reach the AI provider at ${new URL(url).host}`);

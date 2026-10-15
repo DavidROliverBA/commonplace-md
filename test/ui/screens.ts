@@ -11,7 +11,7 @@ import { startFakeAi } from "../fakeAi";
 import { startFakeGitHub, TOKEN } from "../fakeGitHub";
 import { chromePath } from "./chrome";
 
-const PORT = 3199;
+const PORT = 3399;
 const BASE = `http://localhost:${PORT}`;
 const ADMIN_DB = process.env.UI_ADMIN_DATABASE_URL ?? "postgres://commonplace:commonplace@localhost:5434/commonplace";
 const DB = ADMIN_DB.replace(/\/[^/]+$/, "/commonplace_screens");
@@ -22,10 +22,10 @@ const admin = postgres(ADMIN_DB, { onnotice: () => {} });
 await admin.unsafe("drop database if exists commonplace_screens with (force)");
 await admin.unsafe("create database commonplace_screens");
 await admin.end();
-const fake = startFakeAi(3194);
-const fakeGh = startFakeGitHub(3185);
+const fake = startFakeAi(3394);
+const fakeGh = startFakeGitHub(3385);
 const server = Bun.spawn(["bun", "src/server.ts"], {
-  env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", SETUP_TOKEN: "", EMBEDDING_PROVIDER: "hash", SECRETS_KEY: "screens-key", ALLOW_LOCAL_AI: "true", GITHUB_API_URL: "http://localhost:3185", NODE_ENV: "production" },
+  env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", SETUP_TOKEN: "", EMBEDDING_PROVIDER: "hash", SECRETS_KEY: "screens-key", ALLOW_LOCAL_AI: "true", GITHUB_API_URL: "http://localhost:3385", NODE_ENV: "production" },
   stdout: "ignore",
   stderr: "inherit",
 });
@@ -43,6 +43,12 @@ try {
     return res.json();
   };
   const vaultId = (await api("/vaults"))[0].id;
+  // An invitation waiting for Sam (N13), so the file panel shots show the card.
+  const pr = await fetch(`${BASE}/api/register`, { method: "POST", headers: { "content-type": "application/json", origin: BASE }, body: JSON.stringify({ email: "priya@example.com", password: "password-priya", name: "Priya" }) });
+  const priya = pr.headers.get("set-cookie")!.split(";")[0]!;
+  const asPriya = (path: string, body: unknown, method = "POST") => fetch(`${BASE}/api${path}`, { method, headers: { cookie: priya, "content-type": "application/json", origin: BASE }, body: JSON.stringify(body) }).then((x) => x.json());
+  const garden = await asPriya("/vaults", { name: "Garden" });
+  await asPriya(`/vaults/${garden.id}/members`, { email: "screens@example.com", role: "editor" }, "PUT");
   for (const f of ["Projects", "Projects/Kitchen", "Recipes"]) await api(`/vaults/${vaultId}/folders`, { path: f });
   const contractors = await api(`/vaults/${vaultId}/notes`, { path: "Projects/Contractors.md", content: "# Contractors\n\nBuilders and trades." });
   await api(`/vaults/${vaultId}/notes`, { path: "Diary.md", content: "# Diary\n\nRang the contractors about the worktops.\n\n- [ ] Pay the deposit 📅 2026-10-09\n- [ ] Order tiles 📅 2026-10-30\n" });

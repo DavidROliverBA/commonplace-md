@@ -1,6 +1,6 @@
 // Photo preparation for captured photos: EXIF rotation, size limits, shrinking, and the HEIC
-// path end to end (src/imageMath.ts, src/images.ts). No database needed; the HEIC case runs only
-// where macOS `sips` can make a HEIC, and is skipped elsewhere.
+// path end to end (src/imageMath.ts, src/images.ts), with a real HEIC from test/fixtures. No
+// database needed.
 
 import { describe, expect, test } from "bun:test";
 import jpeg from "jpeg-js";
@@ -66,21 +66,16 @@ describe("photo preparation", () => {
   });
 
   test("a HEIC photo becomes an upright 2048 px JPEG; small JPEGs and other files pass through", async () => {
-    // Build a real HEIC with macOS sips if it's there; elsewhere this case is skipped.
-    const tmp = `${process.env.TMPDIR ?? "/tmp"}/cp-heic-${process.pid}`;
+    // A real 3000×2000 HEIC (test/fixtures, made once with macOS sips), so this runs everywhere.
+    const heic = new File([await Bun.file(new URL("./fixtures/photo-3000x2000.heic", import.meta.url)).arrayBuffer()], "IMG_0001.HEIC", { type: "image/heic" });
+    const out = await preparePhoto(heic);
+    expect([out.name, out.type]).toEqual(["IMG_0001.jpg", "image/jpeg"]);
+    expect(jpegSize(new Uint8Array(await out.arrayBuffer()))).toEqual({ width: 2048, height: 1365 });
     // Noise, so the JPEG is a phone-photo-sized few MB (a flat colour compresses to nothing).
     const noise = Buffer.alloc(3000 * 2000 * 4);
     for (let i = 0, x = 7; i < noise.length; i++) noise[i] = (x = (x * 1103515245 + 12345) >>> 0) >>> 24;
     const big = new Uint8Array(jpeg.encode({ data: noise, width: 3000, height: 2000 }, 90).data);
     expect(big.length).toBeGreaterThan(1_500_000);
-    await Bun.write(`${tmp}.jpg`, big);
-    const sips = Bun.which("sips") ? Bun.spawnSync(["sips", "-s", "format", "heic", `${tmp}.jpg`, "--out", `${tmp}.heic`], { stdout: "ignore", stderr: "ignore" }) : null;
-    if (sips?.exitCode === 0) {
-      const heic = new File([await Bun.file(`${tmp}.heic`).arrayBuffer()], "IMG_0001.HEIC", { type: "image/heic" });
-      const out = await preparePhoto(heic);
-      expect([out.name, out.type]).toEqual(["IMG_0001.jpg", "image/jpeg"]);
-      expect(jpegSize(new Uint8Array(await out.arrayBuffer()))).toEqual({ width: 2048, height: 1365 });
-    }
     // A big JPEG with a portrait EXIF tag comes out upright and shrunk.
     const tagged = withOrientation(big, 6);
     const shrunk = await preparePhoto(new File([tagged as Uint8Array<ArrayBuffer>], "IMG_0002.JPG", { type: "image/jpeg" }));

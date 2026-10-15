@@ -42,6 +42,21 @@ create table if not exists vault_members (
 );
 create index if not exists vault_members_user on vault_members(user_id);
 
+-- Invitations to a vault (N13). An owner invites an email; nothing is granted until that person
+-- accepts, which is the only path into vault_members besides creating a vault. Keyed by email,
+-- not user, so the reply never says whether an account exists and an invitation waits for someone
+-- who signs up later. Membership checks read vault_members only, so a pending row grants nothing.
+create table if not exists vault_invites (
+  id          bigserial primary key,
+  vault_id    bigint not null references vaults(id) on delete cascade,
+  email       text not null,
+  role        text not null check (role in ('owner', 'editor', 'viewer')),
+  invited_by  bigint not null references users(id) on delete cascade,
+  created_at  timestamptz not null default now(),
+  unique (vault_id, email)
+);
+create index if not exists vault_invites_email on vault_invites(email);
+
 -- Notes. `path` is the vault-relative file path including ".md" (e.g. "Projects/Plan.md"),
 -- so export is a straight write of path → content. `content` is the markdown; `ydoc` is the
 -- Yjs CRDT state that live editing works on. `content` is always the materialised text of

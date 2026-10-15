@@ -20,8 +20,13 @@ const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((f) => f());
 
 /** Fetch the vault's types, and the type names notes use that have no definition yet. */
+// The vault being shown: a reply for any other (a quick vault switch) is dropped.
+let current: number | null = null;
 export async function loadTypes(vaultId: number): Promise<void> {
+  current = vaultId;
+  if (state.vaultId !== vaultId) ((state = { vaultId, types: [], undefined: [] }), emit()); // not the last vault's meanwhile
   const r = await api<{ types: TypeDef[]; undefined: { name: string; count: number }[] }>(`/vaults/${vaultId}/types`);
+  if (vaultId !== current) return;
   state = { vaultId, types: r.types, undefined: r.undefined };
   emit();
 }

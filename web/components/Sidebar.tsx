@@ -19,6 +19,7 @@ import { Menu } from "../ui/Menu";
 import { promptDialog, toast, toastError } from "../ui/overlays";
 import { openSettings } from "../lib/settings";
 import { SearchPanel } from "./SearchPanel";
+import { Invitations } from "./Invitations";
 
 interface TreeNode {
   name: string;
@@ -330,10 +331,13 @@ export function Sidebar(p: Props) {
                 onClick={() => toggle(f.path)}
                 {...dnd.bind(item, f.name)}
               >
-                <span className={`chev${isOpen ? " open" : ""}`}>
-                  <Icon name="chevron" size={14} />
-                </span>
-                <span className="tree-label">{f.name}</span>
+                {/* The row takes a click anywhere; this is its keyboard (and screen reader) way in. */}
+                <button type="button" className="tree-toggle" aria-expanded={isOpen}>
+                  <span className={`chev${isOpen ? " open" : ""}`} aria-hidden="true">
+                    <Icon name="chevron" size={14} />
+                  </span>
+                  <span className="tree-label">{f.name}</span>
+                </button>
                 {canWrite && (
                   <span className="row-actions">
                     <button className="row-btn" title="New note here" aria-label={`New note in ${f.name}`} onClick={(e) => (e.stopPropagation(), p.onNewNote(f.path))}>
@@ -382,6 +386,7 @@ export function Sidebar(p: Props) {
 
   return (
     <nav className="sidebar">
+      <Invitations onJoined={p.reloadVaults} />
       <div className="vault-switch">
         <select
           value={p.vault.id}

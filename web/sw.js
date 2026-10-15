@@ -4,7 +4,9 @@
 // itself and the reads it needs to start: session, vaults, note lists, note metadata, pictures.
 //
 // Never cached: writes, the live socket, the event stream, AI, search, exports and backups.
-// Signing out clears everything this worker stored (web/lib/offline.ts forgetEverything).
+// Signing out clears everything this worker stored (web/lib/offline.ts forgetEverything), and
+// someone else signing in on this browser clears the cached reads (claimDevice). If API is renamed,
+// rename it there too.
 
 const SHELL = "cp-shell-v1";
 const API = "cp-api-v1";

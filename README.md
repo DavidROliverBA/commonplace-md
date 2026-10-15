@@ -36,7 +36,9 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   other people's cursors and selections and who is in the note, and undo only undoes your own
   changes. A phone that edits offline merges cleanly when it reconnects.
 - **Multi-user vaults:** accounts and shared vaults with owner, editor and viewer roles. Viewers
-  are read-only everywhere, including on the live socket. An admin manages accounts.
+  are read-only everywhere, including on the live socket. Owners invite people by email, and
+  nobody joins until they accept: the invitation waits in their file panel (even if they sign up
+  later) with Join vault and Decline. An admin manages accounts.
 - **Types (think in things, not files):** say what a note *is* (Person, Meeting, Book) with
   `type:` in its properties. Start from a ready-made type (Person, Organisation, Meeting, Project,
   Book, Idea) or make your own; a type's note opens with a form for its properties (text, number,
@@ -134,7 +136,7 @@ set `SETUP_TOKEN` yourself).
 
 The first account you create becomes the admin and gets a vault. After that, an admin adds people
 under **Settings → Admin** (or set `ALLOW_SIGNUP=true` to let anyone register). Share a vault from
-**Settings (⚙) → This vault → Members**.
+**Settings (⚙) → This vault → Members**: invite their email, and they join when they accept.
 
 ### On an iPhone
 
