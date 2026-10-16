@@ -98,6 +98,28 @@ export function parseIsoDate(s: string, offset: number): DDate | null {
   return new DDate(t);
 }
 
+// The reader's time zone: an IANA name ("Europe/London") when known, so each instant gets the
+// offset of its own date (summer time or not); otherwise a fixed offset in minutes.
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+function tzOffset(tz: string, t: number): number | null {
+  let f = zoneFormats.get(tz);
+  if (!f) {
+    try {
+      f = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    } catch {
+      return null;
+    }
+    zoneFormats.set(tz, f);
+  }
+  const p = Object.fromEntries(f.formatToParts(new Date(t)).map((x) => [x.type, x.value]));
+  const wall = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second));
+  return Math.round((wall - Math.floor(t / 1000) * 1000) / 6e4);
+}
+/** An instant as the reader's wall clock. */
+export function toWall(t: number, offset: number, tz?: string): number {
+  return t + ((tz ? tzOffset(tz, t) : null) ?? offset) * 6e4;
+}
+
 const DUR_UNIT: [RegExp, Unit][] = [
   [/^(y|yr|yrs|year|years)$/, "years"],
   [/^(mo|mos|month|months)$/, "months"],
@@ -326,7 +348,7 @@ export class Vault {
   private summaries: NoteSummary[];
   private inlinks = new Map<string, Set<string>>();
   private resolved = new Map<string, string | null>();
-  private objects = new Map<number, Map<string, Record<string, Value>>>();
+  private objects = new Map<string, Map<string, Record<string, Value>>>();
 
   constructor(readonly pages: PageData[]) {
     for (const p of pages) this.byPath.set(p.path, p);
@@ -368,11 +390,12 @@ export class Vault {
   }
 
   /** A page as Dataview sees it: its fields, then `file`. Built once per page and time zone. */
-  object(path: string, offset: number): Record<string, Value> | null {
+  object(path: string, offset: number, tz?: string): Record<string, Value> | null {
     const p = this.byPath.get(path);
     if (!p) return null;
-    let byZone = this.objects.get(offset);
-    if (!byZone) this.objects.set(offset, (byZone = new Map()));
+    const zone = `${offset}|${tz ?? ""}`;
+    let byZone = this.objects.get(zone);
+    if (!byZone) this.objects.set(zone, (byZone = new Map()));
     let o = byZone.get(path);
     if (o) return o;
     o = {};
@@ -381,8 +404,8 @@ export class Vault {
     const name = titleFromPath(p.path);
     const self = new Link(p.path.replace(/\.md$/i, ""), null);
     const day = parseIsoDate(/\d{4}-\d{2}-\d{2}/.exec(name)?.[0] ?? "", offset) ?? (o.date instanceof DDate ? o.date : null);
-    const wall = (t: number) => new DDate(t + offset * 6e4);
-    const startOfDay = (t: number) => new DDate(Math.floor((t + offset * 6e4) / 864e5) * 864e5);
+    const wall = (t: number) => new DDate(toWall(t, offset, tz));
+    const startOfDay = (t: number) => new DDate(Math.floor(toWall(t, offset, tz) / 864e5) * 864e5);
     const etags = p.tags;
     const all = new Set<string>();
     for (const t of etags) {
@@ -608,8 +631,8 @@ function lex(src: string, offset: number): Tok[] {
 }
 
 /** date(today) and friends, or an unquoted ISO date; null for anything else. */
-function dateKeyword(s: string, offset: number, now = Date.now()): DDate | null {
-  const wall = now + offset * 6e4;
+function dateKeyword(s: string, offset: number, now = Date.now(), tz?: string): DDate | null {
+  const wall = toWall(now, offset, tz);
   const day = Math.floor(wall / 864e5) * 864e5;
   const d = new Date(day);
   const dow = (d.getUTCDay() + 6) % 7; // Monday first, as Luxon's weeks
@@ -1034,6 +1057,7 @@ interface Scope {
 interface Ctx {
   vault: Vault;
   offset: number;
+  tz?: string;
   now: number;
   thisObj: Record<string, Value> | null;
   thisPath: string | null;
@@ -1067,7 +1091,7 @@ function field(v: Value, key: string, ctx: Ctx): Value {
   if (v instanceof Link) {
     // A link's field is the linked page's.
     const to = ctx.vault.resolve(v.target);
-    const o = to ? ctx.vault.object(to, ctx.offset) : null;
+    const o = to ? ctx.vault.object(to, ctx.offset, ctx.tz) : null;
     if (key === "path") return o ? ((o.file as any).path as string) : v.target;
     if (key === "display") return v.display;
     if (key === "embed") return v.embed;
@@ -1336,7 +1360,7 @@ function pagesFrom(src: string, ctx: Ctx): Value[] {
       source = { k: "folder", path: src.trim() };
     }
   }
-  return ctx.vault.select(source, ctx.thisPath).map((p) => ctx.vault.object(p, ctx.offset)!);
+  return ctx.vault.select(source, ctx.thisPath).map((p) => ctx.vault.object(p, ctx.offset, ctx.tz)!);
 }
 
 function apply(f: Fn, args: Value[], ctx: Ctx): Value {
@@ -1406,7 +1430,7 @@ function callFn(name: string, argExprs: Expr[], row: Record<string, Value>, scop
       const [x, fmt] = [ev(0), ev(1)];
       if (x instanceof DDate) return x;
       if (x instanceof Link) return parseIsoDate(titleFromPath(x.target), ctx.offset) ?? (field(x, "file", ctx) as any)?.day ?? null;
-      if (typeof x === "string") return typeof fmt === "string" ? parseWithFormat(x, fmt) : (dateKeyword(x.trim(), ctx.offset, ctx.now) ?? parseIsoDate(x, ctx.offset));
+      if (typeof x === "string") return typeof fmt === "string" ? parseWithFormat(x, fmt) : (dateKeyword(x.trim(), ctx.offset, ctx.now, ctx.tz) ?? parseIsoDate(x, ctx.offset));
       return null;
     }
     case "dur": {
@@ -1867,13 +1891,14 @@ function out(v: Value, vault: Vault, depth = 0): Out {
 interface RunOpts {
   /** The note the query is in (its path), for `this` and [[]]. */
   thisPath: string | null;
-  /** Minutes east of UTC: the reader's time zone. */
+  /** Minutes east of UTC: the reader's time zone, if `tz` (its IANA name) isn't given or known. */
   offset: number;
+  tz?: string;
   now?: number;
 }
 
 function ctxFor(vault: Vault, o: RunOpts): Ctx {
-  return { vault, offset: o.offset, now: o.now ?? Date.now(), thisObj: o.thisPath ? vault.object(o.thisPath, o.offset) : null, thisPath: o.thisPath, steps: 0 };
+  return { vault, offset: o.offset, tz: o.tz, now: o.now ?? Date.now(), thisObj: o.thisPath ? vault.object(o.thisPath, o.offset, o.tz) : null, thisPath: o.thisPath, steps: 0 };
 }
 
 /** Run a ```dataview block. Errors come back as a result, never thrown. */
@@ -1921,8 +1946,8 @@ function execute(q: Query, vault: Vault, ctx: Ctx): Result {
   const pages = vault.select(q.source, ctx.thisPath);
   let rows: Row[] = [];
   if (q.kind === "task") {
-    for (const p of pages) for (const t of (vault.object(p, ctx.offset)!.file as any).tasks as Row[]) rows.push(t);
-  } else rows = pages.map((p) => vault.object(p, ctx.offset)!);
+    for (const p of pages) for (const t of (vault.object(p, ctx.offset, ctx.tz)!.file as any).tasks as Row[]) rows.push(t);
+  } else rows = pages.map((p) => vault.object(p, ctx.offset, ctx.tz)!);
   let grouped: string | null = null;
   for (const c of q.clauses) {
     switch (c.k) {
@@ -1989,7 +2014,7 @@ function execute(q: Query, vault: Vault, ctx: Ctx): Result {
       for (const x of Array.isArray(d) ? d : [d]) if (x instanceof DDate) days.push({ day: formatDate(x, "yyyy-MM-dd"), ms: x.ms, value: idOf(r) });
     }
     days.sort((a, b) => a.ms - b.ms);
-    const today = formatDate(new DDate(Math.floor((ctx.now + ctx.offset * 6e4) / 864e5) * 864e5), "yyyy-MM-dd");
+    const today = formatDate(new DDate(Math.floor(toWall(ctx.now, ctx.offset, ctx.tz) / 864e5) * 864e5), "yyyy-MM-dd");
     return { kind: "calendar", days: days.slice(0, MAX_ROWS * 5).map(({ day, value }) => ({ day, value })), total: days.length, today };
   }
   if (q.kind === "table") {
@@ -2039,7 +2064,7 @@ function execute(q: Query, vault: Vault, ctx: Ctx): Result {
       // Shown under its parent instead, when its parent matched too.
       for (let p = t.parent as number | null; p !== null; ) {
         if (picked.has(`${t.path}:${p}`)) return false;
-        const up = ((vault.object(t.path as string, ctx.offset)!.file as any).lists as Row[]).find((x) => x.line === p);
+        const up = ((vault.object(t.path as string, ctx.offset, ctx.tz)!.file as any).lists as Row[]).find((x) => x.line === p);
         p = (up?.parent as number | null) ?? null;
       }
       return true;
@@ -2061,3 +2086,19 @@ function execute(q: Query, vault: Vault, ctx: Ctx): Result {
     shown: shown.length,
   };
 }
+
+// ── for dataviewjs (web/sandbox/dvjs.ts): the same pages, values and functions ────────────
+
+/** The pages a source names ("" for all), as page objects. */
+export function pagesFor(src: string, vault: Vault, thisPath: string | null, offset: number, tz?: string): Record<string, Value>[] {
+  return pagesFrom(src, ctxFor(vault, { thisPath, offset, tz })) as Record<string, Value>[];
+}
+
+/** Call one of the query language's functions on values (dv.func.*). */
+export function callFunction(name: string, args: Value[], vault: Vault, thisPath: string | null, offset: number, tz?: string): Value {
+  const ctx = ctxFor(vault, { thisPath, offset, tz });
+  return callFn(name, args.map((v) => ({ k: "lit", v }) as Expr), ctx.thisObj ?? {}, null, ctx);
+}
+
+export const parseInlineValue = (raw: string, offset: number): Value => inlineValue(raw, offset);
+export const toOut = (v: Value, vault: Vault): Out => out(v, vault);

@@ -24,6 +24,7 @@ const FILES: Record<string, string> = {
   "Log.md": '# Log\n\n```dataview\nCALENDAR date FROM "Logbook"\n```\n',
   "Logbook/Kickoff.md": "---\ndate: 2026-03-03\n---\nStarted.\n",
   "Logbook/Review.md": "---\ndate: 2026-03-10\n---\nReviewed.\n",
+  "Script.md": '# Script\n\n```dataviewjs\nconst ps = dv.pages(\'"Logbook"\').sort((p) => p.date);\ndv.table(["Note", "Day"], ps.map((p) => [p.file.link, p.date.toFormat("d LLL")]));\ndv.taskList(dv.pages(\'"Projects"\').file.tasks);\nlet net = "open";\ntry { await fetch("https://example.com/"); } catch (e) { net = "blocked"; }\nlet cookie = "readable";\ntry { document.cookie; } catch (e) { cookie = "blocked"; }\nlet top = "reachable";\ntry { parent.document.title; } catch (e) { top = "blocked"; }\ndv.paragraph(`network ${net}, cookies ${cookie}, app ${top}`);\n```\n',
   "attachments/dot.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="5"/></svg>',
 };
 
@@ -217,6 +218,32 @@ describe("standalone, with a folder", () => {
     await page.click('.cm-content [aria-label="Previous month"]');
     await page.waitForFunction(() => document.querySelector(".cm-content .dv-cal-title")?.textContent === "March 2026 2");
     await page.click(".cm-content .dv-cal-list a.internal-link");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Kickoff");
+  });
+
+  test("dataviewjs runs sandboxed: draws, ticks a task, opens a note, and can't reach the network or the app", async () => {
+    await clickText(page, ".tree-row.note", "Script");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Script");
+    const handle = await page.waitForSelector(".cm-content iframe.dv-frame");
+    expect(await handle!.evaluate((f) => f.getAttribute("sandbox"))).toBe("allow-scripts");
+    const frame = (await handle!.contentFrame())!;
+    await frame.waitForFunction(() => document.body.textContent?.includes("network"), { timeout: 8000 });
+    expect(await frame.$$eval("table tbody tr", (r) => r.map((x) => x.textContent))).toEqual(["Kickoff3 Mar", "Review10 Mar"]);
+    expect(await frame.$eval("#root", (e) => e.textContent)).toContain("network blocked, cookies blocked, app blocked");
+    // The frame grows to what it drew.
+    expect(await handle!.evaluate((f) => f.getBoundingClientRect().height)).toBeGreaterThan(150);
+    // Its task box ticks the task in its note, through the app.
+    const before = await readFile(page, "Projects/roadmap.md");
+    await frame.click("input.dv-task");
+    await page.waitForFunction(() => document.querySelector(".standalone-foot")?.textContent?.includes("Saved to the folder"));
+    await page.waitForFunction(async (b) => {
+      const d = await (await navigator.storage.getDirectory()).getDirectoryHandle("Projects");
+      return (await (await d.getFileHandle("roadmap.md")).getFile()).text().then((t) => t !== b);
+    }, {}, before);
+    expect((await readFile(page, "Projects/roadmap.md")).includes("- [x] first step")).toBe(!before.includes("- [x] first step"));
+    const again = (await (await page.waitForSelector(".cm-content iframe.dv-frame"))!.contentFrame())!;
+    await again.waitForSelector("table a.internal-link");
+    await again.click("table a.internal-link");
     await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Kickoff");
   });
 

@@ -88,6 +88,16 @@ describe("queries", () => {
     expect(runInline("date(sow)", vault, { thisPath: null, offset: 0, now: DAY })).toEqual({ kind: "value", value: { t: "date", text: "July 27, 2026" } });
   });
 
+  test("file times use the time zone's offset on their own date, not today's", () => {
+    // 23:30 UTC on 15 January is still the 15th in London (GMT), though summer time adds an hour.
+    const t = Date.UTC(2026, 0, 15, 23, 30);
+    const v = new Vault([readPage({ path: "Winter.md", content: "", ctime: t, mtime: t })]);
+    const day = (o: { offset: number; tz?: string }) => (runInline("file.mday", v, { thisPath: "Winter.md", ...o }) as any).value.text;
+    expect(day({ offset: 60, tz: "Europe/London" })).toBe("January 15, 2026");
+    expect(day({ offset: 60 })).toBe("January 16, 2026"); // without the zone's name, a fixed offset
+    expect((runInline("file.mtime", v, { thisPath: "Winter.md", offset: 60, tz: "Europe/London" }) as any).value.text).toBe("11:30 PM - January 15, 2026");
+  });
+
   test("functions: choice (and a chain of conditions), default, join, map and filter with lambdas", () => {
     expect(rows('TABLE WITHOUT ID choice(priority = 1, "high", "normal"), choice(status = "x", 1, status = "paused", 2, 3) FROM "Projects" SORT priority')).toEqual([
       ["high", 2],

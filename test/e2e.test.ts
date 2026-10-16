@@ -795,6 +795,27 @@ describe("publish a vault as a website (F18)", () => {
     expect((await outsider.req(`/vaults/${pv}/dataview`, { body: { noteId: index, offset: 0, items } })).status).toBe(404);
   });
 
+  test("dataviewjs: the sandbox page is an opaque origin with no network; pages and files go to members only", async () => {
+    const r = await get("/sandbox/dataviewjs");
+    const csp = r.headers.get("content-security-policy")!;
+    for (const d of ["default-src 'none'", "sandbox allow-scripts", "frame-ancestors 'self'", "form-action 'none'"]) expect(csp).toContain(d);
+    expect(csp).not.toContain("allow-same-origin");
+    expect(csp).not.toMatch(/connect-src|img-src [^;]*https/);
+    const html = await r.text();
+    const hash = (/script-src 'sha256-([^']+)'/.exec(csp) ?? [])[1]!;
+    const script = /<script>([\s\S]*)<\/script>/.exec(html)![1]!;
+    expect(new Bun.CryptoHasher("sha256").update(script).digest("base64")).toBe(hash);
+
+    const pages = await bob.ok(`/vaults/${pv}/dataview/pages`);
+    expect(pages.map((x: any) => x.path)).toContain("Garden/Index.md");
+    expect((await bob.ok(`/vaults/${pv}/dataview/file?path=${encodeURIComponent("Garden/Winter jobs.md")}`)).text).toContain("Mulch");
+    expect((await bob.req(`/vaults/${pv}/dataview/file?path=nothing.csv`)).status).toBe(404);
+    const outsider = new Client("dvjs-outsider");
+    await outsider.ok("/register", { body: { email: "dvjs-outsider@example.com", password: "password-o" } });
+    expect((await outsider.req(`/vaults/${pv}/dataview/pages`)).status).toBe(404);
+    expect((await outsider.req(`/vaults/${pv}/dataview/file?path=Garden/Index.md`)).status).toBe(404);
+  });
+
   test("publish.json travels with an export; a broken one publishes nothing rather than everything", async () => {
     const zip = unzipSync((await alice.req(`/vaults/${pv}/export`)).data);
     expect(JSON.parse(strFromU8(zip["publish.json"]!))).toEqual({ include: ["Garden"] });

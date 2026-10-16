@@ -488,3 +488,48 @@ mark.hl-grey, .hl-grey { background: var(--hl-grey); color: inherit; }
   margin: 2px 0;
   padding-left: 1.2em;
 }
+
+/* dataviewjs (web/lib/dataviewjs.ts): the sandboxed frame takes the block's place, as tall as
+   what it draws. */
+.markdown .dataviewjs-block {
+  margin: 1em 0;
+}
+.markdown .dv-frame {
+  display: block;
+  width: 100%;
+  height: 40px;
+  border: none;
+  background: transparent;
+}
+.live-preview .cm-lp-dataviewjs {
+  position: relative;
+}
+.live-preview .cm-lp-dataviewjs .dataviewjs-block {
+  margin: 0;
+}
+.live-preview .cm-lp-dvjs-edit {
+  position: absolute;
+  top: 4px;
+  right: 0;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  color: var(--muted);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  opacity: 0;
+  cursor: pointer;
+}
+.live-preview .cm-lp-dataviewjs:hover .cm-lp-dvjs-edit,
+.live-preview .cm-lp-dvjs-edit:focus-visible {
+  opacity: 1;
+}
+@media (hover: none) {
+  .live-preview .cm-lp-dvjs-edit {
+    opacity: 1;
+  }
+}

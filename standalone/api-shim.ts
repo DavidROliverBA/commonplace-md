@@ -3,7 +3,7 @@
 // folder instead.
 
 import { type PageData, readPage, type Result, runInline, runQuery, Vault } from "../src/dataview";
-import { allNotes, getNote, noteFor, setContent, VAULT_ID } from "./vault";
+import { allNotes, attachmentUrl, getNote, noteFor, setContent, VAULT_ID } from "./vault";
 
 export type { Note, NoteSummary, Role, User, Vault, Session } from "../web/lib/api";
 
@@ -50,10 +50,22 @@ export async function api<T = any>(path: string, opts: { method?: string; body?:
   // Types (F16) are a server feature; a plain folder has none defined.
   if (path === `/vaults/${VAULT_ID}/types`) return { types: [], undefined: [] } as T;
   if (path === `/vaults/${VAULT_ID}/dataview` && opts.method === "POST") {
-    const b = opts.body as { noteId: number | null; offset: number; items: { kind: "query" | "inline"; source: string }[] };
+    const b = opts.body as { noteId: number | null; offset: number; tz?: string; items: { kind: "query" | "inline"; source: string }[] };
     const v = folderVault();
     const thisPath = b.noteId === null ? null : (allNotes().find((n) => n.id === b.noteId)?.path ?? null);
-    return b.items.map((it) => (it.kind === "query" ? runQuery(it.source, v, { thisPath, offset: b.offset }) : runInline(it.source, v, { thisPath, offset: b.offset }))) as Result[] as T;
+    return b.items.map((it) => (it.kind === "query" ? runQuery(it.source, v, { thisPath, offset: b.offset, tz: b.tz }) : runInline(it.source, v, { thisPath, offset: b.offset, tz: b.tz }))) as Result[] as T;
+  }
+  // dataviewjs (web/lib/dataviewjs.ts): the folder's pages, and a note's or file's text.
+  if (path === `/vaults/${VAULT_ID}/dataview/pages`) return folderVault().pages as T;
+  if (path.startsWith(`/vaults/${VAULT_ID}/dataview/file?`)) {
+    const want = new URLSearchParams(path.slice(path.indexOf("?") + 1)).get("path") ?? "";
+    const isNote = /\.md$/i.test(want) || !/\.[a-z0-9]{1,8}$/i.test(want);
+    const note = isNote ? folderVault().resolve(want.replace(/\.md$/i, "")) : null;
+    const hit = note ? allNotes().find((n) => n.path === note) : undefined;
+    if (hit) return { text: getNote(hit.id)?.content ?? "" } as T;
+    const url = await attachmentUrl(want);
+    if (!url) throw new ApiError(404, `There's no file at ${want}`);
+    return { text: await (await fetch(url)).text() } as T;
   }
   // Ticking a task in a Dataview result: flip that line, found by its number and text.
   const task = new RegExp(`^/vaults/${VAULT_ID}/notes/(\\d+)/tasks$`).exec(path);

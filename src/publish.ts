@@ -189,8 +189,9 @@ interface RenderCtx {
   files: string[];
   /** Dataview queries see the published notes only, so a result can't show what isn't public. */
   dv: Vault;
-  /** The publisher's time zone, minutes east of UTC. */
+  /** The publisher's time zone: minutes east of UTC, and its name when known. */
   offset: number;
+  tz?: string;
 }
 
 function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string {
@@ -295,13 +296,13 @@ function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string
     renderer: {
       code({ text, lang }: Tokens.Code) {
         if (lang?.trim().split(/\s/)[0]!.toLowerCase() !== "dataview") return false;
-        return `<div class="dataview-block">${renderResult(runQuery(text, c.dv, { thisPath: note.path, offset: c.offset }), dvOpts)}</div>\n`;
+        return `<div class="dataview-block">${renderResult(runQuery(text, c.dv, { thisPath: note.path, offset: c.offset, tz: c.tz }), dvOpts)}</div>\n`;
       },
       codespan({ text }: Tokens.Codespan) {
         const raw = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
         const expr = inlineQuery(raw);
         if (expr === null) return false;
-        const r = runInline(expr, c.dv, { thisPath: note.path, offset: c.offset });
+        const r = runInline(expr, c.dv, { thisPath: note.path, offset: c.offset, tz: c.tz });
         return `<span class="dataview-inline">${r.kind === "value" ? renderValue(r.value, dvOpts) : renderResult(r, dvOpts, true)}</span>`;
       },
       html({ text }: Tokens.HTML | Tokens.Tag) {
@@ -387,13 +388,13 @@ async function plan(vaultId: number): Promise<Plan & { error?: string }> {
 
 const newSlug = () => randomBytes(8).readBigUInt64BE().toString(36).padStart(12, "0").slice(0, 12);
 
-export async function publish(vaultId: number, user: User, offset = 0): Promise<{ slug: string; pages: number; files: number }> {
+export async function publish(vaultId: number, user: User, offset = 0, tz?: string): Promise<{ slug: string; pages: number; files: number }> {
   const p = await plan(vaultId);
   if (p.error) throw new HttpError(400, p.error);
   if (!p.pages.length) throw new HttpError(400, "Nothing to publish: the chosen folders have no notes, or every note says publish: false.");
   const [vault] = await sql`select name from vaults where id = ${vaultId}`;
   const dv = new Vault(p.pages.map((n) => readPage({ path: n.path, content: n.content, ctime: new Date(n.created_at).getTime(), mtime: new Date(n.updated_at).getTime() })));
-  const ctx: RenderCtx = { all: (await listNotes(vaultId)) as RenderCtx["all"], published: new Map(p.pages.map((n) => [n.id, n])), files: p.files, dv, offset };
+  const ctx: RenderCtx = { all: (await listNotes(vaultId)) as RenderCtx["all"], published: new Map(p.pages.map((n) => [n.id, n])), files: p.files, dv, offset, tz };
   const rows = p.pages.map((n) => ({ vault_id: vaultId, path: pagePath(n.path), note_path: n.path, title: n.title, html: renderNote(n, pagePath(n.path), ctx), source_md5: n.md5 }));
   const [{ bytes }] = (await sql`select coalesce(sum(size), 0)::float8 as bytes from attachments where vault_id = ${vaultId} and path = any(${p.files})`) as unknown as [{ bytes: number }];
   await assertRoom(bytes + rows.reduce((n, r) => n + r.html.length, 0));

@@ -1,0 +1,25 @@
+/* The dataviewjs frame (src/sandbox.ts, web/sandbox/dvjs.ts): a page holding only what a block
+   draws, in the note's type, on the note's background. Only the frame's page has this class. */
+
+body.dv-sandbox {
+  margin: 0;
+  background: transparent;
+  color: var(--text);
+  font: var(--text-input)/1.6 var(--sans);
+  -webkit-font-smoothing: antialiased;
+  overflow: hidden;
+}
+html:has(> body.dv-sandbox) {
+  background: transparent;
+}
+body.dv-sandbox > .markdown {
+  max-width: none;
+  margin: 0;
+  padding: 1px 0;
+}
+body.dv-sandbox .markdown > :last-child {
+  margin-bottom: 0;
+}
+body.dv-sandbox > .markdown > * {
+  max-width: none;
+}

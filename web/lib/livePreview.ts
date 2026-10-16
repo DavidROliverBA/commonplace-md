@@ -14,6 +14,8 @@ import { readProps } from "./frontmatter";
 import { frontmatterYaml, PropertiesWidget } from "./propertiesWidget";
 import { inlineQuery } from "../../src/dataview";
 import { fillDataview } from "./dataview";
+import { fillDataviewJs } from "./dataviewjs";
+import { iconElement } from "../ui/Icon";
 import { drawDiagrams } from "./mermaid";
 import { fileUrl, renderMarkdown } from "./render";
 import { colourOf, hiloColour } from "./colours";
@@ -521,6 +523,50 @@ class DataviewWidget extends WidgetType {
   }
 }
 
+/** A ```dataviewjs block, running in its sandboxed frame; "Edit code" shows its source. */
+class DataviewJsWidget extends WidgetType {
+  constructor(
+    readonly code: string,
+    readonly cfg: LivePreviewConfig,
+    readonly onOpenLink: (target: string, newNote: boolean) => void,
+  ) {
+    super();
+  }
+  eq(o: DataviewJsWidget) {
+    return o.code === this.code;
+  }
+  toDOM(view: EditorView) {
+    const el = document.createElement("div");
+    el.className = "cm-lp-block cm-lp-dataviewjs markdown";
+    const box = document.createElement("div");
+    box.className = "dataviewjs-block";
+    const pre = document.createElement("pre");
+    pre.append(Object.assign(document.createElement("code"), { textContent: this.code }));
+    box.append(pre);
+    const edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "cm-lp-dvjs-edit";
+    edit.title = "Edit code";
+    edit.setAttribute("aria-label", "Edit code");
+    const icon = iconElement("code", 14);
+    if (icon) edit.append(icon);
+    edit.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const pos = view.posAtDOM(el);
+      view.focus();
+      view.dispatch({ selection: { anchor: Math.min(view.state.doc.lineAt(pos).to, view.state.doc.length) } });
+    });
+    el.append(edit, box);
+    el.addEventListener("cp-dataview", () => view.requestMeasure());
+    // The frame needs to be in the page to start; CodeMirror adds this element right after.
+    queueMicrotask(() => fillDataviewJs(el, { vaultId: this.cfg.vaultId, noteId: this.cfg.noteId?.() ?? null, notes: this.cfg.notes, onOpen: (t) => this.onOpenLink(t, false), canTick: () => !view.state.readOnly }));
+    return el;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 /** fillDataview looks for placeholders under a root; an inline one is its own root. */
 function wrap(el: HTMLElement): ParentNode {
   return { querySelectorAll: (sel: string) => (el.matches(sel) ? [el] : []) } as unknown as ParentNode;
@@ -582,13 +628,16 @@ function blockDecorations(state: EditorState, cfg: BlockConfig, focused: boolean
       if (node.name === "FencedCode") {
         const info = node.node.getChild("CodeInfo");
         const lang = info ? state.doc.sliceString(info.from, info.to).trim().toLowerCase() : "";
-        if (lang !== "mermaid" && lang !== "dataview") return false;
+        if (lang !== "mermaid" && lang !== "dataview" && lang !== "dataviewjs") return false;
         const from = state.doc.lineAt(node.from).from;
         const to = state.doc.lineAt(node.to).to;
         if (touched(from, to)) return false;
         const src = state.doc.sliceString(from, to);
         if (lang === "mermaid") decos.push(Decoration.replace({ widget: new DiagramWidget(renderMarkdown(src, cfg.vaultId, []), cfg.onOpenLink), block: true }).range(from, to));
-        else {
+        else if (lang === "dataviewjs") {
+          const body = state.doc.sliceString(state.doc.lineAt(node.from).to + 1, node.to).replace(/\n?\s*(```|~~~)\s*$/, "");
+          decos.push(Decoration.replace({ widget: new DataviewJsWidget(body, cfg, cfg.onOpenLink), block: true }).range(from, to));
+        } else {
           // The query is the text between the fences (an unclosed block runs to the end).
           const body = state.doc.sliceString(state.doc.lineAt(node.from).to + 1, node.to).replace(/\n?\s*(```|~~~)\s*$/, "");
           decos.push(Decoration.replace({ widget: new DataviewWidget(body, false, cfg, cfg.onOpenLink), block: true }).range(from, to));

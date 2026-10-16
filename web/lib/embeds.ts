@@ -13,6 +13,7 @@ import { linkTargets } from "../../src/types";
 import { api, type Note, type NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { fillDataview } from "./dataview";
+import { fillDataviewJs } from "./dataviewjs";
 import { drawDiagrams } from "./mermaid";
 import { renderMarkdown } from "./render";
 import { typeNamed } from "./types";
@@ -74,7 +75,9 @@ export function hydrate(root: HTMLElement, ctx: EmbedCtx): void {
     void fillCard(card, card.dataset.card!, ctx);
   }
   drawDiagrams(root, ctx.onOpen);
-  fillDataview(root, { vaultId: ctx.vaultId, noteId: ctx.ancestors.at(-1) ?? null, notes: () => ctx.notes, onOpen: ctx.onOpen });
+  const dv = { vaultId: ctx.vaultId, noteId: ctx.ancestors.at(-1) ?? null, notes: () => ctx.notes, onOpen: ctx.onOpen };
+  fillDataview(root, dv);
+  fillDataviewJs(root, dv);
 }
 
 /** One embed: a header linking to the note, then its content (or its section), rendered. */

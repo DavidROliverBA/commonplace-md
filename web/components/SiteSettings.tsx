@@ -77,7 +77,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
 
   const publish = () =>
     run("Publishing…", async () => {
-      const r = await api<{ pages: number; files: number }>(`/vaults/${vault.id}/site/publish`, { method: "POST", body: { offset: -new Date().getTimezoneOffset() } });
+      const r = await api<{ pages: number; files: number }>(`/vaults/${vault.id}/site/publish`, { method: "POST", body: { offset: -new Date().getTimezoneOffset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone } });
       toast(`Published ${plural(r.pages, "page")}${r.files ? ` and ${plural(r.files, "file")}` : ""}`);
     });
   const setLive = (live: boolean) => api(`/vaults/${vault.id}/site/live`, { method: "PUT", body: { live } });

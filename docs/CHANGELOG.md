@@ -4,6 +4,15 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — dataviewjs (release v0.0.40; `web/sandbox/dvjs.ts`, `src/sandbox.ts`,
+  `web/lib/dataviewjs.ts`), in the app and the standalone version: a ```` ```dataviewjs ```` block runs
+  in a sandboxed frame with an opaque origin and no network, on Dataview's `dv` API built over the
+  same query engine (pages, DataArray with field swizzling, Links, Luxon dates and durations,
+  `dv.table` / `list` / `taskList` / `paragraph` / `header` / `span` / `el`, `dv.execute` / `query` /
+  `evaluate`, `dv.func`, `dv.io.load` / `csv`, `dv.view`). Links open notes and task boxes tick
+  tasks through checked messages; the frame grows to what it draws. Live Preview shows it with an
+  Edit code button. Dates now follow the reader's named time zone (`tz`), so a date or file time
+  keeps its own summer-time offset. Published sites show dataviewjs as code.
 - **2026-10-16** — Dataview `CALENDAR` views (release v0.0.39): `CALENDAR <date> FROM … WHERE …`
   draws a month, Monday first, with a dot for each note on its day. It opens at this month (or the
   nearest one with notes); ‹ › and Today move between months, and choosing a day lists its notes

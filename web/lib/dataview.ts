@@ -10,6 +10,7 @@ import { api, type NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { renderMarkdown } from "./render";
 import { toastError } from "../ui/overlays";
+import { rerunDataviewJs } from "./dataviewjs";
 
 export interface DataviewCtx {
   vaultId: number;
@@ -55,6 +56,7 @@ export function fillDataview(root: ParentNode, ctx: DataviewCtx): void {
 
 /** Ask again for every result on screen (after notes changed). */
 export function refreshDataview(): void {
+  rerunDataviewJs();
   for (const el of document.querySelectorAll<HTMLElement>(".dataview-block[data-done], .dataview-inline[data-done]")) {
     const ctx = live.get(el);
     if (!ctx) continue;
@@ -84,7 +86,7 @@ async function flush() {
     const sources = [...new Map(jobs.map((j) => [`${j.kind}:${j.source}`, { kind: j.kind, source: j.source }])).values()];
     let out: Result[];
     try {
-      out = await api<Result[]>(`/vaults/${ctx.vaultId}/dataview`, { method: "POST", body: { noteId: ctx.noteId, offset: offset(), items: sources } });
+      out = await api<Result[]>(`/vaults/${ctx.vaultId}/dataview`, { method: "POST", body: { noteId: ctx.noteId, offset: offset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, items: sources } });
     } catch (e) {
       out = sources.map(() => ({ kind: "error", message: (e as Error).message || "couldn't run the query" }) as Result);
     }
@@ -171,20 +173,23 @@ function onClick(e: Event, ctx: DataviewCtx): boolean {
 }
 
 async function tick(box: HTMLInputElement, ctx: DataviewCtx) {
-  const path = box.dataset.path ?? "";
-  const hit = resolveLocal(ctx.notes(), path.replace(/\.md$/i, ""));
-  if (!hit || ctx.canTick?.() === false) {
-    box.checked = !box.checked;
-    return;
-  }
   box.disabled = true;
+  const ok = await tickTask(ctx, box.dataset.path ?? "", Number(box.dataset.line), box.dataset.text ?? "", box.checked);
+  if (!ok) box.checked = !box.checked;
+  box.disabled = false;
+}
+
+/** Tick or untick a task in its own note; false if it couldn't be. Results refresh after. */
+export async function tickTask(ctx: DataviewCtx, path: string, line: number, text: string, done: boolean): Promise<boolean> {
+  const hit = resolveLocal(ctx.notes(), path.replace(/\.md$/i, ""));
+  if (!hit || ctx.canTick?.() === false || !Number.isInteger(line)) return false;
   try {
-    await api(`/vaults/${ctx.vaultId}/notes/${hit.id}/tasks`, { method: "PATCH", body: { line: Number(box.dataset.line), text: box.dataset.text ?? "", done: box.checked } });
+    await api(`/vaults/${ctx.vaultId}/notes/${hit.id}/tasks`, { method: "PATCH", body: { line, text, done } });
+    return true;
   } catch (e) {
-    box.checked = !box.checked;
     toastError(e);
+    return false;
   } finally {
-    box.disabled = false;
     refreshDataview();
   }
 }

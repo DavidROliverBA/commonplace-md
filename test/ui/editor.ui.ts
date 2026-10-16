@@ -408,6 +408,26 @@ describe("live preview", () => {
     await p.close();
   });
 
+  test("dataviewjs runs in its sandbox page under the app's policy: draws, reads a note, opens one", async () => {
+    await note("JS/Jsalpha.md", "---\nrank: 2\n---\nJsalpha text\n");
+    await note("JS/Jsbeta.md", "---\nrank: 1\n---\n");
+    const n = await note(
+      "JS Board.md",
+      '# JS Board\n\n```dataviewjs\nconst ps = dv.pages(\'"JS"\').sort((p) => p.rank);\ndv.list(ps.file.link);\nconst text = await dv.io.load("JS/Jsalpha.md");\ndv.paragraph("Loaded: " + text.split("\\n").pop() + text.includes("Jsalpha text"));\nlet cookie = "readable"; try { document.cookie; } catch { cookie = "blocked"; }\ndv.paragraph("cookie " + cookie);\n```\n',
+    );
+    const p = await openNote(n.id);
+    const handle = await p.waitForSelector(".cm-content iframe.dv-frame");
+    expect(await handle!.evaluate((f) => (f as HTMLIFrameElement).src)).toEndWith("/sandbox/dataviewjs");
+    const frame = (await handle!.contentFrame())!;
+    await frame.waitForFunction(() => document.body.textContent?.includes("cookie"), { timeout: 10000 });
+    expect(await frame.$$eval("li", (l) => l.map((x) => x.textContent))).toEqual(["Jsbeta", "Jsalpha"]);
+    expect(await frame.$eval("#root", (e) => e.textContent)).toContain("Loaded: true");
+    expect(await frame.$eval("#root", (e) => e.textContent)).toContain("cookie blocked");
+    await frame.click("li a.internal-link");
+    await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Jsbeta");
+    await p.close();
+  });
+
   test("the outline shows headings as plain text", async () => {
     const t = await note("Outline.md", "# Plan **now**\n\n## See [[Contractors|builders]]");
     const p = await openNote(t.id);

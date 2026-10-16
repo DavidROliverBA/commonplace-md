@@ -209,7 +209,16 @@ as an expression in the same language (JavaScript's `==`, `&&`, `.where`, `.incl
 | Published site | the published notes only | at Publish (`src/publish.ts`), frozen into the page as HTML |
 
 The renderer leaves a placeholder; `web/lib/dataview.ts` asks for a note's results in one request,
-shows them with `src/dataviewRender.ts`, and asks again when the vault's notes change. A
+shows them with `src/dataviewRender.ts`, and asks again when the vault's notes change. **dataviewjs** runs a note's JavaScript, which nothing else in the app does, so it runs only inside
+a sandboxed frame per block (`sandbox="allow-scripts"`, an opaque origin) on a page of its own
+(`src/sandbox.ts`, served at `/sandbox/dataviewjs`; the standalone file carries the same page and
+uses `srcdoc`). That page's policy allows its own script (pinned by hash) and `eval` for the note's
+code, and no network, images, fonts or forms from anywhere, so the code can't reach the app's
+cookies, storage or pages and what it reads can't leave. The frame gets the vault's pages
+(`GET /api/vaults/:v/dataview/pages`, viewers and up) and builds Dataview's `dv` API on the same
+engine (`web/sandbox/dvjs.ts`). It asks the app for anything else by message, each checked in
+`web/lib/dataviewjs.ts`: open a note, tick a task (as the reader), read a note or file of the vault
+(`GET …/dataview/file`), open an http(s) page, set its height. A
 `CALENDAR` result is the dated notes; the app draws one month with buttons to move and pick a
 day, and a published page every month that has notes, with no buttons. Dates are
 wall-clock times in the reader's time zone, which the browser sends.
@@ -417,7 +426,7 @@ the token's inbox note, through `overwriteContent`:
 | Consent to share | Nobody is added to a vault without accepting: an owner's invite creates a pending row in `vault_invites` that grants no access (notes, search, events, sockets, tokens, MCP and the in-app AI all read `vault_members`). The reply is the same whether or not the email has an account, so it doesn't reveal who has one. An invitation closes if its sender stops being an owner. | `vaults.ts`, `api.ts` |
 | Bearer tokens | Prefixed (`cpc_`, `cpm_`), stored hashed, scoped, revocable, shown once, never accepted in a URL. | `tokens.ts` |
 | Secrets at rest | People's AI keys and GitHub tokens are sealed with AES-256-GCM under a key derived from `SECRETS_KEY`. They are never returned to the browser (only the last four characters are shown) and never included in backups. | `secrets.ts`, `assistants.ts` |
-| XSS in the app | Rendered markdown goes through DOMPurify; Dataview results are built from escaped values and sanitised Markdown, and never run a note's code; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
+| XSS in the app | Rendered markdown goes through DOMPurify; dataviewjs code runs only in a sandboxed, opaque-origin frame with no network (`src/sandbox.ts`); Dataview results are built from escaped values and sanitised Markdown, and never run a note's code; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
 | Security headers | The app's page has a CSP: scripts only from the bundle's own files (`'unsafe-inline'` only in development, for Bun's dev script), inline styles (React, CodeMirror), images from `https:` (remote images in notes), connections to itself and its own ws/wss. Nothing may frame it (`frame-ancestors 'none'`, `X-Frame-Options`). Every app response has `nosniff`, `Referrer-Policy: same-origin` (a remote image never learns which note it's in) and, when the cookie is `Secure`, HSTS. Bun's HTML-bundle route takes no headers, so the bundle is mounted at a random private path and `"/*"` serves its HTML with them. | `server.ts` |
 | XSS on sites | Pages are rendered on the server with a tag allow-list and no attributes, and served with a no-script, sandboxed CSP. | `publish.ts` |
 | SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |

@@ -117,6 +117,8 @@ export function renderMarkdown(md: string, vaultId: number, notes: NoteSummary[]
         if (kind === "mermaid") return diagramHtml(text, esc) + "\n";
         // ```dataview: a placeholder holding the query, run by web/lib/dataview.ts.
         if (kind === "dataview") return `<div class="dataview-block"><pre><code>${esc(text)}</code></pre></div>\n`;
+        // ```dataviewjs: run in a sandboxed frame by web/lib/dataviewjs.ts.
+        if (kind === "dataviewjs") return `<div class="dataviewjs-block"><pre><code>${esc(text)}</code></pre></div>\n`;
         return false;
       },
       // `= expression` (and `$= dv.pages(…)…` in the form src/dataview.ts reads): its result.

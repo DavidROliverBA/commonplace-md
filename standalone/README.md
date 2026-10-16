@@ -11,8 +11,8 @@ bun run test:standalone   # builds it and drives it in Chrome
 ## What it does
 
 - The app's editor: Live Preview, Source mode, edit-and-preview and reading view, with
-  `[[wikilinks]]` (and `[[` completion), embeds, callouts, tables, Mermaid diagrams, Dataview queries (run over the
-  open folder), tasks, properties and tags.
+  `[[wikilinks]]` (and `[[` completion), embeds, callouts, tables, Mermaid diagrams, Dataview queries and dataviewjs
+  (run over the open folder; dataviewjs in a sandboxed frame), tasks, properties and tags.
 - A file panel with folders, search across every note (words and `#tags`), and a tag list.
 - Backlinks, outgoing links and the outline in the side panel.
 - ⌘O opens a note by name; a link to a note that doesn't exist makes it, beside the note it was in.

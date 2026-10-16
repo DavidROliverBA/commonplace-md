@@ -26,7 +26,7 @@ import { backlinksWithProperty, dayActivity, listTypes, renameType, saveViews, t
 import { PROP_KINDS, TYPE_COLOURS } from "./types";
 import { saveWeblink } from "./weblinks";
 import { bookmarks, linkMention, removeSearch, savedSearches, saveSearch, setBookmark, setTask, unlinkedMentions, vaultTasks } from "./vaultViews";
-import { runDataview } from "./dataviewVault";
+import { dataviewFile, dataviewPages, runDataview } from "./dataviewVault";
 import { settings } from "./settings";
 import { assertRoom, FULL_AT, storageState, WARN_AT } from "./storage";
 import { addTour } from "./tour";
@@ -540,10 +540,23 @@ export const apiRoutes = {
         z.object({
           noteId: z.number().int().nullable(),
           offset: z.number().int().min(-14 * 60).max(14 * 60),
+          tz: z.string().max(64).optional(),
           items: z.array(z.object({ kind: z.enum(["query", "inline"]), source: z.string().max(20_000) })).max(200),
         }),
       );
-      return runDataview(vaultId, b.noteId, b.offset, b.items);
+      return runDataview(vaultId, b.noteId, b.offset, b.items, b.tz);
+    }),
+  },
+  // dataviewjs (web/sandbox/dvjs.ts) runs in the reader's browser, on the pages they can read.
+  "/api/vaults/:v/dataview/pages": {
+    GET: route(async (ctx) => dataviewPages((await vaultCtx(ctx, "viewer")).vaultId)),
+  },
+  "/api/vaults/:v/dataview/file": {
+    GET: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "viewer");
+      const path = new URL(ctx.req.url).searchParams.get("path") ?? "";
+      if (!path || path.length > 1024) throw new HttpError(400, "Which file?");
+      return { text: await dataviewFile(vaultId, path) };
     }),
   },
   "/api/vaults/:v/tasks": {
@@ -601,8 +614,8 @@ export const apiRoutes = {
     POST: route(async (ctx) => {
       const { vaultId, user } = await vaultCtx(ctx, "owner");
       // The owner's time zone, for Dataview's dates (results are frozen at Publish).
-      const b = await body(ctx.req, z.object({ offset: z.number().int().min(-14 * 60).max(14 * 60).default(0) }));
-      return site.publish(vaultId, user, b.offset);
+      const b = await body(ctx.req, z.object({ offset: z.number().int().min(-14 * 60).max(14 * 60).default(0), tz: z.string().max(64).optional() }));
+      return site.publish(vaultId, user, b.offset, b.tz);
     }),
   },
   "/api/vaults/:v/site/live": {

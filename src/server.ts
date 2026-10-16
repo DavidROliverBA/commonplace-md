@@ -11,6 +11,7 @@ import { backfill } from "./embed";
 import { dbVersions, migrate } from "./migrate";
 import { pruneRevisions, purgeTrash } from "./notes";
 import { serveSite } from "./publish";
+import { dataviewjsSandbox } from "./sandbox";
 import { canWrite, roleIn } from "./vaults";
 import { generatedSetupToken, settings } from "./settings";
 
@@ -146,6 +147,18 @@ const server = Bun.serve<CollabData>({
         new Response(Bun.file(new URL("../web/sw.js", import.meta.url)), {
           headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/", "Content-Security-Policy": "default-src 'self'" },
         }),
+      // The frame dataviewjs blocks run in (src/sandbox.ts): an opaque origin with no network.
+      "/sandbox/dataviewjs": async () => {
+        const { html, csp } = await dataviewjsSandbox(development);
+        return new Response(html, {
+          headers: {
+            "Content-Type": "text/html; charset=utf-8",
+            "Cache-Control": "no-cache",
+            "Content-Security-Policy": `${csp}; frame-ancestors 'self'; sandbox allow-scripts`,
+            "X-Frame-Options": "SAMEORIGIN",
+          },
+        });
+      },
       // Mermaid's browser build (web/lib/mermaidLib.ts), fetched the first time a note has a diagram.
       "/vendor/mermaid.js": () =>
         new Response(Bun.file(MERMAID_JS), { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=86400" } }),

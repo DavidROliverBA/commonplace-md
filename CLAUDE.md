@@ -62,6 +62,11 @@ key flows, decisions); read it before structural changes, and keep it current wh
 - **Outgoing requests to addresses people give** (weblinks, assistants' base URLs) go through
   `src/egress.ts` (`vetAddresses` + `pinnedFetch`), never a bare `fetch`, so they can't reach
   private addresses. The app's CSP allows no inline script: keep it that way.
+- **A note's code runs only in the dataviewjs sandbox** (`src/sandbox.ts`): an opaque-origin
+  frame whose policy allows no network. Never run note code elsewhere (not the app's page, not
+  the server, not published sites), and never give that frame `allow-same-origin`, popups,
+  forms or a connect-src. What it may ask the app for is the short list in
+  `web/lib/dataviewjs.ts`; check every new message there.
 - No secrets in the repo; `.env` is gitignored and `.env.example` documents the shape.
 
 ## Principles

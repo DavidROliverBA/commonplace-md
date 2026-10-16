@@ -4,6 +4,7 @@
 // stylesheet (and Mermaid, packed) so the file works from disk with no server.
 
 import { gzipSync } from "fflate";
+import { dataviewjsSandbox } from "../src/sandbox";
 import { dirname, join } from "node:path";
 
 const here = import.meta.dir;
@@ -50,6 +51,9 @@ const safe = (s: string, tag: string) => s.replace(new RegExp(`</(${tag})`, "gi"
 const mermaidJs = await Bun.file(join(dirname(Bun.resolveSync("mermaid/package.json", here)), "dist", "mermaid.min.js")).bytes();
 const mermaidPacked = Buffer.from(gzipSync(mermaidJs, { level: 9 })).toString("base64");
 
+// The dataviewjs sandbox page (src/sandbox.ts), shown in its frames with srcdoc.
+const sandboxPacked = Buffer.from(gzipSync(new TextEncoder().encode((await dataviewjsSandbox()).html), { level: 9 })).toString("base64");
+
 const icon = await Bun.file(join(here, "..", "web", "icon.svg")).text();
 const html = `<!doctype html>
 <html lang="en-GB">
@@ -67,6 +71,7 @@ const html = `<!doctype html>
 <body>
 <div id="root"></div>
 <script type="application/octet-stream" id="mermaid-lib">${mermaidPacked}</script>
+<script type="application/octet-stream" id="dvjs-sandbox">${sandboxPacked}</script>
 <script type="module">${safe(js, "script")}</script>
 </body>
 </html>

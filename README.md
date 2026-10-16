@@ -28,8 +28,13 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   functions), inline `` `= expression` ``, and the common `` `$= dv.pages(…).where(…).length` `` count,
   read the way the Dataview plugin reads them, over frontmatter, inline `key:: value` fields,
   tags, links and tasks. Results show in reading view, embeds and Live Preview, follow the vault
-  as it changes, and a task ticked in a `TASK` result is ticked in its own note. No code from a
-  note runs: other `$=` JavaScript and `dataviewjs` blocks show as code.
+  as it changes, and a task ticked in a `TASK` result is ticked in its own note.
+- **dataviewjs:** ```` ```dataviewjs ```` blocks run Dataview's JavaScript API (`dv.pages`, `dv.table`,
+  `dv.list`, `dv.taskList`, `dv.paragraph`, `dv.el`, `dv.query`, `dv.io.load`, `dv.view`, DataArray,
+  Luxon dates…) in a sandboxed frame for each block: no network, no cookies, no access to the app,
+  only the vault's notes (which any member can read) and its own box to draw in. Links in it
+  open notes and its task boxes tick tasks, through checked messages to the app. Published sites
+  show the code, since their pages run no script.
 - **Live Preview:** markdown renders in place while you type. Headings, bold,
   links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes, code and Mermaid diagrams show formatted, and a
   line reveals its raw markdown only while the cursor is on it. Frontmatter shows as a properties
