@@ -23,6 +23,13 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   properties, `> [!callouts]`, `==highlights==` and coloured text and highlights (⌘⇧H; read from Highlightr,
   Editing Toolbar and Hilo, written as HTML that other editors show), GFM tables, ```` ```mermaid ```` diagrams (the same
   syntax other Markdown editors use), and task lists you can tick in reading view.
+- **Dataview queries:** ```` ```dataview ```` blocks (`TABLE`, `LIST` and `TASK`, with `FROM` a folder,
+  `#tag` or `[[link]]`, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT`, `WITHOUT ID` and Dataview's
+  functions), inline `` `= expression` ``, and the common `` `$= dv.pages(…).where(…).length` `` count,
+  read the way the Dataview plugin reads them, over frontmatter, inline `key:: value` fields,
+  tags, links and tasks. Results show in reading view, embeds and Live Preview, follow the vault
+  as it changes, and a task ticked in a `TASK` result is ticked in its own note. No code from a
+  note runs: other `$=` JavaScript and `dataviewjs` blocks show as code.
 - **Live Preview:** markdown renders in place while you type. Headings, bold,
   links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes, code and Mermaid diagrams show formatted, and a
   line reveals its raw markdown only while the cursor is on it. Frontmatter shows as a properties
@@ -102,7 +109,8 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   encrypted (`SECRETS_KEY`) and never shown again or shared.
 - **Publish a vault as a website** (Settings → Website, owners): the whole vault or chosen
   folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
-  tasks (pages run no script, so a Mermaid diagram shows as its source); a note with `publish: false` stays out, and a link to a note that isn't published shows
+  tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are
+  worked out at Publish from the published notes only); a note with `publish: false` stays out, and a link to a note that isn't published shows
   as plain words. Publishing takes a copy, so your edits stay private until you publish again;
   Settings lists what a republish would add, change or take down. Unlisted (search engines are
   asked to leave it out), and taking it down has an Undo. The choice is kept in `publish.json`,

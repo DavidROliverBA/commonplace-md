@@ -5,6 +5,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { findWikiLinks, headings, isAttachmentPath } from "../src/markdown";
 import type { NoteSummary } from "../web/lib/api";
+import { refreshDataview } from "../web/lib/dataview";
 import { hydrate } from "../web/lib/embeds";
 import { resolveLocal } from "../web/lib/links";
 import { renderMarkdown, toggleTask } from "../web/lib/render";
@@ -521,6 +522,22 @@ function NoteScreen(p: {
     if (preview.current) hydrate(preview.current, { vaultId: vault.VAULT_ID, notes: p.notes, ancestors: [p.note.id], onOpen: p.onOpenLink });
   }, [html]);
 
+  // Dataview results follow the folder: again a moment after typing, or when notes change.
+  useEffect(() => {
+    const t = setTimeout(refreshDataview, 600);
+    return () => clearTimeout(t);
+  }, [text, p.notes]);
+  // A task ticked in a Dataview result may be in this note: start the editor from the new text.
+  useEffect(() => {
+    const on = (e: Event) => {
+      if ((e as CustomEvent).detail !== p.note.id) return;
+      setText(vault.getNote(p.note.id)?.content ?? "");
+      setEditorKey((k) => k + 1);
+    };
+    window.addEventListener("cp-note-replaced", on);
+    return () => window.removeEventListener("cp-note-replaced", on);
+  }, [p.note.id]);
+
   function onChange(t: string) {
     setText(t);
     vault.setContent(p.note.id, t);
@@ -682,7 +699,7 @@ function NoteScreen(p: {
               <Editor
                 key={editorKey}
                 ref={editor}
-                noteId={p.note.id * 1000 + editorKey}
+                noteId={p.note.id}
                 initial={vault.getNote(p.note.id)?.content ?? ""}
                 livePreview={mode === "edit"}
                 notes={() => notesRef.current}

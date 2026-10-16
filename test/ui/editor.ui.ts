@@ -375,6 +375,32 @@ describe("live preview", () => {
     await p.close();
   });
 
+  test("Dataview: results in Live Preview and reading view, ticking a task in its own note, and refreshing", async () => {
+    const raw = async (id: number) => (await api(`/vaults/${vaultId}/notes/${id}`)).content as string;
+    const t = await note("DV/Tasks One.md", "---\nstatus: active\npriority: 2\n---\n# Tasks One\n\n- [ ] Call the plumber\n");
+    await note("DV/Tasks Two.md", "---\nstatus: paused\npriority: 1\n---\n# Tasks Two\n");
+    const board = await note(
+      "DV Board.md",
+      '# DV Board\n\nActive: `= length(filter(dv.pages("DV"), (p) => p.status = "active"))`\n\n```dataview\nTABLE status AS "Status" FROM "DV" SORT priority ASC\n```\n\n```dataview\nTASK FROM "DV" WHERE !completed\n```\n',
+    );
+    const p = await openNote(board.id);
+    await p.waitForFunction(() => document.querySelectorAll(".cm-content .dataview-block table tbody tr").length === 2, { timeout: 8000 });
+    expect(await p.$$eval(".cm-content .dataview-block table tbody tr", (r) => r.map((x) => x.textContent))).toEqual(["Tasks Twopaused", "Tasks Oneactive"]);
+    expect(await p.$eval(".cm-content .dataview-inline", (e) => e.textContent)).toBe("1");
+    await p.click(".cm-content input.dv-task");
+    await until(async () => (await raw(t.id)).includes("- [x] Call the plumber"), 8000);
+    await p.waitForFunction(() => document.querySelector(".cm-content .dataview-block .dv-empty")?.textContent === "No tasks.", { timeout: 8000 });
+    // Another note changing shows without reopening this one.
+    await api(`/vaults/${vaultId}/notes/${t.id}/content`, { content: (await raw(t.id)).replace("status: active", "status: paused") }, "PUT");
+    await p.waitForFunction(() => document.querySelector(".cm-content .dataview-inline")?.textContent === "0", { timeout: 10000 });
+    await p.evaluate(() => document.querySelector<HTMLButtonElement>('.segmented button[title="Reading view"]')!.click());
+    await p.waitForFunction(() => document.querySelectorAll(".preview .dataview-block table tbody tr").length === 2, { timeout: 8000 });
+    await p.click(".preview .dataview-block table a.internal-link");
+    await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Tasks Two");
+    await p.evaluate(() => localStorage.setItem("cp:mode", "edit"));
+    await p.close();
+  });
+
   test("the outline shows headings as plain text", async () => {
     const t = await note("Outline.md", "# Plan **now**\n\n## See [[Contractors|builders]]");
     const p = await openNote(t.id);

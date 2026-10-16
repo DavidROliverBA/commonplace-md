@@ -26,6 +26,7 @@ import { backlinksWithProperty, dayActivity, listTypes, renameType, saveViews, t
 import { PROP_KINDS, TYPE_COLOURS } from "./types";
 import { saveWeblink } from "./weblinks";
 import { bookmarks, linkMention, removeSearch, savedSearches, saveSearch, setBookmark, setTask, unlinkedMentions, vaultTasks } from "./vaultViews";
+import { runDataview } from "./dataviewVault";
 import { settings } from "./settings";
 import { assertRoom, FULL_AT, storageState, WARN_AT } from "./storage";
 import { addTour } from "./tour";
@@ -530,6 +531,21 @@ export const apiRoutes = {
       return saveWeblink(vaultId, user.id, b.url, b.title);
     }),
   },
+  // Dataview queries in a note (src/dataview.ts), run over the vault as its reader sees it.
+  "/api/vaults/:v/dataview": {
+    POST: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "viewer");
+      const b = await body(
+        ctx.req,
+        z.object({
+          noteId: z.number().int().nullable(),
+          offset: z.number().int().min(-14 * 60).max(14 * 60),
+          items: z.array(z.object({ kind: z.enum(["query", "inline"]), source: z.string().max(20_000) })).max(200),
+        }),
+      );
+      return runDataview(vaultId, b.noteId, b.offset, b.items);
+    }),
+  },
   "/api/vaults/:v/tasks": {
     GET: route(async (ctx) => vaultTasks((await vaultCtx(ctx, "viewer")).vaultId)),
   },
@@ -584,7 +600,9 @@ export const apiRoutes = {
   "/api/vaults/:v/site/publish": {
     POST: route(async (ctx) => {
       const { vaultId, user } = await vaultCtx(ctx, "owner");
-      return site.publish(vaultId, user);
+      // The owner's time zone, for Dataview's dates (results are frozen at Publish).
+      const b = await body(ctx.req, z.object({ offset: z.number().int().min(-14 * 60).max(14 * 60).default(0) }));
+      return site.publish(vaultId, user, b.offset);
     }),
   },
   "/api/vaults/:v/site/live": {

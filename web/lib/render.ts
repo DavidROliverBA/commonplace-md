@@ -9,6 +9,7 @@ import type { NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { colourOf, hiloColour } from "./colours";
 import { diagramHtml } from "./mermaid";
+import { inlineQuery } from "../../src/dataview";
 
 // Colours (F10): before attributes are checked, a span, mark or font's colour becomes a palette
 // class or a cleaned style kept aside; after, only that cleaned style is put back. Every other
@@ -112,8 +113,18 @@ export function renderMarkdown(md: string, vaultId: number, notes: NoteSummary[]
     renderer: {
       // ```mermaid: a placeholder holding the source, drawn by web/lib/mermaid.ts.
       code({ text, lang }: Tokens.Code) {
-        if (lang?.trim().split(/\s/)[0]!.toLowerCase() !== "mermaid") return false;
-        return diagramHtml(text, esc) + "\n";
+        const kind = lang?.trim().split(/\s/)[0]!.toLowerCase();
+        if (kind === "mermaid") return diagramHtml(text, esc) + "\n";
+        // ```dataview: a placeholder holding the query, run by web/lib/dataview.ts.
+        if (kind === "dataview") return `<div class="dataview-block"><pre><code>${esc(text)}</code></pre></div>\n`;
+        return false;
+      },
+      // `= expression` (and `$= dv.pages(…)…` in the form src/dataview.ts reads): its result.
+      codespan({ text }: Tokens.Codespan) {
+        const raw = text.replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+        const expr = inlineQuery(raw);
+        if (expr === null) return false;
+        return `<span class="dataview-inline" data-dv-expr="${esc(expr)}"><code>${esc(raw)}</code></span>`;
       },
       // Clickable checkboxes, numbered in document order so a click can find its line.
       checkbox({ checked }: Tokens.Checkbox) {
@@ -167,7 +178,7 @@ export function renderMarkdown(md: string, vaultId: number, notes: NoteSummary[]
   }
   html += marked.parse(body, { async: false }) as string;
   return DOMPurify.sanitize(html, {
-    ADD_ATTR: ["target", "data-target", "data-tag", "data-task", "data-callout", "loading", "data-cp-colour"],
+    ADD_ATTR: ["target", "data-target", "data-tag", "data-task", "data-callout", "loading", "data-cp-colour", "data-dv-expr"],
     ADD_TAGS: ["audio", "video"],
     // A note must not be able to restyle or overlay the app for other members.
     FORBID_TAGS: ["style", "form"],

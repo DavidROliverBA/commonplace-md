@@ -758,6 +758,36 @@ describe("publish a vault as a website (F18)", () => {
     expect((await get(`/p/${slug}/Garden/Tulips`)).status).toBe(200);
   });
 
+  test("Dataview results are worked out at Publish, from published notes only, with no script", async () => {
+    const note = (path: string, content: string) => alice.ok(`/vaults/${pv}/notes`, { body: { path, content } });
+    await note("Garden/Index.md", '# Index\n\nPages: `= length(dv.pages(""))`\n\n```dataview\nLIST FROM ""\n```\n\n```dataview\nTASK FROM ""\n```\n');
+    await note("Diary/Tuesday.md", "- [ ] Private task\n");
+    await alice.ok(`/vaults/${pv}/site/publish`, { body: {} });
+    const html = await (await get(`/p/${slug}/Garden/Index`)).text();
+    expect(html).toContain(`href="../Garden/Tulips">Tulips</a>`);
+    expect(html).toContain(`href="../Garden/Winter%20jobs">Winter jobs</a>`);
+    expect(html).toContain('<span class="dataview-inline">3</span>'); // Index, Tulips, Winter jobs
+    for (const leak of ["Diary", "Monday", "Tuesday", "Private task", "Compost", "Roses"]) expect(html).not.toContain(leak);
+    expect(html).not.toContain("<script");
+  });
+
+  test("the Dataview route answers members, as the vault is, and nobody else", async () => {
+    const list = await alice.ok(`/vaults/${pv}/notes`);
+    const index = list.find((n: any) => n.path === "Garden/Index.md").id;
+    const items = [
+      { kind: "query", source: 'TABLE WITHOUT ID file.name FROM "Diary" SORT file.name' },
+      { kind: "inline", source: "this.file.name" },
+      { kind: "query", source: "TABLE oops(" },
+    ];
+    const r = await bob.ok(`/vaults/${pv}/dataview`, { body: { noteId: index, offset: 60, items } });
+    expect(r[0]).toMatchObject({ kind: "table", rows: [["Monday"], ["Tuesday"]], total: 2 });
+    expect(r[1]).toEqual({ kind: "value", value: "Index" });
+    expect(r[2]).toMatchObject({ kind: "error" });
+    const outsider = new Client("dv-outsider");
+    await outsider.ok("/register", { body: { email: "dv-outsider@example.com", password: "password-o" } });
+    expect((await outsider.req(`/vaults/${pv}/dataview`, { body: { noteId: index, offset: 0, items } })).status).toBe(404);
+  });
+
   test("publish.json travels with an export; a broken one publishes nothing rather than everything", async () => {
     const zip = unzipSync((await alice.req(`/vaults/${pv}/export`)).data);
     expect(JSON.parse(strFromU8(zip["publish.json"]!))).toEqual({ include: ["Garden"] });

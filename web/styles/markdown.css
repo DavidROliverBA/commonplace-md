@@ -311,3 +311,67 @@ mark.hl-grey, .hl-grey { background: var(--hl-grey); color: inherit; }
 .markdown .mermaid-diagram pre {
   text-align: left;
 }
+
+/* Dataview results (web/lib/dataview.ts): tables scroll sideways on a phone; the count sits by
+   the first heading, as in the plugin. */
+.markdown .dataview-block {
+  margin: 1em 0;
+}
+.markdown .dv-table {
+  overflow-x: auto;
+}
+.markdown .dv-table table {
+  margin: 0;
+}
+.markdown .dv-count {
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--muted);
+  background: var(--bg3);
+  border-radius: var(--radius-pill);
+  padding: 1px 6px;
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.markdown .dv-list {
+  margin: 0;
+  padding-left: 1.1em;
+}
+.markdown .dv-null,
+.markdown .dv-empty,
+.markdown .dv-more {
+  color: var(--faint);
+}
+.markdown .dv-empty,
+.markdown .dv-more {
+  font-size: var(--text-ui-sm);
+}
+.markdown .dv-error {
+  color: var(--danger);
+  font-family: var(--mono);
+  font-size: var(--text-ui-sm);
+  white-space: pre-wrap;
+  margin-bottom: 6px;
+}
+.markdown .dv-group-head {
+  font-weight: 650;
+  margin: 0.8em 0 0.2em;
+}
+.markdown .dv-tasks {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.markdown .dv-tasks .dv-tasks {
+  padding-left: 1.4em;
+}
+.markdown .dv-tasks li:not(.dv-task-item) {
+  list-style: disc;
+  margin-left: 1.4em;
+}
+.markdown .dataview-inline code {
+  color: var(--muted);
+}
+.live-preview .cm-lp-dataview .dataview-block {
+  margin: 0;
+}

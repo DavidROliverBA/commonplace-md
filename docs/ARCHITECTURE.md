@@ -194,6 +194,24 @@ it. Mermaid's own browser build isn't bundled: the app serves it at `/vendor/mer
 note with a diagram. It runs in strict mode, its SVG is sanitised again, and each diagram sits in
 a shadow root, so the stylesheet inside it can't restyle the app.
 
+**Dataview** (`src/dataview.ts`, shared by server and browser): a parser and interpreter for
+Dataview's query language over "pages" read from each note (frontmatter, inline fields, tags,
+links, list items and tasks), with links resolved by the app's rules and backlinks worked out
+across the vault. It interprets queries and never runs a note's code: a step budget stops a
+runaway query, and patterns that could backtrack forever aren't run. `$= dv.pages(…)…` is read
+as an expression in the same language (JavaScript's `==`, `&&`, `.where`, `.includes` and
+`.length` have equivalents), so nothing is evaluated as JavaScript. Where it runs:
+
+| Version | Pages from | Runs |
+|---|---|---|
+| App | `src/dataviewVault.ts`: each vault's notes, reread only when changed | on the server, `POST /api/vaults/:v/dataview` (viewers and up) |
+| Standalone | the open folder (`standalone/api-shim.ts`) | in the browser |
+| Published site | the published notes only | at Publish (`src/publish.ts`), frozen into the page as HTML |
+
+The renderer leaves a placeholder; `web/lib/dataview.ts` asks for a note's results in one request,
+shows them with `src/dataviewRender.ts`, and asks again when the vault's notes change. Dates are
+wall-clock times in the reader's time zone, which the browser sends.
+
 ## 6. Data model
 
 `db/schema.sql` is the full schema; each table there has a comment saying what it holds. The
@@ -397,7 +415,7 @@ the token's inbox note, through `overwriteContent`:
 | Consent to share | Nobody is added to a vault without accepting: an owner's invite creates a pending row in `vault_invites` that grants no access (notes, search, events, sockets, tokens, MCP and the in-app AI all read `vault_members`). The reply is the same whether or not the email has an account, so it doesn't reveal who has one. An invitation closes if its sender stops being an owner. | `vaults.ts`, `api.ts` |
 | Bearer tokens | Prefixed (`cpc_`, `cpm_`), stored hashed, scoped, revocable, shown once, never accepted in a URL. | `tokens.ts` |
 | Secrets at rest | People's AI keys and GitHub tokens are sealed with AES-256-GCM under a key derived from `SECRETS_KEY`. They are never returned to the browser (only the last four characters are shown) and never included in backups. | `secrets.ts`, `assistants.ts` |
-| XSS in the app | Rendered markdown goes through DOMPurify; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
+| XSS in the app | Rendered markdown goes through DOMPurify; Dataview results are built from escaped values and sanitised Markdown, and never run a note's code; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
 | Security headers | The app's page has a CSP: scripts only from the bundle's own files (`'unsafe-inline'` only in development, for Bun's dev script), inline styles (React, CodeMirror), images from `https:` (remote images in notes), connections to itself and its own ws/wss. Nothing may frame it (`frame-ancestors 'none'`, `X-Frame-Options`). Every app response has `nosniff`, `Referrer-Policy: same-origin` (a remote image never learns which note it's in) and, when the cookie is `Secure`, HSTS. Bun's HTML-bundle route takes no headers, so the bundle is mounted at a random private path and `"/*"` serves its HTML with them. | `server.ts` |
 | XSS on sites | Pages are rendered on the server with a tag allow-list and no attributes, and served with a no-script, sandboxed CSP. | `publish.ts` |
 | SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |

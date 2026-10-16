@@ -4,6 +4,17 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — Dataview queries (release v0.0.38; `src/dataview.ts`), in the app, the
+  standalone version and published sites: ```` ```dataview ```` blocks with `TABLE`, `LIST` and
+  `TASK`, `FROM` folders, tags and links, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT` and
+  Dataview's functions; inline `` `= expressions` ``; and the `` `$= dv.pages(…).where(…).length` ``
+  counts, translated rather than run. Results show in reading view, embeds and Live Preview, refresh
+  as notes change, and a task ticked in a result is ticked in its note. The app runs queries on the
+  server over a per-vault cache that rereads only changed notes; the standalone file runs them in
+  the browser; Publish works them out from published notes only and freezes them into the page.
+  Checked against a 3,500-note vault: all 489 blocks and 91 of its 92 inline expressions run (the
+  other has a stray bracket), median 104 ms to open a note with its results. No note code runs:
+  `dataviewjs` and other `$=` JavaScript show as code; CALENDAR isn't supported yet.
 - **2026-10-16** — Mermaid diagrams (release v0.0.37; `web/lib/mermaid.ts`), in the app and the
   standalone version, with the syntax other Markdown editors use: a ```` ```mermaid ```` block draws
   in reading view, in embeds, and in Live Preview off the cursor (a click shows the source). It

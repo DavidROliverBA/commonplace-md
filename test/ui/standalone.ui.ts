@@ -20,6 +20,7 @@ const FILES: Record<string, string> = {
   "Welcome.md": "# Welcome\n\nSee [[Projects/Plan]] and [[Ideas]]. #start\n\n![[attachments/dot.svg]]\n",
   "Projects/Plan.md": "---\nstatus: active\n---\n# Plan\n\n- [ ] first step\n\nBack to [[Welcome]].\n",
   "Diagram.md": "# Diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Welcome]\n  class B internal-link\n```\n\n```mermaid\nnot a diagram\n```\n\nAfter.\n",
+  "Board.md": '# Board\n\nOpen: `$= dv.pages("").where(p => p.status == "active").length`\n\n```dataview\nTABLE status AS "Status"\nFROM "Projects"\n```\n\n```dataview\nTASK FROM "Projects"\n```\n',
   "attachments/dot.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="5"/></svg>',
 };
 
@@ -179,6 +180,22 @@ describe("standalone, with a folder", () => {
     });
     await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Welcome");
     await page.click("button[aria-label='Live preview']");
+  });
+
+  test("Dataview: a table, an inline count, a task ticked from the results, and a link", async () => {
+    await clickText(page, ".tree-row.note", "Board");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Board");
+    await page.waitForFunction(() => document.querySelector(".cm-content .dataview-block table td")?.textContent === "roadmap" || document.querySelector(".cm-content .dataview-block table td")?.textContent === "Roadmap", { timeout: 5000 });
+    expect(await page.$$eval(".cm-content .dataview-block table th", (t) => t.map((x) => x.textContent))).toEqual(["File 1", "Status"]);
+    expect(await page.$eval(".cm-content .dataview-inline", (e) => e.textContent)).toBe("1");
+    // The task is in Projects/roadmap.md (renamed and ticked above): unticking it here unticks it there.
+    expect(await page.$eval(".cm-content input.dv-task", (b) => (b as HTMLInputElement).checked)).toBe(true);
+    await page.click(".cm-content input.dv-task");
+    await page.waitForFunction(() => document.querySelector(".standalone-foot")?.textContent?.includes("Saved to the folder"));
+    expect(await readFile(page, "Projects/roadmap.md")).toContain("- [ ] first step");
+    await page.waitForFunction(() => (document.querySelector(".cm-content input.dv-task") as HTMLInputElement | null)?.checked === false);
+    await page.click(".cm-content .dataview-block table a.internal-link");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent?.toLowerCase() === "roadmap");
   });
 
   test("⌘O opens a note by name", async () => {

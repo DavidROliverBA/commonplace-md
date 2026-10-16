@@ -12,6 +12,8 @@ import type { NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { readProps } from "./frontmatter";
 import { frontmatterYaml, PropertiesWidget } from "./propertiesWidget";
+import { inlineQuery } from "../../src/dataview";
+import { fillDataview } from "./dataview";
 import { drawDiagrams } from "./mermaid";
 import { fileUrl, renderMarkdown } from "./render";
 import { colourOf, hiloColour } from "./colours";
@@ -178,7 +180,7 @@ function activeLines(state: EditorState, focused: boolean): Set<number> {
   return lines;
 }
 
-function build(view: EditorView, cfg: LivePreviewConfig): DecorationSet {
+function build(view: EditorView, cfg: LivePreviewConfig, onOpenLink: (target: string, newNote: boolean) => void): DecorationSet {
   const { state } = view;
   const doc = state.doc;
   const active = activeLines(state, view.hasFocus);
@@ -219,6 +221,12 @@ function build(view: EditorView, cfg: LivePreviewConfig): DecorationSet {
         }
         if (name === "InlineCode") {
           claimed.push([node.from, node.to]);
+          // `= expression`: its result, until the cursor is on the line.
+          const expr = isActive(node.from) ? null : inlineQuery(doc.sliceString(node.from, node.to).replace(/^`+|`+$/g, ""));
+          if (expr !== null) {
+            decos.push(Decoration.replace({ widget: new DataviewWidget(expr, true, cfg, onOpenLink) }).range(node.from, node.to));
+            return false;
+          }
           decos.push(Decoration.mark({ class: "cm-lp-code" }).range(node.from, node.to));
           if (!isActive(node.from)) {
             for (let c = n.firstChild; c; c = c.nextSibling) if (c.name === "CodeMark") decos.push(hide.range(c.from, c.to));
@@ -470,6 +478,54 @@ class DiagramWidget extends WidgetType {
   }
 }
 
+/** A ```dataview block's results, or an inline `= expression`'s; a click outside a link or a
+ *  checkbox shows the source. */
+class DataviewWidget extends WidgetType {
+  constructor(
+    readonly source: string,
+    readonly inline: boolean,
+    readonly cfg: LivePreviewConfig,
+    readonly onOpenLink: (target: string, newNote: boolean) => void,
+  ) {
+    super();
+  }
+  eq(o: DataviewWidget) {
+    return o.source === this.source && o.inline === this.inline;
+  }
+  toDOM(view: EditorView) {
+    const el = document.createElement(this.inline ? "span" : "div");
+    const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
+    if (this.inline) {
+      el.className = "dataview-inline cm-lp-dataview-inline";
+      el.dataset.dvExpr = this.source;
+      el.innerHTML = `<code>${esc(this.source)}</code>`;
+    } else {
+      el.className = "cm-lp-block cm-lp-dataview markdown";
+      el.innerHTML = `<div class="dataview-block"><pre><code>${esc(this.source)}</code></pre></div>`;
+    }
+    el.addEventListener("cp-dataview", () => view.requestMeasure());
+    const ctx = { vaultId: this.cfg.vaultId, noteId: this.cfg.noteId?.() ?? null, notes: this.cfg.notes, onOpen: (t: string) => this.onOpenLink(t, false), canTick: () => !view.state.readOnly };
+    fillDataview(this.inline ? wrap(el) : el, ctx);
+    el.addEventListener("mousedown", (e) => {
+      const t = e.target as HTMLElement;
+      if (t.closest("a, input")) return;
+      e.preventDefault();
+      const pos = view.posAtDOM(el);
+      view.focus();
+      view.dispatch({ selection: { anchor: Math.min(this.inline ? pos + 1 : view.state.doc.lineAt(pos).to, view.state.doc.length) } });
+    });
+    return el;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
+/** fillDataview looks for placeholders under a root; an inline one is its own root. */
+function wrap(el: HTMLElement): ParentNode {
+  return { querySelectorAll: (sel: string) => (el.matches(sel) ? [el] : []) } as unknown as ParentNode;
+}
+
 /** "Edit YAML": put the cursor on the first property line, which reveals the frontmatter. */
 function editYaml(view: EditorView) {
   view.focus();
@@ -525,12 +581,18 @@ function blockDecorations(state: EditorState, cfg: BlockConfig, focused: boolean
       }
       if (node.name === "FencedCode") {
         const info = node.node.getChild("CodeInfo");
-        if (!info || state.doc.sliceString(info.from, info.to).trim().toLowerCase() !== "mermaid") return false;
+        const lang = info ? state.doc.sliceString(info.from, info.to).trim().toLowerCase() : "";
+        if (lang !== "mermaid" && lang !== "dataview") return false;
         const from = state.doc.lineAt(node.from).from;
         const to = state.doc.lineAt(node.to).to;
         if (touched(from, to)) return false;
         const src = state.doc.sliceString(from, to);
-        decos.push(Decoration.replace({ widget: new DiagramWidget(renderMarkdown(src, cfg.vaultId, []), cfg.onOpenLink), block: true }).range(from, to));
+        if (lang === "mermaid") decos.push(Decoration.replace({ widget: new DiagramWidget(renderMarkdown(src, cfg.vaultId, []), cfg.onOpenLink), block: true }).range(from, to));
+        else {
+          // The query is the text between the fences (an unclosed block runs to the end).
+          const body = state.doc.sliceString(state.doc.lineAt(node.from).to + 1, node.to).replace(/\n?\s*(```|~~~)\s*$/, "");
+          decos.push(Decoration.replace({ widget: new DataviewWidget(body, false, cfg, cfg.onOpenLink), block: true }).range(from, to));
+        }
         return false;
       }
       // Tables and frontmatter are blocks; skip walking inline content.
@@ -591,11 +653,11 @@ export function livePreview(cfg: LivePreviewConfig, onOpenLink: (target: string,
     class {
       decorations: DecorationSet;
       constructor(view: EditorView) {
-        this.decorations = build(view, cfg);
+        this.decorations = build(view, cfg, onOpenLink);
       }
       update(u: ViewUpdate) {
         if (u.docChanged || u.selectionSet || u.viewportChanged || u.focusChanged || refreshed(u) || syntaxTree(u.startState) !== syntaxTree(u.state)) {
-          this.decorations = build(u.view, cfg);
+          this.decorations = build(u.view, cfg, onOpenLink);
         }
       }
     },

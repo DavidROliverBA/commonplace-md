@@ -16,6 +16,7 @@ import { userColor } from "../lib/links";
 import { renderMarkdown, toggleTask } from "../lib/render";
 import { type Assistant, asCallout, Conversation, loadAssistants } from "../lib/ai";
 import { AiChat } from "./AiChat";
+import { refreshDataview } from "../lib/dataview";
 import { hydrate } from "../lib/embeds";
 import { isBookmarked, toggleBookmark, useBookmarks } from "../lib/bookmarks";
 import { preferredAssistant, rememberAssistant } from "./AiPanel";
@@ -228,6 +229,9 @@ export function NoteView(props: Props) {
       return `<p class="muted">This note couldn't be rendered; showing its source.</p><pre>${esc}</pre>`;
     }
   }, [text, effectiveMode, props.notes]);
+
+  // Dataview results follow the vault: asked again when its notes change.
+  useEffect(() => refreshDataview(), [props.notes]);
 
   // Embedded notes and link cards in reading view (F2): filled in after each render.
   useEffect(() => {
