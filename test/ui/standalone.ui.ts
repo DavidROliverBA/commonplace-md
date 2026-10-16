@@ -208,7 +208,7 @@ describe("standalone, with picked files", () => {
 });
 
 describe("standalone, with a large folder", () => {
-  // MyVault-sized: 3,500 notes in 870 folders with 7 links each. Typing once re-ran every
+  // A large vault: 3,500 notes in 870 folders with 7 links each. Typing once re-ran every
   // backlink lookup over the whole list (7.6 s a key); now it must keep up with typing.
   test("opens quickly and keeps up with typing", async () => {
     const p = await browser.newPage();
