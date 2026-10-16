@@ -1,12 +1,13 @@
 # Tests
 
-Three kinds, from fastest to slowest. Run them from the repo root with `bun`.
+Three kinds, from fastest to slowest, plus the standalone file's own check. Run them from the repo root with `bun`.
 
 | Suite | Files | Run | Needs |
 |---|---|---|---|
 | Unit | `test/*.test.ts` except `e2e.test.ts` | `bun test test/markdown.test.ts …` | Nothing: no database or outside network |
 | End-to-end | `test/e2e.test.ts` | `bun test` (runs with the unit tests, so `bun test` fails without Postgres) | Postgres with a `commonplace_test` database |
 | Browser | `test/ui/editor.ui.ts` | `bun run test:ui` | Postgres and Chrome |
+| Standalone | `test/ui/standalone.ui.ts` | `bun run test:standalone` | Chrome only: builds the one-file version and edits a folder in the browser's private file system (port 3480) |
 
 `bun run screens` (`test/ui/screens.ts`) isn't a test. It takes screenshots of the main screens
 on a laptop and an iPhone, in light and dark, and saves them to `./screens/` (gitignored).

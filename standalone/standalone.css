@@ -1,0 +1,30 @@
+/* The few things only the standalone page has (standalone/App.tsx); everything else is the
+   app's own stylesheet. Values from web/styles/tokens.css only. */
+.standalone-welcome button {
+  justify-content: center;
+  padding: 10px;
+}
+.standalone-vault {
+  align-items: center;
+}
+.standalone-vault-name {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  padding: 6px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.standalone-foot {
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.standalone-foot button {
+  font-size: var(--text-ui-sm);
+  padding: 6px 8px;
+}

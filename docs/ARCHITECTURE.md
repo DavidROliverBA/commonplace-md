@@ -181,6 +181,12 @@ framework beyond that.
 The browser and server share `src/markdown.ts`, `src/types.ts` and `src/prices.ts`, so a
 wikilink, a type or a price means the same thing on both sides.
 
+**The standalone version** (`standalone/`) is the same client built into one HTML file that edits
+a folder of Markdown files with no server. Its build swaps `web/lib/api.ts` for a stand-in that
+reads the open folder, and reuses Live Preview, the renderer, embeds, dialogs and stylesheets as
+they are. Chrome and Edge write changes back through the File System Access API; other browsers
+keep edits in the tab and download them as a zip. See `standalone/README.md`.
+
 ## 6. Data model
 
 `db/schema.sql` is the full schema; each table there has a comment saying what it holds. The

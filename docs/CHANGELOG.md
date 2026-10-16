@@ -4,6 +4,11 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — A standalone version (release v0.0.35; `standalone/`, `bun run standalone`): Commonplace as one
+  HTML file that edits a folder of Markdown files with no server or account. It reuses the app's
+  editor (Live Preview and the other three modes, wikilinks, embeds, tables, properties), the file
+  panel, search, tags, backlinks and outline, and ⌘O. Chrome and Edge save to the files as you
+  type; Safari and Firefox keep edits in the tab and download them as a zip.
 - **2026-10-15** — The review's remaining findings (release v0.0.34, N13). Being added to a
   vault is now an invitation to accept (Join vault / Decline in the sidebar; owners see and cancel
   pending ones), which grants nothing until accepted, and the reply no longer says whether an

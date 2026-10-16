@@ -13,6 +13,7 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
 - [Connecting Claude over MCP](docs/MCP.md).
 - [The iPhone Shortcut](docs/IPHONE-SHORTCUT.md).
 - [Tests](test/README.md).
+- [The standalone version](standalone/README.md): one HTML file that edits a folder of Markdown files, with no server.
 - [Contributing](CONTRIBUTING.md) and [Security](SECURITY.md).
 
 ## Features
@@ -264,6 +265,8 @@ bun run typecheck
 bun test          # unit tests + an end-to-end suite that boots the server against a scratch DB
 bun run test:ui   # headless-Chromium tests of the editor, file tree and Trash (needs Chrome)
 bun run screens   # screenshots of the main screens, laptop and iPhone, light and dark → ./screens
+bun run standalone       # the one-file version → standalone/dist/commonplace.html
+bun run test:standalone  # drives that file in Chrome (no database)
 ```
 
 `test:ui` finds Chrome from `CHROME_PATH`, a Playwright download, or an installed Google Chrome,

@@ -4,3 +4,4 @@ node_modules
 *.log
 screens/
 .restore-test/
+standalone/dist/
