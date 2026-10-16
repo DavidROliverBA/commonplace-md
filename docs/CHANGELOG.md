@@ -4,6 +4,15 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — Mermaid diagrams (release v0.0.37; `web/lib/mermaid.ts`), in the app and the
+  standalone version, with the syntax other Markdown editors use: a ```` ```mermaid ```` block draws
+  in reading view, in embeds, and in Live Preview off the cursor (a click shows the source). It
+  follows light and dark, `%%{init}%%` directives work, and `class A internal-link` makes a node
+  open the note it names; a diagram that doesn't parse shows the error above its source. Mermaid
+  loads only for a note with a diagram (served at `/vendor/mermaid.js`, or packed inside the
+  standalone file, now 2.4 MB). Strict mode, sanitised SVG and a shadow root per diagram keep it
+  from running script or restyling the app. Published sites show the source, as their pages run
+  no script.
 - **2026-10-16** — The standalone version is fast on a large folder (release v0.0.36). On a
   folder shaped like a 3,500-note vault, a keystroke took 7.6 s and now takes one frame, opening
   takes 0.5 s instead of 4.9 s, and switching notes is instant instead of 3.8 s. Link lookups

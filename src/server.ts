@@ -1,6 +1,7 @@
 // HTTP + WebSocket server. Bun bundles the React client from web/index.html on the fly (with
 // hot reload under `bun run dev`), so there is no separate build step.
 
+import { dirname, join } from "node:path";
 import index from "../web/index.html";
 import { apiRoutes } from "./api";
 import { currentUser, sameOrigin, sessionHash } from "./auth";
@@ -105,6 +106,8 @@ function guarded<T extends Record<string, unknown>>(table: T): T {
   return out as T;
 }
 
+const MERMAID_JS = join(dirname(Bun.resolveSync("mermaid/package.json", import.meta.dir)), "dist", "mermaid.min.js");
+
 let shellCache: Promise<{ body: ArrayBuffer; type: string }> | null = null;
 async function appShell(req: Request, srv: Bun.Server<CollabData>): Promise<Response> {
   const load = async () => {
@@ -143,6 +146,9 @@ const server = Bun.serve<CollabData>({
         new Response(Bun.file(new URL("../web/sw.js", import.meta.url)), {
           headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "no-cache", "Service-Worker-Allowed": "/", "Content-Security-Policy": "default-src 'self'" },
         }),
+      // Mermaid's browser build (web/lib/mermaidLib.ts), fetched the first time a note has a diagram.
+      "/vendor/mermaid.js": () =>
+        new Response(Bun.file(MERMAID_JS), { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=86400" } }),
       "/health": async () => {
         await sql`select 1`;
         return Response.json({ ok: true });

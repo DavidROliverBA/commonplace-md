@@ -1,5 +1,6 @@
 // Markdown → sanitised HTML with extended Markdown: [[wikilinks]], ![[embeds]], #tags,
-// ==highlights==, > [!callouts], frontmatter properties, and clickable task checkboxes.
+// ==highlights==, > [!callouts], ```mermaid diagrams, frontmatter properties, and clickable task
+// checkboxes.
 
 import DOMPurify from "dompurify";
 import { Marked, type Tokens } from "marked";
@@ -7,6 +8,7 @@ import { isAttachmentPath, parseFrontmatter } from "../../src/markdown";
 import type { NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { colourOf, hiloColour } from "./colours";
+import { diagramHtml } from "./mermaid";
 
 // Colours (F10): before attributes are checked, a span, mark or font's colour becomes a palette
 // class or a cleaned style kept aside; after, only that cleaned style is put back. Every other
@@ -108,6 +110,11 @@ export function renderMarkdown(md: string, vaultId: number, notes: NoteSummary[]
       },
     ],
     renderer: {
+      // ```mermaid: a placeholder holding the source, drawn by web/lib/mermaid.ts.
+      code({ text, lang }: Tokens.Code) {
+        if (lang?.trim().split(/\s/)[0]!.toLowerCase() !== "mermaid") return false;
+        return diagramHtml(text, esc) + "\n";
+      },
       // Clickable checkboxes, numbered in document order so a click can find its line.
       checkbox({ checked }: Tokens.Checkbox) {
         return `<input type="checkbox" class="task" data-task="${taskIndex++}"${checked ? " checked" : ""}> `;

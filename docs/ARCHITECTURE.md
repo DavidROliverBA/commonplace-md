@@ -187,6 +187,13 @@ reads the open folder, and reuses Live Preview, the renderer, embeds, dialogs an
 they are. Chrome and Edge write changes back through the File System Access API; other browsers
 keep edits in the tab and download them as a zip. See `standalone/README.md`.
 
+**Mermaid diagrams** (`web/lib/mermaid.ts`): the renderer turns a ```` ```mermaid ```` block into a
+placeholder holding its source, and the embed step (reading view) or a Live Preview widget draws
+it. Mermaid's own browser build isn't bundled: the app serves it at `/vendor/mermaid.js`
+(`web/lib/mermaidLib.ts`), and the standalone file carries it gzipped, so it loads only for a
+note with a diagram. It runs in strict mode, its SVG is sanitised again, and each diagram sits in
+a shadow root, so the stylesheet inside it can't restyle the app.
+
 ## 6. Data model
 
 `db/schema.sql` is the full schema; each table there has a comment saying what it holds. The
@@ -390,7 +397,7 @@ the token's inbox note, through `overwriteContent`:
 | Consent to share | Nobody is added to a vault without accepting: an owner's invite creates a pending row in `vault_invites` that grants no access (notes, search, events, sockets, tokens, MCP and the in-app AI all read `vault_members`). The reply is the same whether or not the email has an account, so it doesn't reveal who has one. An invitation closes if its sender stops being an owner. | `vaults.ts`, `api.ts` |
 | Bearer tokens | Prefixed (`cpc_`, `cpm_`), stored hashed, scoped, revocable, shown once, never accepted in a URL. | `tokens.ts` |
 | Secrets at rest | People's AI keys and GitHub tokens are sealed with AES-256-GCM under a key derived from `SECRETS_KEY`. They are never returned to the browser (only the last four characters are shown) and never included in backups. | `secrets.ts`, `assistants.ts` |
-| XSS in the app | Rendered markdown goes through DOMPurify. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
+| XSS in the app | Rendered markdown goes through DOMPurify; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
 | Security headers | The app's page has a CSP: scripts only from the bundle's own files (`'unsafe-inline'` only in development, for Bun's dev script), inline styles (React, CodeMirror), images from `https:` (remote images in notes), connections to itself and its own ws/wss. Nothing may frame it (`frame-ancestors 'none'`, `X-Frame-Options`). Every app response has `nosniff`, `Referrer-Policy: same-origin` (a remote image never learns which note it's in) and, when the cookie is `Secure`, HSTS. Bun's HTML-bundle route takes no headers, so the bundle is mounted at a random private path and `"/*"` serves its HTML with them. | `server.ts` |
 | XSS on sites | Pages are rendered on the server with a tag allow-list and no attributes, and served with a no-script, sandboxed CSP. | `publish.ts` |
 | SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |

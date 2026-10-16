@@ -19,6 +19,7 @@ let page: Page;
 const FILES: Record<string, string> = {
   "Welcome.md": "# Welcome\n\nSee [[Projects/Plan]] and [[Ideas]]. #start\n\n![[attachments/dot.svg]]\n",
   "Projects/Plan.md": "---\nstatus: active\n---\n# Plan\n\n- [ ] first step\n\nBack to [[Welcome]].\n",
+  "Diagram.md": "# Diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Welcome]\n  class B internal-link\n```\n\n```mermaid\nnot a diagram\n```\n\nAfter.\n",
   "attachments/dot.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="5"/></svg>',
 };
 
@@ -159,6 +160,25 @@ describe("standalone, with a folder", () => {
     await page.keyboard.press("Enter");
     await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "roadmap");
     expect(await readFile(page, "Projects/roadmap.md")).toContain("# Plan");
+  });
+
+  test("a mermaid block draws as a diagram, in Live Preview and reading view", async () => {
+    await clickText(page, ".tree-row.note", "Diagram");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Diagram");
+    const drawn = (sel: string) =>
+      page.waitForFunction((sel) => !!document.querySelector(sel)?.shadowRoot?.querySelector("svg .node"), { timeout: 15000 }, sel);
+    await drawn(".cm-content .mermaid-diagram");
+    // A diagram that doesn't parse says so, with its source.
+    await page.waitForFunction(() => document.querySelector(".cm-content .mermaid-diagram.mermaid-failed")?.shadowRoot?.querySelector(".error")?.textContent?.includes("Diagram error"));
+    await page.click("button[aria-label='Reading view']");
+    await drawn(".preview .mermaid-diagram");
+    // `class B internal-link`: the node opens its note.
+    await page.evaluate(() => {
+      const node = [...document.querySelector(".preview .mermaid-diagram")!.shadowRoot!.querySelectorAll<SVGElement>(".node.internal-link")].find((n) => n.textContent?.includes("Welcome"))!;
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+    });
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Welcome");
+    await page.click("button[aria-label='Live preview']");
   });
 
   test("⌘O opens a note by name", async () => {

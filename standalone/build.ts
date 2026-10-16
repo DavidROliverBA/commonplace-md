@@ -1,13 +1,15 @@
 // Builds Commonplace as one self-contained HTML file: `bun standalone/build.ts`.
 // Bundles standalone/main.tsx (which reuses the app's editor, renderer, dialogs and styles),
 // swaps web/lib/api.ts for a stand-in that reads the open folder, and inlines the script and
-// stylesheet so the file works from disk with no server.
+// stylesheet (and Mermaid, packed) so the file works from disk with no server.
 
+import { gzipSync } from "fflate";
 import { dirname, join } from "node:path";
 
 const here = import.meta.dir;
 const out = join(here, "dist", "commonplace.html");
 const shim = join(here, "api-shim.ts");
+const mermaidShim = join(here, "mermaid-lib.ts");
 const pkg = await Bun.file(join(here, "..", "package.json")).json();
 
 const result = await Bun.build({
@@ -24,6 +26,8 @@ const result = await Bun.build({
           const target = join(dirname(args.importer), args.path).replace(/\.ts$/, "");
           return target.endsWith(join("web", "lib", "api")) ? { path: shim } : undefined;
         });
+        // Mermaid comes from inside the file, not the server.
+        b.onResolve({ filter: /(^|\/)mermaidLib(\.ts)?$/ }, () => ({ path: mermaidShim }));
       },
     },
   ],
@@ -42,6 +46,10 @@ for (const o of result.outputs) {
 // Nothing in the inlined code may close its own tag early.
 const safe = (s: string, tag: string) => s.replace(new RegExp(`</(${tag})`, "gi"), "<\\/$1");
 
+// Mermaid's browser build, gzipped: unpacked only when a note has a diagram (standalone/mermaid-lib.ts).
+const mermaidJs = await Bun.file(join(dirname(Bun.resolveSync("mermaid/package.json", here)), "dist", "mermaid.min.js")).bytes();
+const mermaidPacked = Buffer.from(gzipSync(mermaidJs, { level: 9 })).toString("base64");
+
 const icon = await Bun.file(join(here, "..", "web", "icon.svg")).text();
 const html = `<!doctype html>
 <html lang="en-GB">
@@ -58,6 +66,7 @@ const html = `<!doctype html>
 </head>
 <body>
 <div id="root"></div>
+<script type="application/octet-stream" id="mermaid-lib">${mermaidPacked}</script>
 <script type="module">${safe(js, "script")}</script>
 </body>
 </html>

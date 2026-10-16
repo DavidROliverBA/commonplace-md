@@ -301,3 +301,13 @@ mark.hl-grey, .hl-grey { background: var(--hl-grey); color: inherit; }
 .cm-lp-colour {
   border-radius: var(--radius-xs);
 }
+
+/* Mermaid diagrams (web/lib/mermaid.ts): the source shows until the diagram is drawn. */
+.markdown .mermaid-diagram {
+  margin: 1em 0;
+  overflow-x: auto;
+  text-align: center;
+}
+.markdown .mermaid-diagram pre {
+  text-align: left;
+}

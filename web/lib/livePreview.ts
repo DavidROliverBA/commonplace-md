@@ -12,6 +12,7 @@ import type { NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { readProps } from "./frontmatter";
 import { frontmatterYaml, PropertiesWidget } from "./propertiesWidget";
+import { drawDiagrams } from "./mermaid";
 import { fileUrl, renderMarkdown } from "./render";
 import { colourOf, hiloColour } from "./colours";
 import { type EmbedCtx, fillCard, fillEmbed } from "./embeds";
@@ -439,6 +440,36 @@ class BlockWidget extends WidgetType {
   }
 }
 
+/** A ```mermaid block, drawn; a click on it (outside a linked node) shows its source. */
+class DiagramWidget extends WidgetType {
+  constructor(
+    readonly html: string,
+    readonly onOpenLink: (target: string, newNote: boolean) => void,
+  ) {
+    super();
+  }
+  eq(o: DiagramWidget) {
+    return o.html === this.html;
+  }
+  toDOM(view: EditorView) {
+    const div = document.createElement("div");
+    div.className = "cm-lp-block cm-lp-diagram markdown";
+    div.innerHTML = this.html; // sanitised by renderMarkdown (DOMPurify)
+    div.addEventListener("cp-diagram", () => view.requestMeasure());
+    drawDiagrams(div, (t) => this.onOpenLink(t, false));
+    div.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      const pos = view.posAtDOM(div);
+      view.focus();
+      view.dispatch({ selection: { anchor: Math.min(view.state.doc.lineAt(pos).to, view.state.doc.length) } });
+    });
+    return div;
+  }
+  ignoreEvent() {
+    return true;
+  }
+}
+
 /** "Edit YAML": put the cursor on the first property line, which reveals the frontmatter. */
 function editYaml(view: EditorView) {
   view.focus();
@@ -490,6 +521,16 @@ function blockDecorations(state: EditorState, cfg: BlockConfig, focused: boolean
         if (!embed && !(hit && typeNamed(hit.type)?.cards)) return false;
         const ctx = (): EmbedCtx => ({ vaultId: cfg.vaultId, notes: cfg.notes(), ancestors: [cfg.noteId?.() ?? -1], onOpen: (t) => cfg.onOpenLink(t, false) });
         decos.push(Decoration.replace({ widget: new NoteBlockWidget(embed ? "embed" : "card", target, `${hit?.id}:${hit?.updated_at}:${hit?.type}`, ctx), block: true }).range(line.from, line.to));
+        return false;
+      }
+      if (node.name === "FencedCode") {
+        const info = node.node.getChild("CodeInfo");
+        if (!info || state.doc.sliceString(info.from, info.to).trim().toLowerCase() !== "mermaid") return false;
+        const from = state.doc.lineAt(node.from).from;
+        const to = state.doc.lineAt(node.to).to;
+        if (touched(from, to)) return false;
+        const src = state.doc.sliceString(from, to);
+        decos.push(Decoration.replace({ widget: new DiagramWidget(renderMarkdown(src, cfg.vaultId, []), cfg.onOpenLink), block: true }).range(from, to));
         return false;
       }
       // Tables and frontmatter are blocks; skip walking inline content.

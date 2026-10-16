@@ -345,6 +345,36 @@ describe("live preview", () => {
     await p.close();
   });
 
+  test("mermaid blocks draw as diagrams, in Live Preview and reading view, and can't restyle the app", async () => {
+    await note("Builders.md", "# Builders\n");
+    const md = [
+      "# Flow",
+      "",
+      "```mermaid",
+      "%%{init: {'themeCSS': 'body, .app { display: none !important; }'}}%%",
+      "flowchart LR",
+      "  A[Quote] --> B[Builders]",
+      "  class B internal-link",
+      "```",
+      "",
+      "Below.",
+    ].join("\n");
+    const n = await note("Flow.md", md);
+    const p = await openNote(n.id);
+    const drawn = (sel: string) => p.waitForFunction((sel) => !!document.querySelector(sel)?.shadowRoot?.querySelector("svg .node"), { timeout: 15000 }, sel);
+    await drawn(".cm-content .mermaid-diagram");
+    expect(await p.evaluate(() => getComputedStyle(document.body).display)).not.toBe("none");
+    await p.evaluate(() => document.querySelector<HTMLButtonElement>('.segmented button[title="Reading view"]')!.click());
+    await drawn(".preview .mermaid-diagram");
+    await p.evaluate(() => {
+      const node = document.querySelector(".preview .mermaid-diagram")!.shadowRoot!.querySelector<SVGElement>(".node.internal-link")!;
+      node.dispatchEvent(new MouseEvent("click", { bubbles: true, composed: true }));
+    });
+    await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Builders");
+    await p.evaluate(() => localStorage.setItem("cp:mode", "edit"));
+    await p.close();
+  });
+
   test("the outline shows headings as plain text", async () => {
     const t = await note("Outline.md", "# Plan **now**\n\n## See [[Contractors|builders]]");
     const p = await openNote(t.id);

@@ -1,6 +1,6 @@
 {
   "name": "commonplace",
-  "version": "0.0.36",
+  "version": "0.0.37",
   "private": true,
   "description": "A multi-user Markdown knowledge base on Postgres + pgvector, with a web UI for laptop and iPhone.",
   "author": "David Oliver",
@@ -36,6 +36,7 @@
     "lib0": "^0.2.119",
     "libheif-js": "1.19.8",
     "marked": "^18.1.0",
+    "mermaid": "^11.17.2",
     "postgres": "^3.4.9",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

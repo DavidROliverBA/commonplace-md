@@ -21,10 +21,10 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
 - **Extended Markdown:** `[[wikilinks]]` (with `|alias` and `#heading`), `![[embeds]]` for images,
   audio, video and PDFs, `#tags` (nested, inline or in frontmatter), YAML frontmatter shown as
   properties, `> [!callouts]`, `==highlights==` and coloured text and highlights (⌘⇧H; read from Highlightr,
-  Editing Toolbar and Hilo, written as HTML that other editors show), GFM tables, and task lists you can tick in
-  reading view.
+  Editing Toolbar and Hilo, written as HTML that other editors show), GFM tables, ```` ```mermaid ```` diagrams (the same
+  syntax other Markdown editors use), and task lists you can tick in reading view.
 - **Live Preview:** markdown renders in place while you type. Headings, bold,
-  links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes and code show formatted, and a
+  links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes, code and Mermaid diagrams show formatted, and a
   line reveals its raw markdown only while the cursor is on it. Frontmatter shows as a properties
   panel you can edit in place (text, numbers, dates, checkboxes, and lists as pills; add, rename
   or remove properties), and GFM tables render as tables you edit cell by cell (Tab between cells, a bar for rows and columns), written back with the pipes lined up. Click a
@@ -102,7 +102,7 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   encrypted (`SECRETS_KEY`) and never shown again or shared.
 - **Publish a vault as a website** (Settings → Website, owners): the whole vault or chosen
   folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
-  tasks; a note with `publish: false` stays out, and a link to a note that isn't published shows
+  tasks (pages run no script, so a Mermaid diagram shows as its source); a note with `publish: false` stays out, and a link to a note that isn't published shows
   as plain words. Publishing takes a copy, so your edits stay private until you publish again;
   Settings lists what a republish would add, change or take down. Unlisted (search engines are
   asked to leave it out), and taking it down has an Undo. The choice is kept in `publish.json`,
