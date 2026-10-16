@@ -7,7 +7,7 @@
 //   this tab, and "Download changes" saves them as a zip of the changed files.
 
 import { zipSync, strToU8 } from "fflate";
-import { extractTags, isAttachmentPath, normalisePath, parseFrontmatter, titleFromPath } from "../src/markdown";
+import { extractTags, findWikiLinks, isAttachmentPath, normalisePath, parseFrontmatter, titleFromPath } from "../src/markdown";
 import type { Note, NoteSummary } from "../web/lib/api";
 
 export const VAULT_ID = 1;
@@ -15,6 +15,10 @@ export const VAULT_ID = 1;
 interface Entry {
   summary: NoteSummary;
   content: string;
+  /** Worked out when first asked for and dropped when the text changes: its [[link]] targets,
+   *  and its text lowercased for search. */
+  links?: string[];
+  lower?: string;
   /** Changed in this tab and not yet written (or, without a folder, not yet downloaded). */
   dirty: boolean;
 }
@@ -27,20 +31,46 @@ const files = new Map<string, { path: string; get: () => Promise<File> }>();
 let root: Dir | null = null;
 let name = "";
 let seq = 0;
+// Two signals. The note list changes when notes come, go, move, or change their tags, type or
+// aliases: everything built from it (the tree, link lookups, backlinks) rebuilds then, and not on
+// every keystroke. Status is the cheap one: what's unsaved.
 const listeners = new Set<() => void>();
 let list: NoteSummary[] = [];
 const emit = () => {
   list = [...notes.values()].map((e) => e.summary);
   listeners.forEach((f) => f());
+  emitStatus();
+};
+const statusListeners = new Set<() => void>();
+let status = 0;
+const emitStatus = () => {
+  status++;
+  statusListeners.forEach((f) => f());
 };
 
 export const subscribe = (f: () => void) => (listeners.add(f), () => void listeners.delete(f));
+export const subscribeStatus = (f: () => void) => (statusListeners.add(f), () => void statusListeners.delete(f));
+export const statusVersion = () => status;
 export const allNotes = () => list;
 export const vaultName = () => name;
 /** True when edits go straight back to the files on disk. */
 export const canWrite = () => root !== null;
 export const getNote = (id: number) => notes.get(id);
-export const dirtyCount = () => [...notes.values()].filter((e) => e.dirty).length;
+export const dirtyCount = () => {
+  let n = 0;
+  for (const e of notes.values()) if (e.dirty) n++;
+  return n;
+};
+/** A note's [[link]] targets, without #headings. */
+export function linksOf(id: number): string[] {
+  const e = notes.get(id);
+  if (!e) return [];
+  return (e.links ??= findWikiLinks(e.content).map((l) => l.target.split("#")[0]!.trim()));
+}
+export function lowerOf(id: number): string {
+  const e = notes.get(id);
+  return e ? (e.lower ??= e.content.toLowerCase()) : "";
+}
 export const isOpen = () => name !== "";
 
 export const supportsFolders = () => typeof (window as any).showDirectoryPicker === "function";
@@ -74,43 +104,72 @@ const SKIP = /^(\.|node_modules$)/; // hidden folders (.git, app settings) and d
 export async function openFolder(dir: Dir): Promise<void> {
   reset(dir.name);
   root = dir;
+  // List every folder at once, then read the notes many at a time: one by one, a vault of
+  // thousands takes seconds.
+  const md: { path: string; fh: FileSystemFileHandle }[] = [];
   const walk = async (d: Dir, prefix: string): Promise<void> => {
+    const sub: Promise<void>[] = [];
     for await (const [entryName, h] of (d as any).entries() as AsyncIterable<[string, FileSystemHandle]>) {
       if (SKIP.test(entryName)) continue;
       const path = prefix ? `${prefix}/${entryName}` : entryName;
-      if (h.kind === "directory") await walk(h as Dir, path);
+      if (h.kind === "directory") sub.push(walk(h as Dir, path));
       else {
         const fh = h as FileSystemFileHandle;
-        if (/\.md$/i.test(entryName)) {
-          const f = await fh.getFile();
-          const id = ++seq;
-          const content = await f.text();
-          notes.set(id, { summary: summarise(id, path, content, f.lastModified), content, dirty: false });
-        } else if (isAttachmentPath(path)) files.set(path.toLowerCase(), { path, get: () => fh.getFile() });
+        if (/\.md$/i.test(entryName)) md.push({ path, fh });
+        else if (isAttachmentPath(path)) files.set(path.toLowerCase(), { path, get: () => fh.getFile() });
       }
     }
+    await Promise.all(sub);
   };
   await walk(dir, "");
+  md.sort((a, b) => a.path.localeCompare(b.path));
+  const read = await pool(md, 32, async ({ fh }) => {
+    const f = await fh.getFile();
+    return { content: await f.text(), modified: f.lastModified };
+  });
+  md.forEach(({ path }, i) => {
+    const id = ++seq;
+    const { content, modified } = read[i]!;
+    notes.set(id, { summary: summarise(id, path, content, modified), content, dirty: false });
+  });
   void remember(dir);
   emit();
+}
+
+/** `work` on each item, at most `limit` at once; results in the items' order. */
+async function pool<T, R>(items: T[], limit: number, work: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  const run = async () => {
+    while (next < items.length) {
+      const i = next++;
+      out[i] = await work(items[i]!);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, run));
+  return out;
 }
 
 /** Read files picked or dropped without folder access: kept in this tab only. */
 export async function openFiles(picked: File[], label: string): Promise<void> {
   reset(label);
   root = null;
+  const md: { path: string; f: File }[] = [];
   for (const f of picked) {
     // A folder pick gives "Folder/sub/note.md"; drop the folder's own name.
     const rel = ((f as any).webkitRelativePath || f.name).split("/");
     if (rel.length > 1) rel.shift();
     const path = rel.join("/");
     if (path.split("/").some((p: string) => SKIP.test(p))) continue;
-    if (/\.md$/i.test(path)) {
-      const id = ++seq;
-      const content = await f.text();
-      notes.set(id, { summary: summarise(id, path, content, f.lastModified), content, dirty: false });
-    } else if (isAttachmentPath(path)) files.set(path.toLowerCase(), { path, get: async () => f });
+    if (/\.md$/i.test(path)) md.push({ path, f });
+    else if (isAttachmentPath(path)) files.set(path.toLowerCase(), { path, get: async () => f });
   }
+  md.sort((a, b) => a.path.localeCompare(b.path));
+  const texts = await pool(md, 32, ({ f }) => f.text());
+  md.forEach(({ path, f }, i) => {
+    const id = ++seq;
+    notes.set(id, { summary: summarise(id, path, texts[i]!, f.lastModified), content: texts[i]!, dirty: false });
+  });
   emit();
 }
 
@@ -137,6 +196,8 @@ async function writeFile(path: string, data: string | Blob) {
 }
 
 const timers = new Map<number, ReturnType<typeof setTimeout>>();
+const summaryTimers = new Map<number, ReturnType<typeof setTimeout>>();
+const sameList = (a: string[] | null | undefined, b: string[] | null | undefined) => (a ?? []).join("\n") === (b ?? []).join("\n");
 let saveError: ((e: unknown) => void) | null = null;
 export const onSaveError = (f: (e: unknown) => void) => void (saveError = f);
 
@@ -145,11 +206,27 @@ export function setContent(id: number, content: string) {
   const e = notes.get(id);
   if (!e || e.content === content) return;
   e.content = content;
+  e.links = e.lower = undefined;
+  const wasDirty = e.dirty;
   e.dirty = true;
-  e.summary = summarise(id, e.summary.path, content, Date.now());
   clearTimeout(timers.get(id));
   if (root) timers.set(id, setTimeout(() => void flush(id), 500));
-  emit();
+  if (!wasDirty) emitStatus();
+  // Tags, type and aliases are read again once typing pauses; the list changes only if they did.
+  clearTimeout(summaryTimers.get(id));
+  summaryTimers.set(
+    id,
+    setTimeout(() => {
+      const cur = notes.get(id);
+      if (!cur) return;
+      const next = summarise(id, cur.summary.path, cur.content, Date.now());
+      const changed = !sameList(next.tags, cur.summary.tags) || next.type !== cur.summary.type || !sameList(next.aliases, cur.summary.aliases);
+      if (changed) {
+        cur.summary = next;
+        emit();
+      } else cur.summary.updated_at = next.updated_at;
+    }, 400),
+  );
 }
 
 /** Write one note now (or every pending one with no id). */
@@ -164,6 +241,7 @@ export async function flush(id?: number): Promise<void> {
     try {
       await writeFile(e.summary.path, content);
       if (e.content === content) e.dirty = false;
+      emitStatus();
     } catch (err) {
       saveError?.(err);
     }

@@ -4,6 +4,14 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — The standalone version is fast on a large folder (release v0.0.36). On a
+  folder shaped like a 3,500-note vault, a keystroke took 7.6 s and now takes one frame, opening
+  takes 0.5 s instead of 4.9 s, and switching notes is instant instead of 3.8 s. Link lookups
+  (`web/lib/links.ts: resolveLocal`) use an index built once per note list instead of scanning
+  every note, which speeds up the full app's Live Preview and links too. Typing no longer
+  rebuilds the note list unless tags, type or aliases change; notes are read in parallel; the
+  preview and search follow just behind typing. `test/ui/standalone.ui.ts` checks a folder that
+  size.
 - **2026-10-16** — A standalone version (release v0.0.35; `standalone/`, `bun run standalone`): Commonplace as one
   HTML file that edits a folder of Markdown files with no server or account. It reuses the app's
   editor (Live Preview and the other three modes, wikilinks, embeds, tables, properties), the file

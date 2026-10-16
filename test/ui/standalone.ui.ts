@@ -206,3 +206,52 @@ describe("standalone, with picked files", () => {
     }
   });
 });
+
+describe("standalone, with a large folder", () => {
+  // MyVault-sized: 3,500 notes in 870 folders with 7 links each. Typing once re-ran every
+  // backlink lookup over the whole list (7.6 s a key); now it must keep up with typing.
+  test("opens quickly and keeps up with typing", async () => {
+    const p = await browser.newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.goto(`http://localhost:${PORT}/`);
+    await p.waitForSelector(".login-card");
+    await p.evaluate(async () => {
+      const root = await navigator.storage.getDirectory();
+      for await (const name of (root as any).keys()) await root.removeEntry(name, { recursive: true });
+      const N = 3500;
+      const dirs: FileSystemDirectoryHandle[] = [];
+      for (let i = 0; i < 870; i++) dirs.push(await (i < 30 ? root : dirs[i % 30]!).getDirectoryHandle(`Folder ${i}`, { create: true }));
+      const filler = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(140);
+      const jobs: Promise<void>[] = [];
+      for (let i = 0; i < N; i++) {
+        const links = Array.from({ length: 7 }, (_, k) => `[[Note ${(i * 7 + k * 131) % N}]]`).join(" ");
+        const text = `---\ntags: [work]\n---\n# Note ${i}\n\n${links}\n\n${filler}\n`;
+        jobs.push((async () => {
+          const w = await (await dirs[i % 870]!.getFileHandle(`Note ${i}.md`, { create: true })).createWritable();
+          await w.write(text);
+          await w.close();
+        })());
+        if (jobs.length > 200) await Promise.all(jobs.splice(0));
+      }
+      await Promise.all(jobs);
+      (window as any).showDirectoryPicker = async () => root;
+    });
+    const start = Date.now();
+    await clickText(p, ".login-card button", "Open a folder");
+    await p.waitForSelector(".cm-content");
+    expect(Date.now() - start).toBeLessThan(5000);
+    await p.click(".cm-content");
+    const times = await p.evaluate(async () => {
+      const out: number[] = [];
+      for (let i = 0; i < 15; i++) {
+        const s = performance.now();
+        document.execCommand("insertText", false, "a");
+        await new Promise((r) => requestAnimationFrame(() => setTimeout(r)));
+        out.push(performance.now() - s);
+      }
+      return out.sort((a, b) => a - b);
+    });
+    expect(times[7]!).toBeLessThan(100);
+    await p.close();
+  }, 60000);
+});

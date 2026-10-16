@@ -2,7 +2,7 @@
 // with the file panel, wikilinks, backlinks, outline, search and the four view modes. No server,
 // no account: the files are the notes (standalone/vault.ts).
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { findWikiLinks, headings, isAttachmentPath } from "../src/markdown";
 import type { NoteSummary } from "../web/lib/api";
 import { hydrate } from "../web/lib/embeds";
@@ -302,7 +302,8 @@ function Sidebar(p: {
 }) {
   const tree = useMemo(() => buildTree(p.notes), [p.notes]);
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => new Set());
-  // Read on every render: the notes list changes whenever a note does.
+  // Typing doesn't change the note list, so the footer follows the save status on its own.
+  useSyncExternalStore(vault.subscribeStatus, vault.statusVersion);
   const dirty = vault.dirtyCount();
   const writes = vault.canWrite();
 
@@ -442,13 +443,14 @@ const escHtml = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<"
 
 /** Every word must appear (a #tag must be one of the note's tags); title matches first. */
 function Search(p: { notes: NoteSummary[]; query: string; setQuery: (q: string) => void; onOpen: (n: NoteSummary) => void }) {
+  // Typing in the box stays quick: the search over every note runs behind it.
+  const query = useDeferredValue(p.query);
   const hits = useMemo(() => {
-    const words = p.query.toLowerCase().split(/\s+/).filter(Boolean);
+    const words = query.toLowerCase().split(/\s+/).filter(Boolean);
     if (!words.length) return [];
     const out: { n: NoteSummary; score: number; snippet: string }[] = [];
     for (const n of p.notes) {
-      const text = vault.getNote(n.id)?.content ?? "";
-      const lower = text.toLowerCase();
+      const lower = vault.lowerOf(n.id);
       const title = n.title.toLowerCase();
       if (!words.every((w) => (w.startsWith("#") ? n.tags.includes(w.slice(1)) : lower.includes(w) || title.includes(w)))) continue;
       const first = words.find((w) => !w.startsWith("#"));
@@ -456,13 +458,13 @@ function Search(p: { notes: NoteSummary[]; query: string; setQuery: (q: string) 
       let snippet = "";
       if (at >= 0) {
         const start = Math.max(0, at - 40);
-        const raw = text.slice(start, at + 80).replace(/\s+/g, " ");
+        const raw = (vault.getNote(n.id)?.content ?? "").slice(start, at + 80).replace(/\s+/g, " ");
         snippet = (start ? "…" : "") + escHtml(raw).replace(new RegExp(first!.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi"), (m) => `<mark>${m}</mark>`);
       }
       out.push({ n, score: words.filter((w) => title.includes(w)).length, snippet });
     }
     return out.sort((a, b) => b.score - a.score || b.n.updated_at.localeCompare(a.n.updated_at)).slice(0, 100);
-  }, [p.query, p.notes]);
+  }, [query, p.notes]);
 
   return (
     <div className="search-panel">
@@ -511,7 +513,9 @@ function NoteScreen(p: {
   const setModeSaved = (m: Mode) => (setMode(m), store.set("mode", m));
   const folder = p.note.path.includes("/") ? p.note.path.replace(/\/[^/]+$/, "") : "";
   const showPreview = mode === "split" || mode === "read";
-  const html = useMemo(() => (showPreview ? renderMarkdown(text, vault.VAULT_ID, p.notes) : ""), [showPreview, text, p.notes]);
+  // The preview follows the text a moment behind, so a long note doesn't slow typing.
+  const shown = useDeferredValue(text);
+  const html = useMemo(() => (showPreview ? renderMarkdown(shown, vault.VAULT_ID, p.notes) : ""), [showPreview, shown, p.notes]);
 
   useEffect(() => {
     if (preview.current) hydrate(preview.current, { vaultId: vault.VAULT_ID, notes: p.notes, ancestors: [p.note.id], onOpen: p.onOpenLink });
@@ -600,8 +604,7 @@ function NoteScreen(p: {
     () =>
       p.notes.filter((n) => {
         if (n.id === p.note.id) return false;
-        const c = vault.getNote(n.id)?.content ?? "";
-        return findWikiLinks(c).some((l) => resolveLocal(p.notes, l.target.split("#")[0]!)?.id === p.note.id);
+        return vault.linksOf(n.id).some((t) => resolveLocal(p.notes, t)?.id === p.note.id);
       }),
     [p.notes, p.note.id],
   );

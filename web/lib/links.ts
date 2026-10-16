@@ -8,17 +8,38 @@ import type { NoteSummary } from "./api";
 export function resolveLocal(notes: NoteSummary[], target: string): NoteSummary | undefined {
   const t = normaliseTarget(target);
   if (!t) return undefined;
-  let best: NoteSummary | undefined;
-  let bestRank = 9;
+  const ix = indexFor(notes);
+  return ix.path.get(t) ?? ix.title.get(t) ?? ix.suffix.get(t) ?? ix.alias.get(t);
+}
+
+/** Lookups for each rank (exact path, title, path suffix, alias), built once per note list: a
+ *  note list is replaced, never changed in place, so its identity says when to rebuild. Each
+ *  keeps the shortest path for a key, the first such note on a tie. */
+interface LinkIndex {
+  path: Map<string, NoteSummary>;
+  title: Map<string, NoteSummary>;
+  suffix: Map<string, NoteSummary>;
+  alias: Map<string, NoteSummary>;
+}
+const indexes = new WeakMap<NoteSummary[], LinkIndex>();
+function indexFor(notes: NoteSummary[]): LinkIndex {
+  let ix = indexes.get(notes);
+  if (ix) return ix;
+  ix = { path: new Map(), title: new Map(), suffix: new Map(), alias: new Map() };
+  const put = (m: Map<string, NoteSummary>, k: string, n: NoteSummary) => {
+    const had = m.get(k);
+    if (!had || n.path.length < had.path.length) m.set(k, n);
+  };
   for (const n of notes) {
     const p = n.path.replace(/\.md$/i, "").toLowerCase();
-    const rank = p === t ? 0 : n.title.toLowerCase() === t ? 1 : p.endsWith("/" + t) ? 2 : n.aliases?.includes(t) ? 3 : 9;
-    if (rank < bestRank || (rank === bestRank && rank < 9 && best && n.path.length < best.path.length)) {
-      best = n;
-      bestRank = rank;
-    }
+    put(ix.path, p, n);
+    put(ix.title, n.title.toLowerCase(), n);
+    // "a/b/c" is found by "b/c" and "c".
+    for (let i = p.indexOf("/"); i >= 0; i = p.indexOf("/", i + 1)) put(ix.suffix, p.slice(i + 1), n);
+    for (const a of n.aliases ?? []) put(ix.alias, a, n);
   }
-  return bestRank < 9 ? best : undefined;
+  indexes.set(notes, ix);
+  return ix;
 }
 
 /** Link text to use for a note: bare title unless another note shares it. */
