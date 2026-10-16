@@ -23,7 +23,7 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   properties, `> [!callouts]`, `==highlights==` and coloured text and highlights (⌘⇧H; read from Highlightr,
   Editing Toolbar and Hilo, written as HTML that other editors show), GFM tables, ```` ```mermaid ```` diagrams (the same
   syntax other Markdown editors use), and task lists you can tick in reading view.
-- **Dataview queries:** ```` ```dataview ```` blocks (`TABLE`, `LIST` and `TASK`, with `FROM` a folder,
+- **Dataview queries:** ```` ```dataview ```` blocks (`TABLE`, `LIST`, `TASK` and `CALENDAR`, with `FROM` a folder,
   `#tag` or `[[link]]`, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT`, `WITHOUT ID` and Dataview's
   functions), inline `` `= expression` ``, and the common `` `$= dv.pages(…).where(…).length` `` count,
   read the way the Dataview plugin reads them, over frontmatter, inline `key:: value` fields,

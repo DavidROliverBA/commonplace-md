@@ -397,6 +397,13 @@ describe("live preview", () => {
     await p.waitForFunction(() => document.querySelectorAll(".preview .dataview-block table tbody tr").length === 2, { timeout: 8000 });
     await p.click(".preview .dataview-block table a.internal-link");
     await p.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Tasks Two");
+    // CALENDAR in the app: today's month, a day button per day with notes.
+    const cal = await note("DV Calendar.md", '```dataview\nCALENDAR file.cday FROM "DV"\n```\n');
+    await p.goto(`${BASE}/v/${vaultId}/n/${cal.id}`);
+    await p.waitForSelector(".preview .dv-calendar .dv-cal-today button", { timeout: 8000 });
+    expect(await p.$eval(".preview .dv-calendar .dv-cal-today button", (b) => b.getAttribute("aria-label"))).toMatch(/, 2 notes$/);
+    await p.click('.preview [aria-label="Previous month"]');
+    await p.waitForFunction(() => !document.querySelector(".preview .dv-cal-today") && !!document.querySelector(".preview .dv-cal-now"));
     await p.evaluate(() => localStorage.setItem("cp:mode", "edit"));
     await p.close();
   });

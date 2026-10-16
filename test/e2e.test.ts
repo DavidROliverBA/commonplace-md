@@ -762,13 +762,20 @@ describe("publish a vault as a website (F18)", () => {
     const note = (path: string, content: string) => alice.ok(`/vaults/${pv}/notes`, { body: { path, content } });
     await note("Garden/Index.md", '# Index\n\nPages: `= length(dv.pages(""))`\n\n```dataview\nLIST FROM ""\n```\n\n```dataview\nTASK FROM ""\n```\n');
     await note("Diary/Tuesday.md", "- [ ] Private task\n");
+    await note("Garden/Calendar.md", '```dataview\nCALENDAR file.cday FROM ""\n```\n');
     await alice.ok(`/vaults/${pv}/site/publish`, { body: {} });
     const html = await (await get(`/p/${slug}/Garden/Index`)).text();
     expect(html).toContain(`href="../Garden/Tulips">Tulips</a>`);
     expect(html).toContain(`href="../Garden/Winter%20jobs">Winter jobs</a>`);
-    expect(html).toContain('<span class="dataview-inline">3</span>'); // Index, Tulips, Winter jobs
+    expect(html).toContain('<span class="dataview-inline">4</span>'); // Calendar, Index, Tulips, Winter jobs
     for (const leak of ["Diary", "Monday", "Tuesday", "Private task", "Compost", "Roses"]) expect(html).not.toContain(leak);
     expect(html).not.toContain("<script");
+    // A calendar is every month it has, without buttons (the page runs no script).
+    const cal = await (await get(`/p/${slug}/Garden/Calendar`)).text();
+    expect(cal).toContain('class="dv-calendar"');
+    expect(cal).toContain(`href="../Garden/Tulips">Tulips</a>`);
+    expect(cal).not.toContain("<button");
+    for (const leak of ["Diary/", "Private task"]) expect(cal).not.toContain(leak);
   });
 
   test("the Dataview route answers members, as the vault is, and nobody else", async () => {

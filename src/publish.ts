@@ -232,6 +232,7 @@ function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string
   // Dataview results, worked out now and kept as they are until the next Publish.
   const dvOpts: RenderOpts = {
     canTick: false,
+    calendar: "all",
     inline: (md) => marked.parseInline(md, { async: false }) as string,
     link(path, display) {
       const n = published(path);

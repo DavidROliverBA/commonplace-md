@@ -133,6 +133,38 @@ describe("queries", () => {
   });
 });
 
+describe("CALENDAR", () => {
+  test("each note on the day of its date, in date order; notes without one left out", () => {
+    const r = run('CALENDAR date FROM "Meetings"');
+    expect(r).toMatchObject({ kind: "calendar", total: 2, today: "2026-07-27" });
+    const c = r as Extract<Result, { kind: "calendar" }>;
+    expect(c.days.map((d) => [d.day, cell(d.value)])).toEqual([
+      ["2026-07-20", "Kickoff"],
+      ["2026-07-27", "Review"],
+    ]);
+    expect((run('CALENDAR date FROM "People"') as any).days).toEqual([]);
+  });
+
+  test("the app shows a month to move through; a published page shows every month, still", () => {
+    const opts = { canTick: false, inline: (md: string) => md, link: (_p: string, d: string) => `<a>${d}</a>` };
+    const r = run('CALENDAR date FROM "Meetings"');
+    const live = renderResult(r, opts);
+    expect(live).toContain('<span class="dv-cal-title">July 2026 <span class="dv-count">2</span></span>');
+    expect(live).toContain('data-dv-month="2026-06" aria-label="Previous month"');
+    expect(live).toContain('data-dv-day="2026-07-20" aria-label="Monday 20 July 2026, 1 note"');
+    expect(live).toContain('class="dv-cal-day dv-cal-has dv-cal-today"');
+    // July 2026 starts on a Wednesday: two empty cells first, Monday-first weeks.
+    expect(live).toMatch(/<tbody><tr><td class="dv-cal-out"><\/td><td class="dv-cal-out"><\/td><td class="dv-cal-day">/);
+    const day = renderResult(r, { ...opts, calendar: { month: "2026-07", day: "2026-07-27" } });
+    expect(day).toContain('<div class="dv-cal-date">Monday 27 July 2026</div><ul><li><a>Review</a></li></ul>');
+    expect(day).not.toContain("Kickoff");
+    const still = renderResult(r, { ...opts, calendar: "all" });
+    expect(still).not.toContain("<button");
+    expect(still).not.toContain("dv-cal-today");
+    expect(renderResult(run('CALENDAR date FROM "Meetings" WHERE date < date(2026-07-01)'), opts)).toContain("Nothing in July 2026.");
+  });
+});
+
 describe("inline expressions", () => {
   test("`= expr` and the dv.pages(…).where(…).length form; other JavaScript stays as code", () => {
     expect(inlineQuery("= this.status")).toBe("this.status");
@@ -152,7 +184,7 @@ describe("errors and limits", () => {
     expect(run("TABLE FROM WHERE")).toMatchObject({ kind: "error" });
     expect(run("SELECT * FROM notes")).toEqual({ kind: "error", message: 'a query starts with TABLE, LIST, TASK or CALENDAR, but found "SELECT" (line 1)' });
     expect(run('TABLE nosuch(1) FROM ""')).toEqual({ kind: "error", message: "there's no function called nosuch" });
-    expect(run("CALENDAR date")).toMatchObject({ kind: "error" });
+    expect(run("CALENDAR")).toMatchObject({ kind: "error" });
   });
 
   test("patterns that could hang aren't run, and a runaway query stops", () => {

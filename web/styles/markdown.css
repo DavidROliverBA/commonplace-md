@@ -375,3 +375,116 @@ mark.hl-grey, .hl-grey { background: var(--hl-grey); color: inherit; }
 .live-preview .cm-lp-dataview .dataview-block {
   margin: 0;
 }
+
+/* Dataview CALENDAR: a month, Monday first, a dot per note; the notes are listed below. */
+.markdown .dv-calendar {
+  max-width: 420px;
+  margin-bottom: 1em;
+}
+.markdown .dv-cal-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.markdown .dv-cal-title {
+  font-weight: 650;
+  flex: 1;
+  text-align: center;
+}
+.markdown .dv-cal-nav {
+  font: inherit;
+  color: var(--muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  min-width: 32px;
+  min-height: 32px;
+  cursor: pointer;
+}
+.markdown .dv-cal-nav:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+.markdown .dv-cal-now {
+  font-size: var(--text-small);
+  padding: 0 8px;
+}
+.markdown table.dv-cal-grid {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+  margin: 0;
+}
+.markdown .dv-cal-grid th {
+  border: none;
+  padding: 2px 0;
+  text-align: center;
+  font-size: var(--text-caption);
+  font-weight: 500;
+  color: var(--faint);
+}
+.markdown .dv-cal-grid td {
+  border: none;
+  padding: 1px;
+  text-align: center;
+}
+.markdown .dv-cal-grid td > span,
+.markdown .dv-cal-grid td > button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  height: 40px;
+  gap: 2px;
+  font: inherit;
+  font-size: var(--text-ui-sm);
+  color: var(--muted);
+  background: none;
+  border: none;
+  border-radius: var(--radius-md);
+}
+.markdown .dv-cal-grid td > button {
+  color: var(--text);
+  cursor: pointer;
+}
+.markdown .dv-cal-grid td > button:hover {
+  background: var(--bg3);
+}
+.markdown .dv-cal-today .dv-cal-n {
+  color: var(--accent);
+  font-weight: 700;
+}
+.markdown .dv-cal-selected > button {
+  background: var(--accent-soft);
+}
+.markdown .dv-cal-dots {
+  display: flex;
+  gap: 2px;
+  height: 6px;
+  align-items: center;
+  font-size: var(--text-caption);
+  line-height: 1;
+  color: var(--accent);
+}
+.markdown .dv-cal-dots i {
+  width: 5px;
+  height: 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+.markdown .dv-cal-list {
+  margin-top: 6px;
+}
+.markdown .dv-cal-date {
+  font-size: var(--text-small);
+  font-weight: 650;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.markdown .dv-cal-list ul {
+  margin: 2px 0;
+  padding-left: 1.2em;
+}

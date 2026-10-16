@@ -1841,6 +1841,7 @@ export type Result =
   | { kind: "table"; idHeader: string | null; headers: string[]; rows: Out[][]; total: number }
   | { kind: "list"; items: ListOut[]; total: number }
   | { kind: "task"; groups: { key: Out; tasks: TaskOut[] }[]; total: number; shown: number }
+  | { kind: "calendar"; days: { day: string; value: Out }[]; total: number; today: string }
   | { kind: "value"; value: Out }
   | { kind: "error"; message: string };
 
@@ -1917,7 +1918,6 @@ export function runInline(expr: string, vault: Vault, o: RunOpts): Result {
 type Row = Record<string, Value>;
 
 function execute(q: Query, vault: Vault, ctx: Ctx): Result {
-  if (q.kind === "calendar") throw new DvError("CALENDAR views aren't supported yet; try TABLE or LIST");
   const pages = vault.select(q.source, ctx.thisPath);
   let rows: Row[] = [];
   if (q.kind === "task") {
@@ -1979,6 +1979,19 @@ function execute(q: Query, vault: Vault, ctx: Ctx): Result {
   const shown = rows.slice(0, MAX_ROWS);
   const idOf = (r: Row): Out => (grouped !== null ? out(r.key ?? null, vault) : out((r.file as any)?.link ?? null, vault));
 
+  if (q.kind === "calendar") {
+    // Each row on the day its date falls (rows without a date are left out), in date order.
+    const f = q.fields[0];
+    if (!f) throw new DvError("CALENDAR needs a date to place each note by, such as CALENDAR file.cday");
+    const days: { day: string; ms: number; value: Out }[] = [];
+    for (const r of rows) {
+      const d = evaluate(f.e, r, null, ctx);
+      for (const x of Array.isArray(d) ? d : [d]) if (x instanceof DDate) days.push({ day: formatDate(x, "yyyy-MM-dd"), ms: x.ms, value: idOf(r) });
+    }
+    days.sort((a, b) => a.ms - b.ms);
+    const today = formatDate(new DDate(Math.floor((ctx.now + ctx.offset * 6e4) / 864e5) * 864e5), "yyyy-MM-dd");
+    return { kind: "calendar", days: days.slice(0, MAX_ROWS * 5).map(({ day, value }) => ({ day, value })), total: days.length, today };
+  }
   if (q.kind === "table") {
     return {
       kind: "table",

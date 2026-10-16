@@ -508,7 +508,7 @@ class DataviewWidget extends WidgetType {
     fillDataview(this.inline ? wrap(el) : el, ctx);
     el.addEventListener("mousedown", (e) => {
       const t = e.target as HTMLElement;
-      if (t.closest("a, input")) return;
+      if (t.closest("a, input, button")) return;
       e.preventDefault();
       const pos = view.posAtDOM(el);
       view.focus();

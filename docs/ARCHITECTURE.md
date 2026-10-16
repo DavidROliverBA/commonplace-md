@@ -209,7 +209,9 @@ as an expression in the same language (JavaScript's `==`, `&&`, `.where`, `.incl
 | Published site | the published notes only | at Publish (`src/publish.ts`), frozen into the page as HTML |
 
 The renderer leaves a placeholder; `web/lib/dataview.ts` asks for a note's results in one request,
-shows them with `src/dataviewRender.ts`, and asks again when the vault's notes change. Dates are
+shows them with `src/dataviewRender.ts`, and asks again when the vault's notes change. A
+`CALENDAR` result is the dated notes; the app draws one month with buttons to move and pick a
+day, and a published page every month that has notes, with no buttons. Dates are
 wall-clock times in the reader's time zone, which the browser sends.
 
 ## 6. Data model

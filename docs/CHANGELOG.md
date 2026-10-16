@@ -4,6 +4,11 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-16** — Dataview `CALENDAR` views (release v0.0.39): `CALENDAR <date> FROM … WHERE …`
+  draws a month, Monday first, with a dot for each note on its day. It opens at this month (or the
+  nearest one with notes); ‹ › and Today move between months, and choosing a day lists its notes
+  under the month (otherwise the month's are listed). Published pages show every month that has
+  notes, newest first, without buttons.
 - **2026-10-16** — Dataview queries (release v0.0.38; `src/dataview.ts`), in the app, the
   standalone version and published sites: ```` ```dataview ```` blocks with `TABLE`, `LIST` and
   `TASK`, `FROM` folders, tags and links, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT` and

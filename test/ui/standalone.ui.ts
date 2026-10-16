@@ -21,6 +21,9 @@ const FILES: Record<string, string> = {
   "Projects/Plan.md": "---\nstatus: active\n---\n# Plan\n\n- [ ] first step\n\nBack to [[Welcome]].\n",
   "Diagram.md": "# Diagram\n\n```mermaid\nflowchart LR\n  A[Start] --> B[Welcome]\n  class B internal-link\n```\n\n```mermaid\nnot a diagram\n```\n\nAfter.\n",
   "Board.md": '# Board\n\nOpen: `$= dv.pages("").where(p => p.status == "active").length`\n\n```dataview\nTABLE status AS "Status"\nFROM "Projects"\n```\n\n```dataview\nTASK FROM "Projects"\n```\n',
+  "Log.md": '# Log\n\n```dataview\nCALENDAR date FROM "Logbook"\n```\n',
+  "Logbook/Kickoff.md": "---\ndate: 2026-03-03\n---\nStarted.\n",
+  "Logbook/Review.md": "---\ndate: 2026-03-10\n---\nReviewed.\n",
   "attachments/dot.svg": '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><circle cx="5" cy="5" r="5"/></svg>',
 };
 
@@ -196,6 +199,25 @@ describe("standalone, with a folder", () => {
     await page.waitForFunction(() => (document.querySelector(".cm-content input.dv-task") as HTMLInputElement | null)?.checked === false);
     await page.click(".cm-content .dataview-block table a.internal-link");
     await page.waitForFunction(() => document.querySelector(".note-title")?.textContent?.toLowerCase() === "roadmap");
+  });
+
+  test("Dataview CALENDAR: opens at the month with notes, moves between months, and lists a day's notes", async () => {
+    await clickText(page, ".tree-row.note", "Log");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Log");
+    const title = () => page.$eval(".cm-content .dv-cal-title", (e) => e.textContent);
+    await page.waitForSelector(".cm-content .dv-calendar");
+    expect(await title()).toBe("March 2026 2");
+    expect(await page.$$eval(".cm-content .dv-cal-list li", (l) => l.map((x) => x.textContent))).toEqual(["Kickoff", "Review"]);
+    await page.click('.cm-content [data-dv-day="2026-03-10"]');
+    await page.waitForFunction(() => document.querySelectorAll(".cm-content .dv-cal-list li").length === 1);
+    expect(await page.$eval(".cm-content .dv-cal-list", (e) => e.textContent)).toBe("Tuesday 10 March 2026Review");
+    await page.click('.cm-content [aria-label="Next month"]');
+    await page.waitForFunction(() => document.querySelector(".cm-content .dv-cal-title")?.textContent === "April 2026 0");
+    expect(await page.$eval(".cm-content .dv-calendar .dv-empty", (e) => e.textContent)).toBe("Nothing in April 2026.");
+    await page.click('.cm-content [aria-label="Previous month"]');
+    await page.waitForFunction(() => document.querySelector(".cm-content .dv-cal-title")?.textContent === "March 2026 2");
+    await page.click(".cm-content .dv-cal-list a.internal-link");
+    await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Kickoff");
   });
 
   test("⌘O opens a note by name", async () => {

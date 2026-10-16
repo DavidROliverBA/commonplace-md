@@ -5,7 +5,7 @@
 // Ticking a task in a TASK result ticks it in its own note.
 
 import type { Result } from "../../src/dataview";
-import { esc, renderResult } from "../../src/dataviewRender";
+import { type CalendarState, calendarStart, esc, renderResult } from "../../src/dataviewRender";
 import { api, type NoteSummary } from "./api";
 import { resolveLocal } from "./links";
 import { renderMarkdown } from "./render";
@@ -25,6 +25,9 @@ export interface DataviewCtx {
 const offset = () => -new Date().getTimezoneOffset();
 const results = new Map<string, Result>();
 const live = new WeakMap<HTMLElement, DataviewCtx>();
+/** What each placeholder shows now, and a calendar's month and day, kept as results refresh. */
+const shownResult = new WeakMap<HTMLElement, Result>();
+const calendars = new WeakMap<HTMLElement, CalendarState>();
 
 type Job = { el: HTMLElement; kind: "query" | "inline"; source: string; key: string };
 const queued = new Map<string, { ctx: DataviewCtx; jobs: Job[] }>();
@@ -97,11 +100,12 @@ function inline(md: string, ctx: DataviewCtx) {
   return renderMarkdown(md, ctx.vaultId, ctx.notes()).trim().replace(/^<p>([\s\S]*)<\/p>$/, "$1");
 }
 
-function html(r: Result, ctx: DataviewCtx, inlineEl: boolean) {
+function html(r: Result, ctx: DataviewCtx, inlineEl: boolean, calendar?: CalendarState) {
   return renderResult(
     r,
     {
     canTick: true,
+    calendar,
     inline: (md) => inline(md, ctx),
     link(path, display, _resolved, subpath) {
       const hit = resolveLocal(ctx.notes(), path);
@@ -115,7 +119,13 @@ function html(r: Result, ctx: DataviewCtx, inlineEl: boolean) {
 
 function show(el: HTMLElement, r: Result, ctx: DataviewCtx) {
   const inlineEl = el.classList.contains("dataview-inline");
-  const next = html(r, ctx, inlineEl);
+  shownResult.set(el, r);
+  let cal: CalendarState | undefined;
+  if (r.kind === "calendar") {
+    cal = calendars.get(el) ?? calendarStart(r);
+    calendars.set(el, cal);
+  }
+  const next = html(r, ctx, inlineEl, cal);
   if (el.dataset.dvShown === next) return;
   el.dataset.dvShown = next;
   // Results are built from escaped text and sanitised Markdown (renderMarkdown).
@@ -127,6 +137,23 @@ function show(el: HTMLElement, r: Result, ctx: DataviewCtx) {
 /** Clicks inside results: links open their note, checkboxes tick their task. */
 function onClick(e: Event, ctx: DataviewCtx): boolean {
   const t = e.target as HTMLElement;
+  // A calendar: move a month, or show one day's notes (again to show the month's).
+  const nav = t.closest<HTMLElement>("[data-dv-month], [data-dv-day]");
+  if (nav) {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = nav.closest<HTMLElement>(".dataview-block")!;
+    const r = shownResult.get(el);
+    const was = calendars.get(el);
+    if (!r || !was) return true;
+    const day = nav.dataset.dvDay ?? null;
+    calendars.set(el, nav.dataset.dvMonth ? { month: nav.dataset.dvMonth, day: null } : { month: was.month, day: was.day === day ? null : day });
+    show(el, r, ctx);
+    // Keep the keyboard where it was: on the same button in the new month or day.
+    const again = nav.dataset.dvMonth ? el.querySelector<HTMLElement>(`[aria-label="${nav.getAttribute("aria-label")}"]`) : el.querySelector<HTMLElement>(`[data-dv-day="${day}"]`);
+    again?.focus();
+    return true;
+  }
   const box = t.closest<HTMLInputElement>("input.dv-task");
   if (box) {
     e.stopPropagation();
