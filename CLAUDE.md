@@ -66,7 +66,9 @@ key flows, decisions); read it before structural changes, and keep it current wh
   frame whose policy allows no network. Never run note code elsewhere (not the app's page, not
   the server, not published sites), and never give that frame `allow-same-origin`, popups,
   forms or a connect-src. What it may ask the app for is the short list in
-  `web/lib/dataviewjs.ts`; check every new message there.
+  `web/lib/dataviewjs.ts`; check every new message there. Publish runs blocks in that frame in
+  the owner's browser over published notes only; what comes back is untrusted and goes through
+  `cleanFrozen` (`src/publish.ts`) before it reaches a page.
 - No secrets in the repo; `.env` is gitignored and `.env.example` documents the shape.
 
 ## Principles

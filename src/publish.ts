@@ -8,6 +8,8 @@
 //
 // Pages carry no script at all, and the CSP says so: a note's raw HTML is cut down to a few
 // formatting tags without attributes, and the page is sandboxed, so nothing on it runs as the app.
+// A dataviewjs block's script runs in the publisher's browser, in the same sandbox as in the app,
+// over the published notes only; what it drew comes back with Publish and is cleaned here.
 // Links between pages are relative, so the same snapshot can later be served at a custom domain.
 
 import { randomBytes } from "node:crypto";
@@ -20,7 +22,8 @@ import { sql } from "./db";
 import { findWikiLinks, isAttachmentPath, maskCode, normalisePath, parseFrontmatter, plainInline, sectionRange, SITE_SETTINGS } from "./markdown";
 import { listNotes } from "./notes";
 import { assertRoom } from "./storage";
-import { inlineQuery, readPage, runInline, runQuery, Vault } from "./dataview";
+import { inlineQuery, type PageData, readPage, runInline, runQuery, Vault } from "./dataview";
+import { dataviewFile } from "./dataviewVault";
 import { renderResult, renderValue, type RenderOpts } from "./dataviewRender";
 
 // ── settings (publish.json) ────────────────────────────────────────────────────────────────
@@ -180,6 +183,110 @@ function cleanHtml(src: string): string {
   return out;
 }
 
+// ── what a dataviewjs block drew, frozen at Publish ──────────────────────────────────────
+
+/** What a frozen block may keep: the tags Dataview's views and a script's dv.el use. */
+const FROZEN_TAGS = new Set([...KEEP, "a", "h1", "h2", "h3", "h4", "h5", "h6", "ul", "ol", "li", "table", "thead", "tbody", "tfoot", "tr", "th", "td", "caption", "blockquote", "pre", "code", "input", "label"]);
+const unesc = (s: string) => s.replace(/&(quot|#39|lt|gt|amp);/g, (_, e) => ({ quot: '"', "#39": "'", lt: "<", gt: ">", amp: "&" })[e as string]!);
+
+/** A frozen block's HTML, with only the tags above and a few safe attributes: classes (letters,
+ *  digits and dashes), table spans, labels, done checkboxes (always disabled), web links, and
+ *  links to notes, which become links to their pages, or plain words when not published. */
+export function cleanFrozen(src: string, note: (target: string) => string | null): string {
+  let out = "";
+  let skip: string | null = null;
+  const open: string[] = [];
+  for (const m of src.matchAll(/<!--[\s\S]*?(?:-->|$(?![\s\S]))|<(\/?)([a-zA-Z][\w-]*)\b((?:[^>"']|"[^"]*"|'[^']*')*)>|[^<]+|</g)) {
+    const [all, close, tag, rest = ""] = m;
+    if (all.startsWith("<!--")) continue;
+    if (!tag) {
+      if (!skip) out += all.replace(/&(?!(?:[a-z]+|#\d+|#x[\da-f]+);)/gi, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      continue;
+    }
+    const t = tag.toLowerCase();
+    if (skip) {
+      if (close && t === skip) skip = null;
+      continue;
+    }
+    if (DROP.has(t) || t === "button") {
+      if (!close && !all.endsWith("/>")) skip = t;
+      continue;
+    }
+    if (!FROZEN_TAGS.has(t)) continue;
+    if (close) {
+      // A link to a note that isn't published was kept as words: its closing tag goes too.
+      if (t === "a" && open.pop() === "") continue;
+      if (t !== "br" && t !== "hr" && t !== "input") out += `</${t}>`;
+      continue;
+    }
+    const attrs = new Map<string, string>();
+    for (const a of rest.matchAll(/([^\s"'>\/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g)) attrs.set(a[1]!.toLowerCase(), unesc(a[2] ?? a[3] ?? a[4] ?? ""));
+    const keep: string[] = [];
+    const cls = (attrs.get("class") ?? "").split(/\s+/).filter((c) => /^[\w-]+$/.test(c));
+    if (cls.length) keep.push(`class="${esc(cls.join(" "))}"`);
+    if (attrs.has("aria-label")) keep.push(`aria-label="${esc(attrs.get("aria-label")!.slice(0, 200))}"`);
+    if (t === "th" || t === "td") for (const k of ["colspan", "rowspan"]) if (/^\d{1,3}$/.test(attrs.get(k) ?? "")) keep.push(`${k}="${attrs.get(k)}"`);
+    if (t === "th" && /^(col|row)$/.test(attrs.get("scope") ?? "")) keep.push(`scope="${attrs.get("scope")}"`);
+    if (t === "input") {
+      if (attrs.get("type") !== "checkbox") continue;
+      out += `<input type="checkbox"${keep.length ? " " + keep.join(" ") : ""} disabled${attrs.has("checked") ? " checked" : ""}>`;
+      continue;
+    }
+    if (t === "a") {
+      const target = attrs.get("data-dv-open");
+      const href = attrs.get("href") ?? "";
+      let link: string | null = null;
+      if (target) link = note(target);
+      else if (/^https?:\/\//i.test(href)) link = href;
+      open.push(link === null ? "" : "a");
+      if (link === null) continue;
+      keep.push(`href="${esc(link)}"`);
+      if (!target) keep.push(`rel="noopener noreferrer nofollow"`);
+    }
+    out += t === "br" || t === "hr" ? `<${t}>` : `<${t}${keep.length ? " " + keep.join(" ") : ""}>`;
+  }
+  return out;
+}
+
+const frozenKey = (path: string, code: string) => `${path}\n${code}`;
+
+/** Every ```dataviewjs block on the pages Publish would make, with the published notes (all
+ *  their scripts may see), for the publisher's browser to run (web/lib/dataviewjs.ts). */
+export async function dataviewjsToFreeze(vaultId: number): Promise<{ blocks: { path: string; code: string }[]; pages: PageData[] }> {
+  const p = await plan(vaultId);
+  if (p.error) throw new HttpError(400, p.error);
+  const blocks: { path: string; code: string }[] = [];
+  const lexer = new Marked({ gfm: true });
+  for (const n of p.pages) {
+    const seen = new Set<string>();
+    lexer.walkTokens(lexer.lexer(stripHidden(parseFrontmatter(n.content).body)), (t) => {
+      if (t.type !== "code" || (t as Tokens.Code).lang?.trim().split(/\s/)[0]!.toLowerCase() !== "dataviewjs") return;
+      const code = (t as Tokens.Code).text;
+      if (!seen.has(code)) blocks.push({ path: n.path, code });
+      seen.add(code);
+    });
+  }
+  return { blocks, pages: blocks.length ? publishedVault(p).pages : [] };
+}
+
+/** dv.io.load and dv.view while freezing: a published note, a file the site carries, or a view's
+ *  .js or .css (code, not content). Nothing else of the vault reaches a published page. */
+export async function dataviewjsFreezeFile(vaultId: number, path: string): Promise<string> {
+  const p = await plan(vaultId);
+  if (p.error) throw new HttpError(400, p.error);
+  const clean = path.replace(/^\/+/, "");
+  const isNote = /\.md$/i.test(clean) || !/\.[a-z0-9]{1,8}$/i.test(clean);
+  if (isNote) {
+    const hit = publishedVault(p).resolve(clean.replace(/\.md$/i, ""));
+    const n = hit && p.pages.find((x) => x.path === hit);
+    if (n) return n.content;
+  }
+  if (p.files.includes(clean) || /\.(js|css)$/i.test(clean)) return dataviewFile(vaultId, clean);
+  throw new HttpError(404, `${path} isn't published, so a published page can't show it`);
+}
+
+const publishedVault = (p: Plan) => new Vault(p.pages.map((n) => readPage({ path: n.path, content: n.content, ctime: new Date(n.created_at).getTime(), mtime: new Date(n.updated_at).getTime() })));
+
 interface RenderCtx {
   /** Every note in the vault, so a link resolves as it does in the app. */
   all: Parameters<typeof resolveLocal>[0];
@@ -192,6 +299,8 @@ interface RenderCtx {
   /** The publisher's time zone: minutes east of UTC, and its name when known. */
   offset: number;
   tz?: string;
+  /** What each dataviewjs block drew, by note path and code (frozenKey). */
+  frozen: Map<string, string>;
 }
 
 function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string {
@@ -295,7 +404,17 @@ function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string
     ],
     renderer: {
       code({ text, lang }: Tokens.Code) {
-        if (lang?.trim().split(/\s/)[0]!.toLowerCase() !== "dataview") return false;
+        const kind = lang?.trim().split(/\s/)[0]!.toLowerCase();
+        if (kind === "dataviewjs") {
+          // What the script drew at Publish; without it (it didn't run), the code as written.
+          const html = c.frozen.get(frozenKey(note.path, text));
+          if (html === undefined) return false;
+          return `<div class="dataviewjs-block">${cleanFrozen(html, (target) => {
+            const n = published(target);
+            return n ? pageHref(n, anchor(target)) : null;
+          })}</div>\n`;
+        }
+        if (kind !== "dataview") return false;
         return `<div class="dataview-block">${renderResult(runQuery(text, c.dv, { thisPath: note.path, offset: c.offset, tz: c.tz }), dvOpts)}</div>\n`;
       },
       codespan({ text }: Tokens.Codespan) {
@@ -388,13 +507,21 @@ async function plan(vaultId: number): Promise<Plan & { error?: string }> {
 
 const newSlug = () => randomBytes(8).readBigUInt64BE().toString(36).padStart(12, "0").slice(0, 12);
 
-export async function publish(vaultId: number, user: User, offset = 0, tz?: string): Promise<{ slug: string; pages: number; files: number }> {
+export async function publish(vaultId: number, user: User, offset = 0, tz?: string, frozen: { path: string; code: string; html: string }[] = []): Promise<{ slug: string; pages: number; files: number }> {
   const p = await plan(vaultId);
   if (p.error) throw new HttpError(400, p.error);
   if (!p.pages.length) throw new HttpError(400, "Nothing to publish: the chosen folders have no notes, or every note says publish: false.");
   const [vault] = await sql`select name from vaults where id = ${vaultId}`;
-  const dv = new Vault(p.pages.map((n) => readPage({ path: n.path, content: n.content, ctime: new Date(n.created_at).getTime(), mtime: new Date(n.updated_at).getTime() })));
-  const ctx: RenderCtx = { all: (await listNotes(vaultId)) as RenderCtx["all"], published: new Map(p.pages.map((n) => [n.id, n])), files: p.files, dv, offset, tz };
+  const dv = publishedVault(p);
+  const ctx: RenderCtx = {
+    all: (await listNotes(vaultId)) as RenderCtx["all"],
+    published: new Map(p.pages.map((n) => [n.id, n])),
+    files: p.files,
+    dv,
+    offset,
+    tz,
+    frozen: new Map(frozen.map((f) => [frozenKey(f.path, f.code), f.html])),
+  };
   const rows = p.pages.map((n) => ({ vault_id: vaultId, path: pagePath(n.path), note_path: n.path, title: n.title, html: renderNote(n, pagePath(n.path), ctx), source_md5: n.md5 }));
   const [{ bytes }] = (await sql`select coalesce(sum(size), 0)::float8 as bytes from attachments where vault_id = ${vaultId} and path = any(${p.files})`) as unknown as [{ bytes: number }];
   await assertRoom(bytes + rows.reduce((n, r) => n + r.html.length, 0));

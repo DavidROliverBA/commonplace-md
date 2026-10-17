@@ -816,6 +816,33 @@ describe("publish a vault as a website (F18)", () => {
     expect((await outsider.req(`/vaults/${pv}/dataview/file?path=Garden/Index.md`)).status).toBe(404);
   });
 
+  test("dataviewjs at Publish: the owner's browser runs the published blocks, and what they drew is cleaned and published", async () => {
+    const code = 'dv.table(["Name"], dv.pages().map((p) => [p.file.link]));';
+    await alice.ok(`/vaults/${pv}/notes`, { body: { path: "Garden/Scripted.md", content: `# Scripted\n\n\`\`\`dataviewjs\n${code}\n\`\`\`\n\n\`\`\`dataviewjs\nnot run\n\`\`\`\n` } });
+    const freeze = await alice.ok(`/vaults/${pv}/site/dataviewjs`);
+    expect(freeze.blocks).toEqual([
+      { path: "Garden/Scripted.md", code },
+      { path: "Garden/Scripted.md", code: "not run" },
+    ]);
+    // Scripts see the published notes only, and read only what's published (or a view's code).
+    const seen = freeze.pages.map((x: any) => x.path);
+    expect(seen).toContain("Garden/Tulips.md");
+    expect(seen).not.toContain("Diary/Monday.md");
+    expect((await alice.ok(`/vaults/${pv}/site/dataviewjs/file?path=${encodeURIComponent("Garden/Winter jobs")}`)).text).toContain("Mulch");
+    for (const path of ["Diary/Monday", "Diary/Monday.md", "Garden/Compost plan.md", "Heap", "publish.json", "attachments/heap.png"]) {
+      expect((await alice.req(`/vaults/${pv}/site/dataviewjs/file?path=${encodeURIComponent(path)}`)).status).toBe(404);
+    }
+    expect((await bob.req(`/vaults/${pv}/site/dataviewjs`)).status).toBe(403);
+    expect((await bob.req(`/vaults/${pv}/site/dataviewjs/file?path=Garden/Tulips`)).status).toBe(403);
+
+    const drew = `<div class="dv-table"><table><tbody><tr><td><a class="internal-link" data-dv-open="Garden/Tulips" href="#">Tulips</a></td><td><a class="internal-link" data-dv-open="Diary/Monday" href="#">Monday</a></td></tr></tbody></table></div><img src=x onerror="alert(1)"><script>alert(2)</script>`;
+    await alice.ok(`/vaults/${pv}/site/publish`, { body: { frozen: [{ path: "Garden/Scripted.md", code, html: drew }] } });
+    const page = await (await get(`/p/${slug}/Garden/Scripted`)).text();
+    expect(page).toContain(`<div class="dataviewjs-block"><div class="dv-table"><table><tbody><tr><td><a class="internal-link" href="../Garden/Tulips">Tulips</a></td><td>Monday</td></tr></tbody></table></div></div>`);
+    for (const bad of ["onerror", "<script", "data-dv-open", "alert("]) expect(page).not.toContain(bad);
+    expect(page).toContain("not run"); // a block that didn't run shows its code, as before
+  });
+
   test("publish.json travels with an export; a broken one publishes nothing rather than everything", async () => {
     const zip = unzipSync((await alice.req(`/vaults/${pv}/export`)).data);
     expect(JSON.parse(strFromU8(zip["publish.json"]!))).toEqual({ include: ["Garden"] });

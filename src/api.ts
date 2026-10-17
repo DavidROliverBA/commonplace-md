@@ -614,8 +614,32 @@ export const apiRoutes = {
     POST: route(async (ctx) => {
       const { vaultId, user } = await vaultCtx(ctx, "owner");
       // The owner's time zone, for Dataview's dates (results are frozen at Publish).
-      const b = await body(ctx.req, z.object({ offset: z.number().int().min(-14 * 60).max(14 * 60).default(0), tz: z.string().max(64).optional() }));
-      return site.publish(vaultId, user, b.offset, b.tz);
+      // What each dataviewjs block drew, run in the owner's browser (cleaned in publish.ts).
+      const b = await body(
+        ctx.req,
+        z.object({
+          offset: z.number().int().min(-14 * 60).max(14 * 60).default(0),
+          tz: z.string().max(64).optional(),
+          frozen: z.array(z.object({ path: z.string().max(1024), code: z.string().max(200_000), html: z.string().max(2_000_000) })).max(5000).default([]),
+        }),
+      );
+      return site.publish(vaultId, user, b.offset, b.tz, b.frozen);
+    }),
+  },
+  // dataviewjs at Publish: the blocks to run and the published notes they see, and the files
+  // they may read (published ones only).
+  "/api/vaults/:v/site/dataviewjs": {
+    GET: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "owner");
+      return site.dataviewjsToFreeze(vaultId);
+    }),
+  },
+  "/api/vaults/:v/site/dataviewjs/file": {
+    GET: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "owner");
+      const path = new URL(ctx.req.url).searchParams.get("path") ?? "";
+      if (!path || path.length > 1024) throw new HttpError(400, "Which file?");
+      return { text: await site.dataviewjsFreezeFile(vaultId, path) };
     }),
   },
   "/api/vaults/:v/site/live": {

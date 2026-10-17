@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { api, type Vault } from "../lib/api";
+import { freezeDataviewJs } from "../lib/dataviewjs";
 import { relativeTime } from "../lib/links";
 import { toast, toastError } from "../ui/overlays";
 
@@ -77,7 +78,10 @@ export function SiteSettings({ vault }: { vault: Vault }) {
 
   const publish = () =>
     run("Publishing…", async () => {
-      const r = await api<{ pages: number; files: number }>(`/vaults/${vault.id}/site/publish`, { method: "POST", body: { offset: -new Date().getTimezoneOffset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone } });
+      // dataviewjs blocks run here, in the sandbox, and what they draw is published.
+      const frozen = await freezeDataviewJs(vault.id, (done, of) => setBusy(`Running scripts (${done} of ${of})…`));
+      setBusy("Publishing…");
+      const r = await api<{ pages: number; files: number }>(`/vaults/${vault.id}/site/publish`, { method: "POST", body: { offset: -new Date().getTimezoneOffset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, frozen } });
       toast(`Published ${plural(r.pages, "page")}${r.files ? ` and ${plural(r.files, "file")}` : ""}`);
     });
   const setLive = (live: boolean) => api(`/vaults/${vault.id}/site/live`, { method: "PUT", body: { live } });

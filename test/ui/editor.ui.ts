@@ -428,6 +428,16 @@ describe("live preview", () => {
     await p.close();
   });
 
+  test("a dataviewjs script that never stops is stopped, and the page stays usable", async () => {
+    const n = await note("JS Forever.md", "# JS Forever\n\n```dataviewjs\nlet i = 0;\nwhile (true) i++;\n```\n");
+    const p = await openNote(n.id);
+    const handle = await p.waitForSelector(".cm-content iframe.dv-frame");
+    const frame = (await handle!.contentFrame())!;
+    await frame.waitForFunction(() => document.querySelector(".dv-error")?.textContent?.includes("ran for over 5 seconds"), { timeout: 15000 });
+    expect(await p.evaluate(() => document.querySelector(".note-title")?.textContent)).toBe("JS Forever");
+    await p.close();
+  });
+
   test("the outline shows headings as plain text", async () => {
     const t = await note("Outline.md", "# Plan **now**\n\n## See [[Contractors|builders]]");
     const p = await openNote(t.id);
@@ -1790,7 +1800,7 @@ describe("website (F18)", () => {
   test("choose a folder, see what will be public, publish, read the pages, take the site down and undo", async () => {
     await freshBrowser();
     const sv = (await api("/vaults", { name: "Our garden" })).id;
-    await api(`/vaults/${sv}/notes`, { path: "Garden/Roses.md", content: "# Roses\n\nPrune them in [[Winter jobs]], but [[Secret|not this]].\n\n> [!tip] Feed\n> Monthly.\n\n- [x] Mulch\n" });
+    await api(`/vaults/${sv}/notes`, { path: "Garden/Roses.md", content: "# Roses\n\nPrune them in [[Winter jobs]], but [[Secret|not this]].\n\n> [!tip] Feed\n> Monthly.\n\n- [x] Mulch\n\n```dataviewjs\ndv.list(dv.pages('\"Garden\"').sort((p) => p.file.name).file.link);\ndv.paragraph(\"Seen: \" + dv.pages().length);\n```\n" });
     await api(`/vaults/${sv}/notes`, { path: "Garden/Winter jobs.md", content: "## Mulch\n\nSpread it thick." });
     await api(`/vaults/${sv}/notes`, { path: "Private/Secret.md", content: "Not for the web." });
 
@@ -1819,7 +1829,11 @@ describe("website (F18)", () => {
     expect(await site.$eval("h1", (e) => e.textContent)).toBe("Roses");
     expect(await site.$eval(".callout-title", (e) => e.textContent)).toBe("Feed");
     expect(await site.$eval("main", (e) => e.textContent)).toContain("not this");
-    expect(await site.$$eval("main a", (as) => as.map((a) => a.textContent))).toEqual(["Winter jobs"]);
+    expect(await site.$$eval("main a:not(.dataviewjs-block a)", (as) => as.map((a) => a.textContent))).toEqual(["Winter jobs"]);
+    // What the dataviewjs block drew at Publish, from the published notes only.
+    expect(await site.$$eval(".dataviewjs-block li", (l) => l.map((x) => x.textContent))).toEqual(["Roses", "Winter jobs"]);
+    expect(await site.$eval(".dataviewjs-block", (e) => e.textContent)).toContain("Seen: 2"); // not the private note
+    expect(await site.$eval("main", (e) => e.textContent)).not.toContain("Not for the web");
     expect(await site.$eval("body", (e) => getComputedStyle(e).fontFamily)).toContain("apple-system"); // the theme loaded
     await Promise.all([site.waitForNavigation(), site.click("main a.internal-link")]);
     expect(await site.$eval("h1", (e) => e.textContent)).toBe("Winter jobs");

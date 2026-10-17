@@ -27,6 +27,7 @@ import {
   Vault,
 } from "../../src/dataview";
 import { type CalendarState, calendarStart, esc, renderResult, renderValue, type RenderOpts } from "../../src/dataviewRender";
+import { GUARD, guardLoops } from "./loopGuard";
 
 // ── the run ───────────────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,8 @@ let vault = new Vault([]);
 let offset = 0;
 let tz: string | undefined;
 let thisPath: string | null = null;
+/** Drawing for a published page (Publish freezes what the script draws): no ticking, no buttons. */
+let capture = false;
 const root = document.getElementById("root")!;
 const post = (msg: Record<string, unknown>) => parent.postMessage({ dvjs: 1, ...msg }, "*");
 
@@ -320,8 +323,8 @@ const mdInline = (s: string) => clean(marked.parseInline(s, { async: false }) as
 const mdBlock = (s: string) => clean(marked.parse(s, { async: false }) as string);
 
 const opts = (calendar?: CalendarState): RenderOpts => ({
-  canTick: true,
-  calendar,
+  canTick: !capture,
+  calendar: capture ? "all" : calendar,
   inline: mdInline,
   link: (path, display, resolved, subpath) => `<a class="internal-link${resolved ? "" : " unresolved"}" data-dv-open="${esc(path + (subpath ? `#${subpath}` : ""))}" href="#">${esc(display)}</a>`,
 });
@@ -355,7 +358,7 @@ function el(tag: string, html: string, o: { cls?: string | string[]; attr?: Reco
 const calendars = new WeakMap<HTMLElement, { r: Extract<Result, { kind: "calendar" }>; s: CalendarState }>();
 function drawResult(r: Result, container: HTMLElement) {
   const box = el("div", "", { cls: "dataview-block", container });
-  if (r.kind === "calendar") {
+  if (r.kind === "calendar" && !capture) {
     const s = calendarStart(r);
     calendars.set(box, { r, s });
     box.innerHTML = clean(renderResult(r, opts(s)));
@@ -447,11 +450,24 @@ function markdownTable(headers: any[], rows: any[]): string {
   return [`| ${hs.join(" | ")} |`, `| ${hs.map(() => "---").join(" | ")} |`, ...toArray(rows).map((r) => `| ${toArray(r).map(cell).join(" | ")} |`)].join("\n") + "\n";
 }
 
+// The loop guard (./loopGuard.ts): a script that holds the thread this long without a break is
+// stopped, rather than freezing the page. A timer marks each moment the thread is free.
+const LIMIT_MS = 5000;
+let freeAt = performance.now();
+let stopped = false;
+setInterval(() => (freeAt = performance.now()), 250);
+function guard() {
+  if (stopped || performance.now() - freeAt > LIMIT_MS) {
+    stopped = true;
+    throw new Error(`This script ran for over ${LIMIT_MS / 1000} seconds without a break, so it was stopped. Is there a loop that never ends?`);
+  }
+}
+
 async function runCode(code: string, input: unknown, container: HTMLElement): Promise<void> {
   const dv = makeDv(container);
   // As Dataview runs it: the block's text as an async function body, given dv and input.
-  const fn = new Function("dv", "input", "luxon", "app", "moment", `"use strict";\nreturn (async () => {\n${code}\n})();`);
-  await fn(dv, input, luxon, undefined, undefined);
+  const fn = new Function("dv", "input", "luxon", "app", "moment", GUARD, `"use strict";\nreturn (async () => {\n${guardLoops(code)}\n})();`);
+  await fn(dv, input, luxon, undefined, undefined, guard);
 }
 
 function makeDv(container: HTMLElement) {
@@ -580,6 +596,7 @@ window.addEventListener("message", async (e) => {
     if (w) m.ok ? w.ok(String(m.text)) : w.fail(new Error(String(m.error ?? "couldn't read that file")));
     return;
   }
+  if (m.type === "ping") return post({ type: "pong" });
   if (m.type !== "run") return;
   const mine = ++run;
   const pages = (m.pages as PageData[]).map((p) => {
@@ -593,12 +610,17 @@ window.addEventListener("message", async (e) => {
   offset = Number(m.offset) || 0;
   tz = typeof m.tz === "string" ? m.tz : undefined;
   thisPath = typeof m.thisPath === "string" ? m.thisPath : null;
+  capture = m.capture === true;
+  stopped = false;
+  freeAt = performance.now();
   root.replaceChildren();
   try {
     await runCode(String(m.code), undefined, root);
   } catch (err) {
     if (mine === run) showError(err);
   }
+  // For Publish: what the script drew, once it has finished.
+  if (capture && mine === run) post({ type: "done", html: root.innerHTML });
 });
 
 // Links, tasks and calendars in what the script drew.

@@ -33,8 +33,10 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   `dv.list`, `dv.taskList`, `dv.paragraph`, `dv.el`, `dv.query`, `dv.io.load`, `dv.view`, DataArray,
   Luxon dates…) in a sandboxed frame for each block: no network, no cookies, no access to the app,
   only the vault's notes (which any member can read) and its own box to draw in. Links in it
-  open notes and its task boxes tick tasks, through checked messages to the app. Published sites
-  show the code, since their pages run no script.
+  open notes and its task boxes tick tasks, through checked messages to the app. Publish runs each
+  block in the same sandbox in the owner's browser, over the published notes only, and keeps what
+  it drew, since published pages run no script. A script stuck in an endless loop is stopped after
+  5 seconds and says so, rather than freezing the page.
 - **Live Preview:** markdown renders in place while you type. Headings, bold,
   links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes, code and Mermaid diagrams show formatted, and a
   line reveals its raw markdown only while the cursor is on it. Frontmatter shows as a properties

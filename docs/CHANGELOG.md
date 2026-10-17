@@ -4,6 +4,15 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-17** — dataviewjs on published sites, and endless loops stopped (release v0.0.41;
+  `web/sandbox/loopGuard.ts`, `freezeDataviewJs` in `web/lib/dataviewjs.ts`, `cleanFrozen` in
+  `src/publish.ts`). Publish runs each published dataviewjs block in the same sandbox in the
+  owner's browser, over the published notes only (it can read only published notes, the site's
+  files and views' code), and freezes what it drew into the page; the server keeps only a few
+  tags and safe attributes, and links to notes that aren't published become plain words. Every
+  loop in a script gets a guard, so one that holds the thread for 5 seconds is stopped with
+  "Evaluation Error: … Is there a loop that never ends?" instead of freezing the tab; the app also
+  closes a frame that stops answering for 10 seconds.
 - **2026-10-16** — dataviewjs (release v0.0.40; `web/sandbox/dvjs.ts`, `src/sandbox.ts`,
   `web/lib/dataviewjs.ts`), in the app and the standalone version: a ```` ```dataviewjs ```` block runs
   in a sandboxed frame with an opaque origin and no network, on Dataview's `dv` API built over the
