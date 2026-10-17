@@ -1,6 +1,6 @@
 {
   "name": "commonplace",
-  "version": "0.0.41",
+  "version": "0.0.42",
   "private": true,
   "description": "A multi-user Markdown knowledge base on Postgres + pgvector, with a web UI for laptop and iPhone.",
   "author": "David Oliver",

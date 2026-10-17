@@ -4,6 +4,10 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-17** — iPhone: holding the delete key should keep deleting (release v0.0.42;
+  `web/lib/blockHandle.ts`). On a phone the block handle moved beside the cursor's block on every
+  keystroke, measuring the line in the middle of CodeMirror's update, before the text was redrawn;
+  it now waits for the editor's measure step. Not yet confirmed on a real iPhone.
 - **2026-10-17** — dataviewjs on published sites, and endless loops stopped (release v0.0.41;
   `web/sandbox/loopGuard.ts`, `freezeDataviewJs` in `web/lib/dataviewjs.ts`, `cleanFrozen` in
   `src/publish.ts`). Publish runs each published dataviewjs block in the same sandbox in the

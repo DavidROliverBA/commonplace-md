@@ -108,11 +108,18 @@ export function blockHandle(o: Opts) {
         if (this.drag?.active) return;
         if (!hover()) {
           // Phone: beside the cursor's block, while editing.
-          if (u.selectionSet || u.docChanged || u.focusChanged || u.geometryChanged) this.show(this.view.hasFocus || this.held ? blockAt(this.view.state, this.view.state.selection.main.head) : null);
+          if (u.selectionSet || u.docChanged || u.focusChanged || u.geometryChanged) this.showLater(this.view.hasFocus || this.held ? blockAt(this.view.state, this.view.state.selection.main.head) : null);
           return;
         }
-        if (this.block && u.docChanged) this.show(blockAt(u.state, u.changes.mapPos(this.block.from)));
-        else if (this.block && u.geometryChanged) this.show(this.block);
+        if (this.block && u.docChanged) this.showLater(blockAt(u.state, u.changes.mapPos(this.block.from)));
+        else if (this.block && u.geometryChanged) this.showLater(this.block);
+      }
+
+      /** show(), from an update: plugins run before CodeMirror redraws, so the line can't be
+       *  measured yet. Reading layout there, on every keystroke, also stopped a held delete key
+       *  repeating on iOS. So it waits for the editor's measure step. */
+      showLater(b: Block | null) {
+        this.view.requestMeasure({ key: this, read: () => (b && this.visible(b) ? this.place(b) : null), write: (at) => this.apply(b, at) });
       }
 
       destroy() {
@@ -161,8 +168,27 @@ export function blockHandle(o: Opts) {
       }
 
       show(b: Block | null) {
+        this.apply(b, b && this.visible(b) ? this.place(b) : null);
+      }
+
+      visible(b: Block) {
+        return !this.view.state.readOnly && b.to <= this.view.state.doc.length;
+      }
+
+      /** Where the handle goes beside block `b` (reads layout). */
+      place(b: Block): { top: number; left: number } {
         const view = this.view;
-        if (!b || view.state.readOnly || b.to > view.state.doc.length) {
+        const first = this.lineBox(b.from);
+        // Centre it on the first line (a table or embed widget is one tall "line": use the top).
+        const h = Math.min(first.bottom - first.top, 30);
+        const indent = b.indent ? (view.coordsAtPos(b.from + b.indent.length)?.left ?? 0) - (view.coordsAtPos(b.from)?.left ?? 0) : 0;
+        const w = hover() ? HANDLE_W : HANDLE_W / 2;
+        return { top: this.yOf(first.top) + h / 2, left: Math.max(0, this.textLeft() + Math.max(0, indent) - w - 2) };
+      }
+
+      /** Put the handle there, or hide it (writes only). */
+      apply(b: Block | null, at: { top: number; left: number } | null) {
+        if (!b || !at) {
           if (!this.held) {
             this.block = null;
             this.dom.hidden = true;
@@ -172,13 +198,8 @@ export function blockHandle(o: Opts) {
         this.block = b;
         this.dom.hidden = false;
         this.dom.classList.toggle("touch", !hover());
-        const first = this.lineBox(b.from);
-        // Centre it on the first line (a table or embed widget is one tall "line": use the top).
-        const h = Math.min(first.bottom - first.top, 30);
-        const indent = b.indent ? (view.coordsAtPos(b.from + b.indent.length)?.left ?? 0) - (view.coordsAtPos(b.from)?.left ?? 0) : 0;
-        const w = hover() ? HANDLE_W : HANDLE_W / 2;
-        this.dom.style.top = `${this.yOf(first.top) + h / 2}px`;
-        this.dom.style.left = `${Math.max(0, this.textLeft() + Math.max(0, indent) - w - 2)}px`;
+        this.dom.style.top = `${at.top}px`;
+        this.dom.style.left = `${at.left}px`;
       }
 
       onHover = (e: MouseEvent) => {
