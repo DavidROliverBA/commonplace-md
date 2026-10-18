@@ -413,6 +413,16 @@ header.
 3. `/p/<slug>/…` is served from those two tables only, with a CSP that allows no script and
    sandboxes the page, plus `noindex`. The slug is random. Every miss returns the same 404.
 4. **Take down** sets `live = false` and keeps the snapshot, so Undo can restore it.
+5. **Features** (the builder, F18 step 2) are switched on in `publish.json` (`features`). At
+   Publish each page's details go into `site_pages.meta`: its contents list, the published pages
+   linking to it, its tags, when it changed and its word count, all from the text the page shows.
+   The page list, tag pages and the light and dark switch are drawn when a page is served; the
+   switch is links to `_site/theme`, which sets a cookie scoped to the site's path and comes back.
+6. **The preview** (`GET /api/vaults/:v/site/preview/…`, owners) draws the same pages with the
+   same code (`respond` in `publish.ts`) from the notes as they are and the current
+   `publish.json`, so it shows a change before Publish. It is framed by Settings → Website with
+   `sandbox="allow-same-origin"`: same origin, so the owner's cookie reaches its links and files,
+   but no scripts, forms or popups, and its CSP allows no script either.
 
 ### 7.7 Capture from the iPhone
 

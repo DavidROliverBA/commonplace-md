@@ -853,6 +853,76 @@ describe("publish a vault as a website (F18)", () => {
     expect((await get(`/p/${slug}/Garden/Tulips`)).status).toBe(200); // the last good snapshot stays up
     expect((await alice.ok(`/vaults/${pv}/site/settings`, { method: "PUT", body: { include: ["Garden"] } })).include).toEqual(["Garden"]);
   });
+
+  test("the builder's features show on pages and in the preview, and none shows what isn't published", async () => {
+    const note = (path: string, content: string) => alice.ok(`/vaults/${pv}/notes`, { body: { path, content } });
+    await note("Garden/Herbs.md", "---\ntags: [kitchen]\n---\n# Herbs\n\nGrow #basil near [[Winter jobs]], as in [[Monday]].\n\n## Sowing\n\nIn spring.\n\n### Indoors\n\nOn a sill.\n\n## Picking\n\nOften.\n\n%%#secret-tag [[Tulips]]%%\n");
+    await note("Diary/Wednesday.md", "Private: see [[Herbs]] and [[Winter jobs]]. #basil #diary-only");
+
+    // Off until chosen, so a site published before the builder looks the same.
+    await alice.ok(`/vaults/${pv}/site/publish`, { body: {} });
+    const plain = await (await get(`/p/${slug}/Garden/Herbs`)).text();
+    for (const off of ["site-toc", "site-backlinks", "site-sidebar", "site-facts", "_site/tags", "_site/theme"]) expect(plain).not.toContain(off);
+
+    const all = { sidebar: true, contents: true, backlinks: true, tags: true, updated: true, readingTime: true, themeSwitch: true };
+    expect(await alice.ok(`/vaults/${pv}/site/settings`, { method: "PUT", body: { features: all } })).toEqual({ include: ["Garden"], features: all });
+    expect((await alice.ok(`/vaults/${pv}/site`)).changes.settings).toBe(true);
+    expect((await bob.req(`/vaults/${pv}/site/settings`, { method: "PUT", body: { features: { sidebar: false } } })).status).toBe(403);
+
+    // The preview: what Publish would make, before it's published, for the owner only.
+    const preview = (path: string, who = alice) => fetch(`${BASE}/api/vaults/${pv}/site/preview/${path}`, { headers: { cookie: who.cookie }, redirect: "manual" });
+    const pr = await preview("Garden/Herbs");
+    expect(pr.status).toBe(200);
+    expect(pr.headers.get("content-security-policy")).toContain("default-src 'none'");
+    expect(pr.headers.get("content-security-policy")).toContain("frame-ancestors 'self'");
+    const pre = await pr.text();
+    expect(pre).toContain('class="site-toc"');
+    expect(pre).not.toContain("<script");
+    expect((await preview("Garden/Herbs", bob)).status).toBe(403);
+    expect((await fetch(`${BASE}/api/vaults/${pv}/site/preview/Garden/Herbs`)).status).not.toBe(200);
+    for (const path of ["Diary/Wednesday", "Garden/Compost%20plan", "attachments/heap.png", "publish.json"]) expect((await preview(path)).status).toBe(404);
+
+    await alice.ok(`/vaults/${pv}/site/publish`, { body: { tz: "Europe/London" } });
+    const herbs = await (await get(`/p/${slug}/Garden/Herbs`)).text();
+    // Contents: second- and third-level headings.
+    expect(herbs).toContain(`<li class="site-toc-2"><a href="#sowing">Sowing</a></li><li class="site-toc-3"><a href="#indoors">Indoors</a></li><li class="site-toc-2"><a href="#picking">Picking</a></li>`);
+    // Tags link to tag pages, from the text and the properties; hidden text adds none.
+    expect(herbs).toContain(`<a class="tag" href="../_site/tags/basil">#basil</a>`);
+    expect(herbs).toContain(`<p class="site-tags"><a class="tag" href="../_site/tags/basil">#basil</a> <a class="tag" href="../_site/tags/kitchen">#kitchen</a></p>`);
+    expect(herbs).toMatch(/Updated <time datetime="[^"]+">\d{1,2} \w+ 20\d\d<\/time> · 1 min read/);
+    // The sidebar lists published pages only.
+    expect(herbs).toContain(`<a href="../Garden/Herbs" aria-current="page">Herbs</a>`);
+    for (const leak of ["Wednesday", "Diary", "Compost", "secret-tag", "diary-only"]) expect(herbs).not.toContain(leak);
+
+    // Backlinks: published pages that link here, never a private one.
+    const winter = await (await get(`/p/${slug}/Garden/Winter%20jobs`)).text();
+    expect(winter).toContain(`<section class="site-backlinks" aria-label="Linked from">`);
+    expect(winter).toContain(`href="../Garden/Herbs">Herbs</a>`);
+    expect(winter).toContain(`href="../Garden/Tulips">Tulips</a>`);
+    expect(winter).not.toContain("Wednesday");
+    // Hidden text links nowhere: Tulips isn't linked from Herbs.
+    expect(await (await get(`/p/${slug}/Garden/Tulips`)).text()).not.toMatch(/site-backlinks.*Herbs/s);
+
+    const tags = await (await get(`/p/${slug}/_site/tags`)).text();
+    expect(tags).toContain(`href="../_site/tags/basil">#basil</a> <span class="site-count">1</span>`);
+    expect(tags).not.toContain("diary-only");
+    const basil = await (await get(`/p/${slug}/_site/tags/basil`)).text();
+    expect(basil).toContain(`href="../../Garden/Herbs">Herbs</a>`);
+    expect((await get(`/p/${slug}/_site/tags/diary-only`)).status).toBe(404);
+
+    // Light and dark without script: a link sets a cookie for this site and comes back.
+    const dark = await get(`/p/${slug}/_site/theme?to=dark&back=${encodeURIComponent("Garden/Herbs")}`);
+    expect(dark.status).toBe(303);
+    expect(dark.headers.get("location")).toBe(`/p/${slug}/Garden/Herbs`);
+    expect(dark.headers.get("set-cookie")).toContain(`site-theme=dark; Max-Age=31536000; Path=/p/${slug}/; HttpOnly; SameSite=Lax`);
+    const themed = await (await fetch(`${BASE}/p/${slug}/Garden/Herbs`, { headers: { cookie: "site-theme=dark" } })).text();
+    expect(themed).toContain(`<html lang="en" data-theme="dark">`);
+    expect(themed).toContain(`aria-current="true">Dark</a>`);
+    for (const back of ["//evil.example/", "https://evil.example/", "../../api/me", "\\evil"]) {
+      expect((await get(`/p/${slug}/_site/theme?to=light&back=${encodeURIComponent(back)}`)).headers.get("location")).toBe(`/p/${slug}/`);
+    }
+    expect(await (await get(`/p/${slug}/_site/style.css`)).text()).toContain(`:root[data-theme="dark"]`);
+  });
 });
 
 describe("saved searches", () => {

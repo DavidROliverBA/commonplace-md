@@ -56,6 +56,8 @@ key flows, decisions); read it before structural changes, and keep it current wh
   (`site_pages`, `site_files`), never `notes` or `attachments`; anything new on a page must be
   written into the snapshot at Publish, and must leave out what isn't published (titles
   included). Pages run no script: keep the CSP, and never let a note's HTML attributes through.
+  The builder's preview (`previewSite`) is the one reader of live notes: owners only, drawn by
+  the same `respond`, showing only what Publish would include, in a frame with no scripts.
 - **Sharing is by invitation** (N13, `src/vaults.ts`): adding someone writes `vault_invites`;
   only Accept writes `vault_members`, which every access check reads, so a pending invite grants
   nothing. Never reveal whether an email has an account.

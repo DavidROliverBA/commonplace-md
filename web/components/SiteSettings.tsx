@@ -1,6 +1,7 @@
-// Settings → Website (F18 step 1): choose what's published, check what will be public, Publish,
-// and take the site down. Publishing copies the chosen notes as pages (src/publish.ts), so edits
-// stay private until the next Publish; this lists what a republish would add, change or take down.
+// Settings → Website (F18): choose what's published, switch the site's features on or off with a
+// preview of the pages beside them, check what will be public, Publish, and take the site down.
+// Publishing copies the chosen notes as pages (src/publish.ts), so edits stay private until the
+// next Publish; this lists what a republish would add, change or take down.
 
 import { useEffect, useState } from "react";
 import { api, type Vault } from "../lib/api";
@@ -8,8 +9,21 @@ import { freezeDataviewJs } from "../lib/dataviewjs";
 import { relativeTime } from "../lib/links";
 import { toast, toastError } from "../ui/overlays";
 
+type Feature = "sidebar" | "contents" | "backlinks" | "tags" | "updated" | "readingTime" | "themeSwitch";
+
+/** The builder's switches, in the order they're shown (the names are src/publish.ts's FEATURES). */
+const FEATURE_LIST: { id: Feature; label: string; help: string }[] = [
+  { id: "sidebar", label: "Page list", help: "Every page in a list beside the text, or after it on a phone." },
+  { id: "contents", label: "Contents", help: "A page's headings listed at the top, when it has two or more." },
+  { id: "backlinks", label: "Backlinks", help: "The published pages that link to a page, at its end." },
+  { id: "tags", label: "Tag pages", help: "Tags become links to a page of everything with that tag." },
+  { id: "updated", label: "Last updated", help: "When the note was last changed, under its title." },
+  { id: "readingTime", label: "Reading time", help: "About how long a page takes to read." },
+  { id: "themeSwitch", label: "Light and dark switch", help: "Readers choose light or dark; otherwise pages follow their device." },
+];
+
 interface SiteState {
-  settings: { include: string[] };
+  settings: { include: string[]; features?: Partial<Record<Feature, boolean>> };
   error: string | null;
   folders: string[];
   notes: string[];
@@ -45,6 +59,8 @@ export function SiteSettings({ vault }: { vault: Vault }) {
   const [busy, setBusy] = useState<string | null>(null);
   // "Chosen folders" with none ticked yet: the file still says the whole vault until one is.
   const [picking, setPicking] = useState(false);
+  // Bumped after each change, so the preview frame shows it.
+  const [shot, setShot] = useState(0);
 
   const load = () => api<SiteState>(`/vaults/${vault.id}/site`).then(setS, toastError);
   useEffect(() => void load(), [vault.id]);
@@ -54,6 +70,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
     try {
       await fn();
       await load();
+      setShot((n) => n + 1);
     } catch (e) {
       toastError(e);
     } finally {
@@ -74,6 +91,9 @@ export function SiteSettings({ vault }: { vault: Vault }) {
       await api(`/vaults/${vault.id}/site/settings`, { method: "PUT", body: { include: next } });
       setPicking(next.length === 0 && chosen);
     });
+  const setFeature = (f: Feature, on: boolean) => run("Saving…", () => api(`/vaults/${vault.id}/site/settings`, { method: "PUT", body: { features: { [f]: on } } }));
+  const features = s.settings.features ?? {};
+  const previewUrl = `/api/vaults/${vault.id}/site/preview/`;
   const toggle = (f: string, on: boolean) => choose(on ? [...include.filter((i) => !i.startsWith(f + "/")), f] : include.filter((i) => i !== f));
 
   const publish = () =>
@@ -156,6 +176,44 @@ export function SiteSettings({ vault }: { vault: Vault }) {
       </section>
 
       <section className="settings-section">
+        <h3>Features</h3>
+        <p className="muted">What each page shows besides its text. Changes show in the preview straight away and on the site when you publish.</p>
+        <ul className="site-features" aria-label="Features">
+          {FEATURE_LIST.map((f) => (
+            <li key={f.id}>
+              <label>
+                <input type="checkbox" checked={!!features[f.id]} disabled={!isOwner || !!busy || !!s.error} onChange={(e) => void setFeature(f.id, e.target.checked)} />
+                <span>
+                  <span className="site-feature-name">{f.label}</span>
+                  <span className="muted">{f.help}</span>
+                </span>
+              </label>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {isOwner && (
+        <section className="settings-section">
+          <h3>Preview</h3>
+          {s.noteCount > 0 && !s.error ? (
+            <>
+              {/* No scripts and no forms in the frame; the pages carry none anyway. */}
+              <iframe key={shot} className="site-preview" src={previewUrl} sandbox="allow-same-origin" title="Preview of the website" />
+              <p className="muted">
+                Your notes as they are now, as Publish would make them. Links work inside the preview. Scripts (dataviewjs) show as code here; Publish runs them.{" "}
+                <a href={previewUrl} target="_blank" rel="noopener">
+                  Open the preview in a new tab
+                </a>
+              </p>
+            </>
+          ) : (
+            <p className="muted">Nothing to preview yet: choose what's published first.</p>
+          )}
+        </section>
+      )}
+
+      <section className="settings-section">
         <h3>What will be public</h3>
         <p>
           {picking && !include.length ? "Tick at least one folder." : `${plural(s.noteCount, "note")} and ${plural(s.fileCount, "file")}.`}
@@ -166,7 +224,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
         <PathList summary="Kept out by publish: false" paths={s.held} />
         {c && (
           <>
-            <p>{pending || c.settings ? <b>Since you published: {[c.added.length && `${c.added.length} new`, c.changed.length && `${c.changed.length} changed`, c.removed.length && `${c.removed.length} to take down`, c.settings && "the folders chosen"].filter(Boolean).join(", ")}</b> : "Nothing has changed since you published."}</p>
+            <p>{pending || c.settings ? <b>Since you published: {[c.added.length && `${c.added.length} new`, c.changed.length && `${c.changed.length} changed`, c.removed.length && `${c.removed.length} to take down`, c.settings && "the settings"].filter(Boolean).join(", ")}</b> : "Nothing has changed since you published."}</p>
             <PathList summary={`New (${c.added.length})`} paths={c.added} />
             <PathList summary={`Changed (${c.changed.length})`} paths={c.changed} />
             <PathList summary={`To take down (${c.removed.length})`} paths={c.removed} />

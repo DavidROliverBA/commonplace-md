@@ -17,9 +17,9 @@ import { Marked, type Tokens } from "marked";
 import { z } from "zod";
 import { resolveLocal } from "../web/lib/links";
 import { hiloColour } from "../web/lib/colours";
-import { HttpError, type User } from "./auth";
+import { HttpError, isSecure, type User } from "./auth";
 import { sql } from "./db";
-import { findWikiLinks, isAttachmentPath, maskCode, normalisePath, parseFrontmatter, plainInline, sectionRange, SITE_SETTINGS } from "./markdown";
+import { extractLinks, extractTags, findWikiLinks, isAttachmentPath, maskCode, normalisePath, parseFrontmatter, plainInline, sectionRange, SITE_SETTINGS } from "./markdown";
 import { listNotes } from "./notes";
 import { assertRoom } from "./storage";
 import { inlineQuery, type PageData, readPage, runInline, runQuery, Vault } from "./dataview";
@@ -28,11 +28,19 @@ import { renderResult, renderValue, type RenderOpts } from "./dataviewRender";
 
 // ── settings (publish.json) ────────────────────────────────────────────────────────────────
 
+/** What the builder switches on (F18 step 2). Each is off until chosen, so a site published
+ *  before the builder looks the same after it. */
+export const FEATURES = ["sidebar", "contents", "backlinks", "tags", "updated", "readingTime", "themeSwitch"] as const;
+export type Feature = (typeof FEATURES)[number];
+const Features = z.object(Object.fromEntries(FEATURES.map((f) => [f, z.boolean().optional()])) as Record<Feature, z.ZodOptional<z.ZodBoolean>>);
+export type SiteFeatures = z.infer<typeof Features>;
+
 const Settings = z.looseObject({
   /** Folders to publish; empty: the whole vault. */
   include: z.array(z.string().max(512)).max(1000).default([]),
   /** The site's name; the vault's name when unset. */
   title: z.string().max(200).optional(),
+  features: Features.optional(),
 });
 export type SiteSettings = z.infer<typeof Settings>;
 
@@ -47,11 +55,16 @@ export async function readSettings(vaultId: number): Promise<{ settings: SiteSet
   }
 }
 
-/** Set the published folders in publish.json, keeping any other keys in it. */
-export async function saveSettings(vaultId: number, userId: number, include: string[]): Promise<SiteSettings> {
+/** Set the published folders and features in publish.json, keeping any other keys in it. */
+export async function saveSettings(vaultId: number, userId: number, change: { include?: string[]; features?: SiteFeatures }): Promise<SiteSettings> {
   const { settings, error } = await readSettings(vaultId);
-  const folders = [...new Set(include.map((f) => normalisePath(f, null)))].sort();
-  const next: SiteSettings = { ...(error ? { include: [] } : settings), include: folders };
+  // A broken file is replaced only by choosing what's published again: saving a feature alone
+  // would otherwise turn it into "the whole vault".
+  if (error && !change.include) throw new HttpError(400, error);
+  const base: SiteSettings = error ? { include: [] } : settings;
+  const next: SiteSettings = { ...base };
+  if (change.include) next.include = [...new Set(change.include.map((f) => normalisePath(f, null)))].sort();
+  if (change.features) next.features = { ...base.features, ...change.features };
   const data = new TextEncoder().encode(JSON.stringify(next, null, 2) + "\n");
   await assertRoom(data.byteLength);
   await sql`insert into attachments (vault_id, path, mime, size, data, created_by)
@@ -301,9 +314,29 @@ interface RenderCtx {
   tz?: string;
   /** What each dataviewjs block drew, by note path and code (frozenKey). */
   frozen: Map<string, string>;
+  features: SiteFeatures;
 }
 
-function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string {
+/** A heading in a page's contents list. */
+interface TocEntry {
+  level: number;
+  id: string;
+  text: string;
+}
+
+/** What a page shows beside its text, worked out at Publish (site_pages.meta). */
+export interface PageMeta {
+  toc?: TocEntry[];
+  /** Published pages that link here. */
+  backlinks?: { path: string; title: string }[];
+  tags?: string[];
+  /** When the note was last changed (ISO). */
+  updated?: string;
+  words?: number;
+}
+
+/** `toc`, when given, collects the page's second- and third-level headings. */
+function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0, toc?: TocEntry[]): string {
   const root = rootFrom(from);
   const ids = new Map<string, number>();
   const pageHref = (n: Chosen, hash = "") => root + encodePath(pagePath(n.path)) + hash;
@@ -398,6 +431,7 @@ function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string
           if (m) return { type: "tag", raw: m[0], lead: m[1], tag: m[2] };
         },
         renderer(t: any) {
+          if (c.features.tags) return `${t.lead}<a class="tag" href="${esc(root + "_site/tags/" + encodeURIComponent(String(t.tag).toLowerCase()))}">#${esc(t.tag)}</a>`;
           return `${t.lead}<span class="tag">#${esc(t.tag)}</span>`;
         },
       },
@@ -432,7 +466,9 @@ function renderNote(note: Chosen, from: string, c: RenderCtx, depth = 0): string
         const base = headingId(tokens.map((t) => t.raw).join(""));
         const n = ids.get(base) ?? 0;
         ids.set(base, n + 1);
-        return `<h${level} id="${esc(n ? `${base}-${n}` : base)}">${inner}</h${level}>\n`;
+        const id = n ? `${base}-${n}` : base;
+        if (toc && depth === 0 && (level === 2 || level === 3)) toc.push({ level, id, text: plainInline(tokens.map((t) => t.raw).join("")) });
+        return `<h${level} id="${esc(id)}">${inner}</h${level}>\n`;
       },
       checkbox({ checked }: Tokens.Checkbox) {
         return `<input type="checkbox" class="task" disabled${checked ? " checked" : ""} aria-label="${checked ? "Done" : "To do"}"> `;
@@ -505,6 +541,36 @@ async function plan(vaultId: number): Promise<Plan & { error?: string }> {
   return { settings, pages, held, files: [...files].sort() };
 }
 
+/** Published pages that link to each published note, by note id, from the text a page shows. */
+function backlinkMap(pages: Chosen[], all: RenderCtx["all"]): Map<number, Chosen[]> {
+  const byId = new Map(pages.map((n) => [n.id, n]));
+  const out = new Map<number, Chosen[]>();
+  for (const n of pages) {
+    for (const t of extractLinks(stripHidden(parseFrontmatter(n.content).body))) {
+      const hit = resolveLocal(all, t);
+      const to = hit && byId.get(hit.id);
+      if (!to || to.id === n.id) continue;
+      const list = out.get(to.id) ?? [];
+      if (!list.includes(n)) list.push(n);
+      out.set(to.id, list);
+    }
+  }
+  return out;
+}
+
+/** A page's details apart from its contents list (which comes from rendering it). */
+function pageMeta(n: Chosen, backlinks: Map<number, Chosen[]>): PageMeta {
+  const { raw, body } = parseFrontmatter(n.content);
+  const shown = stripHidden(body);
+  const fm = raw ? `---\n${raw}\n---\n` : "";
+  return {
+    backlinks: (backlinks.get(n.id) ?? []).map((b) => ({ path: pagePath(b.path), title: b.title })).sort((a, b) => a.title.localeCompare(b.title)),
+    tags: extractTags(fm + shown),
+    updated: new Date(n.updated_at).toISOString(),
+    words: shown.split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w)).length,
+  };
+}
+
 const newSlug = () => randomBytes(8).readBigUInt64BE().toString(36).padStart(12, "0").slice(0, 12);
 
 export async function publish(vaultId: number, user: User, offset = 0, tz?: string, frozen: { path: string; code: string; html: string }[] = []): Promise<{ slug: string; pages: number; files: number }> {
@@ -521,12 +587,19 @@ export async function publish(vaultId: number, user: User, offset = 0, tz?: stri
     offset,
     tz,
     frozen: new Map(frozen.map((f) => [frozenKey(f.path, f.code), f.html])),
+    features: p.settings.features ?? {},
   };
-  const rows = p.pages.map((n) => ({ vault_id: vaultId, path: pagePath(n.path), note_path: n.path, title: n.title, html: renderNote(n, pagePath(n.path), ctx), source_md5: n.md5 }));
+  const backlinks = backlinkMap(p.pages, ctx.all);
+  const rows = p.pages.map((n) => {
+    const toc: TocEntry[] = [];
+    const html = renderNote(n, pagePath(n.path), ctx, 0, toc);
+    return { vault_id: vaultId, path: pagePath(n.path), note_path: n.path, title: n.title, html, source_md5: n.md5, meta: sql.json({ ...pageMeta(n, backlinks), toc } as any) };
+  });
   const [{ bytes }] = (await sql`select coalesce(sum(size), 0)::float8 as bytes from attachments where vault_id = ${vaultId} and path = any(${p.files})`) as unknown as [{ bytes: number }];
   await assertRoom(bytes + rows.reduce((n, r) => n + r.html.length, 0));
 
-  const settings = { ...p.settings, title: p.settings.title || vault!.name };
+  // As published, with the publisher's time zone for the dates pages show.
+  const settings = { ...p.settings, title: p.settings.title || vault!.name, ...(tz ? { tz } : {}) };
   const slug = await sql.begin(async (tx) => {
     const [s] = await tx`insert into sites (vault_id, slug) values (${vaultId}, ${newSlug()})
                          on conflict (vault_id) do update set vault_id = excluded.vault_id returning slug`;
@@ -549,6 +622,8 @@ export async function setLive(vaultId: number, live: boolean): Promise<void> {
 
 const LIST_MAX = 500;
 
+const sameFeatures = (a: SiteFeatures | undefined, b: SiteFeatures | undefined) => FEATURES.every((f) => !!a?.[f] === !!b?.[f]);
+
 /** Everything the Website settings show: the choice, what would be public, and what a republish
  *  would add, change or take down. */
 export async function siteState(vaultId: number) {
@@ -567,7 +642,7 @@ export async function siteState(vaultId: number) {
       added: p.pages.filter((n) => !was.has(n.path)).map((n) => n.path),
       changed: p.pages.filter((n) => was.has(n.path) && was.get(n.path) !== n.md5).map((n) => n.path),
       removed: [...was.keys()].filter((path) => !now.has(path)).sort(),
-      settings: JSON.stringify(site.settings.include ?? []) !== JSON.stringify(p.settings.include),
+      settings: JSON.stringify(site.settings.include ?? []) !== JSON.stringify(p.settings.include) || !sameFeatures(site.settings.features, p.settings.features),
     };
     for (const k of ["added", "changed", "removed"] as const) changes[k] = changes[k].slice(0, LIST_MAX);
   }
@@ -600,44 +675,154 @@ const PAGE_HEADERS = {
   "Cache-Control": "no-cache",
 };
 
+
+// The preview (F18 step 2) is the app's own page, framed by Settings → Website: it needs the
+// owner's cookie on each request, so it isn't sandboxed by its header (the frame is, without
+// scripts), and no script runs on it either way.
+const PREVIEW_HEADERS = {
+  ...PAGE_HEADERS,
+  "Content-Security-Policy": "default-src 'none'; style-src 'self'; img-src 'self' https: data:; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+  "X-Frame-Options": "SAMEORIGIN",
+  "Cache-Control": "no-store",
+};
+
 let css: string | null = null;
 async function stylesheet(): Promise<string> {
   if (css) return css;
   const part = (f: string) => Bun.file(new URL(`../web/styles/${f}`, import.meta.url)).text();
-  return (css = (await Promise.all(["tokens.css", "markdown.css", "site.css"].map(part))).join("\n"));
+  const [tokens, ...rest] = await Promise.all(["tokens.css", "markdown.css", "site.css"].map(part));
+  return (css = [switchable(tokens!), ...rest].join("\n"));
 }
 
-function shell(site: { title: string }, from: string, title: string, main: string, isPage = false): string {
+/** tokens.css's dark colours, also answering to the site's light and dark switch (data-theme). */
+function switchable(tokens: string): string {
+  const m = /@media \(prefers-color-scheme: dark\) \{\s*:root \{([\s\S]*?)\n  \}\n\}/.exec(tokens);
+  if (!m) return tokens;
+  return tokens.replace(m[0], `@media (prefers-color-scheme: dark) {\n  :root:not([data-theme="light"]) {${m[1]}\n  }\n}\n:root[data-theme="dark"] {${m[1]}\n}`);
+}
+
+interface SitePage {
+  path: string;
+  title: string;
+  meta: PageMeta;
+}
+
+/** A site to draw: the published snapshot, or the preview of what Publish would make. */
+interface SiteView {
+  /** The site's root as a URL path, ending in "/". */
+  base: string;
+  title: string;
+  features: SiteFeatures;
+  /** The publisher's time zone, for dates. */
+  tz?: string;
+  headers: Record<string, string>;
+  pages: () => Promise<SitePage[]>;
+  page: (path: string) => Promise<(SitePage & { html: string }) | null>;
+  file: (path: string) => Promise<{ mime: string; data: Uint8Array } | null>;
+}
+
+type Theme = "light" | "dark";
+const THEME_COOKIE = "site-theme";
+const themeFrom = (req: Request): Theme | null => {
+  const m = new RegExp(`(?:^|;\\s*)${THEME_COOKIE}=(light|dark)(?:;|$)`).exec(req.headers.get("cookie") ?? "");
+  return (m?.[1] as Theme | undefined) ?? null;
+};
+
+function dateText(iso: string, tz?: string): string {
+  const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "long", year: "numeric" };
+  try {
+    return new Date(iso).toLocaleDateString("en-GB", { ...opts, timeZone: tz || "UTC" });
+  } catch {
+    return new Date(iso).toLocaleDateString("en-GB", { ...opts, timeZone: "UTC" });
+  }
+}
+
+/** Every page in a tree of folders, the open page marked. */
+function sidebar(pages: SitePage[], from: string): string {
   const root = rootFrom(from);
+  interface Folder {
+    pages: SitePage[];
+    folders: Map<string, Folder>;
+  }
+  const top: Folder = { pages: [], folders: new Map() };
+  for (const p of pages) {
+    let at = top;
+    for (const seg of p.path.split("/").slice(0, -1)) {
+      if (!at.folders.has(seg)) at.folders.set(seg, { pages: [], folders: new Map() });
+      at = at.folders.get(seg)!;
+    }
+    at.pages.push(p);
+  }
+  const list = (f: Folder): string =>
+    `<ul>${[...f.folders.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([name, sub]) => `<li><span class="site-folder">${esc(name)}</span>${list(sub)}</li>`)
+      .join("")}${[...f.pages]
+      .sort((a, b) => a.title.localeCompare(b.title))
+      .map((p) => `<li><a href="${esc(root + encodePath(p.path))}"${p.path === from ? ' aria-current="page"' : ""}>${esc(p.title)}</a></li>`)
+      .join("")}</ul>`;
+  return `<nav class="site-sidebar" aria-label="Pages">${list(top)}</nav>`;
+}
+
+function shell(view: SiteView, from: string, title: string, main: string, opts: { isPage?: boolean; theme: Theme | null; pages: SitePage[] | null }): string {
+  const root = rootFrom(from);
+  const f = view.features;
   // A page's folders, as words: folders have no pages of their own (yet).
-  const crumbs = isPage ? from.split("/").slice(0, -1) : [];
+  const crumbs = opts.isPage ? from.split("/").slice(0, -1) : [];
+  const themeLink = (to: string, label: string, on: boolean) => `<a href="${esc(`${root}_site/theme?to=${to}&back=${encodeURIComponent(from)}`)}"${on ? ' aria-current="true"' : ""}>${label}</a>`;
+  const switcher = f.themeSwitch
+    ? `<span class="site-theme" role="group" aria-label="Colours">${themeLink("light", "Light", opts.theme === "light")}${themeLink("dark", "Dark", opts.theme === "dark")}${themeLink("auto", "Auto", !opts.theme)}</span>`
+    : "";
   return `<!doctype html>
-<html lang="en">
+<html lang="en"${opts.theme ? ` data-theme="${opts.theme}"` : ""}>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
-<meta name="color-scheme" content="light dark">
-<title>${esc(title === site.title ? title : `${title} · ${site.title}`)}</title>
+<meta name="color-scheme" content="${opts.theme ?? "light dark"}">
+<title>${esc(title === view.title ? title : `${title} · ${view.title}`)}</title>
 <link rel="stylesheet" href="${root}_site/style.css">
 </head>
-<body class="site">
+<body class="site${opts.pages ? " site-with-sidebar" : ""}">
 <a class="site-skip" href="#main">Skip to the text</a>
 <header class="site-head">
-<a class="site-name" href="${root}">${esc(site.title)}</a>
-<nav aria-label="Site"><a href="${root}_site/pages">All pages</a></nav>
+<a class="site-name" href="${root}">${esc(view.title)}</a>
+<nav aria-label="Site"><a href="${root}_site/pages">All pages</a>${f.tags ? `<a href="${root}_site/tags">Tags</a>` : ""}${switcher}</nav>
 </header>
+<div class="site-body">
 <main id="main" class="site-main markdown">
 ${crumbs.length ? `<p class="site-crumbs">${crumbs.map(esc).join(" › ")}</p>\n` : ""}${main}
 </main>
+${opts.pages ? sidebar(opts.pages, from) : ""}
+</div>
 </body>
 </html>`;
 }
 
-const notFound = () =>
+/** A page: its title, the details the site shows, its text, tags and the pages linking here. */
+function pageMain(view: SiteView, p: SitePage & { html: string }, from: string): string {
+  const f = view.features;
+  const m = p.meta;
+  const root = rootFrom(from);
+  const facts = [
+    f.updated && m.updated ? `Updated <time datetime="${esc(m.updated)}">${esc(dateText(m.updated, view.tz))}</time>` : "",
+    f.readingTime && m.words !== undefined ? `${Math.max(1, Math.round(m.words / 220))} min read` : "",
+  ].filter(Boolean);
+  let out = `<h1>${esc(p.title)}</h1>\n`;
+  if (facts.length) out += `<p class="site-facts">${facts.join(" · ")}</p>\n`;
+  if (f.contents && (m.toc?.length ?? 0) >= 2)
+    out += `<nav class="site-toc" aria-label="On this page"><p class="site-toc-title">On this page</p><ul>${m.toc!.map((t) => `<li class="site-toc-${t.level}"><a href="#${esc(encodeURIComponent(t.id))}">${esc(t.text)}</a></li>`).join("")}</ul></nav>\n`;
+  out += p.html;
+  if (f.tags && m.tags?.length) out += `\n<p class="site-tags">${m.tags.map((t) => `<a class="tag" href="${esc(root + "_site/tags/" + encodeURIComponent(t))}">#${esc(t)}</a>`).join(" ")}</p>`;
+  if (f.backlinks && m.backlinks?.length)
+    out += `\n<section class="site-backlinks" aria-label="Linked from"><p class="site-backlinks-title">Linked from</p><ul>${m.backlinks.map((b) => `<li><a class="internal-link" href="${esc(root + encodePath(b.path))}">${esc(b.title)}</a></li>`).join("")}</ul></section>`;
+  return out;
+}
+
+const notFound = (headers: Record<string, string> = PAGE_HEADERS) =>
   new Response(
     `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex"><title>Not found</title></head><body><main><h1>This page isn't here</h1><p>It may have been taken down, or the link is wrong.</p></main></body></html>`,
-    { status: 404, headers: PAGE_HEADERS },
+    { status: 404, headers },
   );
 
 /** A top-level note called index, Home or README is the site's home page. */
@@ -657,6 +842,62 @@ function pagesList(pages: { path: string; title: string }[], from: string): stri
     .join("\n");
 }
 
+/** Answer a request for `path` (decoded, below the site's root) from a site. */
+async function respond(view: SiteView, req: Request, path: string): Promise<Response> {
+  const f = view.features;
+  const theme = f.themeSwitch ? themeFrom(req) : null;
+  const html = (body: string) => new Response(body, { headers: view.headers });
+
+  if (path === "_site/style.css") return new Response(await stylesheet(), { headers: { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" } });
+  if (path === "_site/theme" && f.themeSwitch) {
+    // Light, dark or the device's own, kept in a cookie for this site: pages run no script.
+    const url = new URL(req.url);
+    const to = url.searchParams.get("to");
+    const back = url.searchParams.get("back") ?? "";
+    const safeBack = back.split("/").some((s) => s === ".." || s === ".") || /^\/|:|\\/.test(back) ? "" : back;
+    const secure = isSecure(req) ? "; Secure" : "";
+    const value = to === "light" || to === "dark" ? `${THEME_COOKIE}=${to}; Max-Age=31536000` : `${THEME_COOKIE}=; Max-Age=0`;
+    return new Response(null, { status: 303, headers: { Location: view.base + encodePath(safeBack), "Set-Cookie": `${value}; Path=${view.base}; HttpOnly; SameSite=Lax${secure}`, "Cache-Control": "no-store" } });
+  }
+
+  const pages = f.sidebar ? await view.pages() : null;
+  const page = (from: string, title: string, main: string, isPage = false) => html(shell(view, from, title, main, { isPage, theme, pages }));
+  if (path === "" || path === "_site/pages") {
+    const all = pages ?? (await view.pages());
+    const homePath = path === "" ? HOME.map((h) => all.find((p) => p.path.toLowerCase() === h)).find(Boolean)?.path : undefined;
+    const home = homePath ? await view.page(homePath) : null;
+    if (home) return page("", view.title, pageMain(view, home, ""));
+    const from = path === "" ? "" : "_site/pages";
+    const title = path === "" ? view.title : "All pages";
+    return page(from, title, `<h1>${esc(title)}</h1>\n${pagesList(all, from)}`);
+  }
+  if (f.tags && (path === "_site/tags" || path.startsWith("_site/tags/"))) {
+    const all = pages ?? (await view.pages());
+    const from = path;
+    const root = rootFrom(from);
+    if (path === "_site/tags") {
+      const counts = new Map<string, number>();
+      for (const p of all) for (const t of p.meta.tags ?? []) counts.set(t, (counts.get(t) ?? 0) + 1);
+      const list = [...counts.entries()].sort(([a], [b]) => a.localeCompare(b));
+      const main = list.length ? `<ul class="site-tag-list">${list.map(([t, n]) => `<li><a class="tag" href="${esc(root + "_site/tags/" + encodeURIComponent(t))}">#${esc(t)}</a> <span class="site-count">${n}</span></li>`).join("")}</ul>` : "<p>No page has a tag.</p>";
+      return page(from, "Tags", `<h1>Tags</h1>\n${main}`);
+    }
+    const tag = path.slice("_site/tags/".length).toLowerCase();
+    const tagged = all.filter((p) => p.meta.tags?.includes(tag));
+    if (!tagged.length) return notFound(view.headers);
+    return page(from, `#${tag}`, `<h1>#${esc(tag)}</h1>\n${pagesList(tagged, from)}`);
+  }
+
+  const p = await view.page(path);
+  if (p) return page(path, p.title, pageMain(view, p, path), true);
+  const file = await view.file(path);
+  if (file)
+    return new Response(new Uint8Array(file.data), {
+      headers: { "Content-Type": file.mime, "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex", "Content-Security-Policy": "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox" },
+    });
+  return notFound(view.headers);
+}
+
 export async function serveSite(req: Request): Promise<Response> {
   if (req.method !== "GET" && req.method !== "HEAD") return new Response(null, { status: 405, headers: { Allow: "GET, HEAD" } });
   const url = new URL(req.url);
@@ -671,23 +912,63 @@ export async function serveSite(req: Request): Promise<Response> {
   } catch {
     return notFound();
   }
-  const meta = { title: String(site.settings.title ?? "") || "Notes" };
+  const vaultId = site.vault_id as number;
+  let list: Promise<SitePage[]> | null = null;
+  const view: SiteView = {
+    base: `/p/${m[1]}/`,
+    title: String(site.settings.title ?? "") || "Notes",
+    features: (site.settings.features as SiteFeatures | undefined) ?? {},
+    tz: typeof site.settings.tz === "string" ? site.settings.tz : undefined,
+    headers: PAGE_HEADERS,
+    pages: () => (list ??= sql<SitePage[]>`select path, title, meta from site_pages where vault_id = ${vaultId} order by lower(path)`.then((r) => [...r])),
+    page: async (path) => ((await sql`select path, title, html, meta from site_pages where vault_id = ${vaultId} and path = ${path}`)[0] as (SitePage & { html: string }) | undefined) ?? null,
+    file: async (path) => ((await sql`select mime, data from site_files where vault_id = ${vaultId} and path = ${path}`)[0] as { mime: string; data: Uint8Array } | undefined) ?? null,
+  };
+  return respond(view, req, path);
+}
 
-  if (path === "_site/style.css") return new Response(await stylesheet(), { headers: { "Content-Type": "text/css; charset=utf-8", "Cache-Control": "public, max-age=300", "X-Content-Type-Options": "nosniff" } });
-  if (path === "" || path === "_site/pages") {
-    const pages = await sql<{ path: string; title: string; html: string }[]>`select path, title, html from site_pages where vault_id = ${site.vault_id} order by lower(path)`;
-    const home = path === "" ? HOME.map((h) => pages.find((p) => p.path.toLowerCase() === h)).find(Boolean) : undefined;
-    if (home) return new Response(shell(meta, "", meta.title, `<h1>${esc(home.title)}</h1>\n${home.html}`), { headers: PAGE_HEADERS });
-    const from = path === "" ? "" : "_site/pages";
-    return new Response(shell(meta, from, path === "" ? meta.title : "All pages", `<h1>${esc(path === "" ? meta.title : "All pages")}</h1>\n${pagesList(pages, from)}`), { headers: PAGE_HEADERS });
+/** The preview in Settings → Website: what Publish would make now, from the notes as they are and
+ *  publish.json, for the owner only. Scripts (dataviewjs) show as code until Publish runs them. */
+export async function previewSite(vaultId: number, req: Request): Promise<Response> {
+  const base = `/api/vaults/${vaultId}/site/preview/`;
+  let path: string;
+  try {
+    path = decodeURIComponent(new URL(req.url).pathname.slice(base.length));
+  } catch {
+    return notFound(PREVIEW_HEADERS);
   }
-
-  const [page] = await sql`select title, html from site_pages where vault_id = ${site.vault_id} and path = ${path}`;
-  if (page) return new Response(shell(meta, path, page.title, `<h1>${esc(page.title)}</h1>\n${page.html}`, true), { headers: PAGE_HEADERS });
-  const [file] = await sql`select mime, data from site_files where vault_id = ${site.vault_id} and path = ${path}`;
-  if (file)
-    return new Response(new Uint8Array(file.data), {
-      headers: { "Content-Type": file.mime, "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff", "X-Robots-Tag": "noindex", "Content-Security-Policy": "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox" },
-    });
-  return notFound();
+  const p = await plan(vaultId);
+  if (p.error || !p.pages.length) {
+    const why = p.error ?? "Nothing to show yet: the chosen folders have no notes, or every note says publish: false.";
+    return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Preview</title></head><body><p>${esc(why)}</p></body></html>`, { headers: PREVIEW_HEADERS });
+  }
+  const [vault] = await sql`select name from vaults where id = ${vaultId}`;
+  const features = p.settings.features ?? {};
+  const ctx: RenderCtx = {
+    all: (await listNotes(vaultId)) as RenderCtx["all"],
+    published: new Map(p.pages.map((n) => [n.id, n])),
+    files: p.files,
+    dv: publishedVault(p),
+    offset: 0,
+    frozen: new Map(),
+    features,
+  };
+  const backlinks = backlinkMap(p.pages, ctx.all);
+  const byPath = new Map(p.pages.map((n) => [pagePath(n.path), n]));
+  const view: SiteView = {
+    base,
+    title: p.settings.title || vault!.name,
+    features,
+    headers: PREVIEW_HEADERS,
+    pages: async () => p.pages.map((n) => ({ path: pagePath(n.path), title: n.title, meta: pageMeta(n, backlinks) })),
+    page: async (path) => {
+      const n = byPath.get(path);
+      if (!n) return null;
+      const toc: TocEntry[] = [];
+      const html = renderNote(n, path, ctx, 0, toc);
+      return { path, title: n.title, html, meta: { ...pageMeta(n, backlinks), toc } };
+    },
+    file: async (path) => (p.files.includes(path) ? (((await sql`select mime, data from attachments where vault_id = ${vaultId} and path = ${path}`)[0] as { mime: string; data: Uint8Array } | undefined) ?? null) : null),
+  };
+  return respond(view, req, path);
 }

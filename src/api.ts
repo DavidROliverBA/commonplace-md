@@ -606,8 +606,27 @@ export const apiRoutes = {
   "/api/vaults/:v/site/settings": {
     PUT: route(async (ctx) => {
       const { vaultId, user } = await vaultCtx(ctx, "owner");
-      const { include } = await body(ctx.req, z.object({ include: z.array(z.string().max(512)).max(1000) }));
-      return site.saveSettings(vaultId, user.id, include);
+      const change = await body(
+        ctx.req,
+        z.object({
+          include: z.array(z.string().max(512)).max(1000).optional(),
+          features: z.object(Object.fromEntries(site.FEATURES.map((f) => [f, z.boolean().optional()])) as Record<site.Feature, z.ZodOptional<z.ZodBoolean>>).optional(),
+        }),
+      );
+      return site.saveSettings(vaultId, user.id, change);
+    }),
+  },
+  // The builder's preview: what Publish would make now, as pages framed by Settings → Website.
+  "/api/vaults/:v/site/preview": {
+    GET: route(async (ctx) => {
+      await vaultCtx(ctx, "owner");
+      return new Response(null, { status: 308, headers: { Location: `${ctx.url.pathname}/` } });
+    }),
+  },
+  "/api/vaults/:v/site/preview/*": {
+    GET: route(async (ctx) => {
+      const { vaultId } = await vaultCtx(ctx, "owner");
+      return site.previewSite(vaultId, ctx.req);
     }),
   },
   "/api/vaults/:v/site/publish": {

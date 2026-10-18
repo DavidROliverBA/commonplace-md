@@ -79,6 +79,69 @@ claims speed at 10,000 notes but nothing measures it; the backup has never been 
 - **Stream the backup zip (done 2026-10-13):** `/api/backup` streams; a 472 MB backup peaked at
   315 MB of server memory (148 MB at rest), against the whole zip held before.
 
+### N14 — Holding delete in the editor stops after one character on the iPhone
+
+**Size** M · **Evidence** reported 2026-10-17 on an iPhone (iOS 18.7), in every note; the
+note's title field (a plain input) repeats fine; tests below
+
+**What's known (2026-10-17):**
+- **CodeMirror alone is fine.** A test page (an artifact, CodeMirror 6.43.14 bundled from our
+  `node_modules`: a textarea, a contenteditable, bare CodeMirror, and CodeMirror with
+  `drawSelection`, `lineWrapping` and history) kept deleting in all four boxes on the iPhone,
+  with text already there and straight after typing. There, iOS sends `keydown`
+  (`repeat=true`) about every 100 ms, each followed by a native `deleteContentBackward` (later
+  `deleteWordBackward`) and CodeMirror's synthetic keydown (`pendingIOSKey` / `flushIOSKey`).
+- **In the app it comes and goes.** A readout on the screen (`?cm-off=trace`, below) caught it
+  once: a single press after typing a word gave one `keydown`, its `keyup` ~20 ms later, one
+  native `deleteContentBackward`, CodeMirror's synthetic keydown, and then nothing more from
+  iOS although the key was still held. No viewport event, write of `--vvh` or scroll happened
+  in between. Another run, holding delete on text already there, kept going: separate
+  keydown/keyup pairs every ~150–200 ms with no `beforeinput`, so CodeMirror's command did each
+  delete.
+- **The switch tests are suggestive, not proof** (one try each, while the bug is
+  intermittent): everything off but syncing worked; with Live Preview and in-note controls off,
+  keys and completion off, or markdown and display helpers off, it still stopped; with the
+  visual-viewport fit (`web/main.tsx`) off it worked; within that, with `--vvh` writes off it
+  worked and with the scroll-back off it didn't. Two fixes on that basis (write `--vvh` only
+  when it changes and not until 0.4 s, then 1 s, after the last key) didn't help, so the
+  `--vvh` result was probably chance, or it's the shrunk layout rather than the write.
+- **Not it:** the block handle (it read layout in `update()`, fixed in v0.0.42 anyway), the
+  app's key shortcuts (`App.tsx`), y-codemirror's remote cursors, nothing reproduces in Chrome
+  (also not with iOS's user agent and touch points faked). In Chrome made to take
+  CodeMirror's iOS path, each keystroke changed only the text, the cursor layer, and the
+  content's `style.height` set and cleared during the redraw (`updateInner`).
+- **A lead:** a ProseMirror report of the same thing on mobile Safari, where holding delete
+  stopped after one character when the cursor sat next to image nodes
+  (discuss.prosemirror.net, "Holding down delete results in unexpected behavior"). Live
+  Preview puts widgets in the text, but turning it off didn't clearly fix it here.
+
+- **Best lead: Grammarly** (suggested 2026-10-17, not yet tried). It fits: it works on
+  multi-line editable text but tends to leave one-line inputs like the title alone; it likely doesn't run in the
+  test page's sandboxed claude.ai frame; it changes the page around the text on its own
+  timing, which would make the bug come and go and would explain the mixed switch results.
+  Try first: holding delete with Grammarly's Safari extension off (Settings › Apps › Safari ›
+  Extensions) and with Apple's keyboard. If that's it, the fix is to mark the editor with
+  `data-gramm="false"`, `data-gramm_editor="false"` and `data-enable-grammarly="false"` (an
+  `EditorView.contentAttributes`), which turns Grammarly off in notes: ask first.
+
+**Still in the code, temporary:** `web/lib/debugOff.ts` — `?cm-off=a,b` turns parts of the
+editor off for the tab (names in `Editor.tsx`: `lp`, `handle`, `link`, `field`, `wiki`, `tag`,
+`keys`, `mdkeys`, `brackets`, `complete`, `md`, `drawsel`, `drop`, `indent`, `match`, `select`,
+`wrap`, `placeholder`, `collab`, `all`; and in `main.tsx`: `vv`, `vvh`, `vvscroll`), `trace`
+shows the readout, `?cm-off=` clears it. The `--vvh` change (only on change, 1 s after the last
+key) is live too. Take both out, or keep the `--vvh` change, when this is settled.
+
+**Next:** test each setting three times with the same steps (type a word, then hold delete; and
+hold delete on text already there), with the results saved rather than screenshotted (the
+trace writing into a note, or Safari's Web Inspector with the iPhone plugged into the Mac),
+and record DOM mutations on the content element (attributes too), selection changes and
+CodeMirror's transactions while the key is held. Try Safari and the home-screen app as well
+as the in-app browser the tests so far used.
+
+**Done when** holding delete keeps deleting in a note on a real iPhone, in Safari and the
+home-screen app, with Live Preview on; the debug switch is gone; and what caused it is written
+down here or in the CHANGELOG.
+
 ---
 
 ## Next: in this order
@@ -88,7 +151,7 @@ items, chosen by what's used every day (see Ideas, such as `#Type` inline; the h
 line into a typed note and the tour are done).
 
 1. **F19** — choose how and when a GitHub vault's changes go to GitHub (after N11).
-2. **F18** steps 2–4 or **F11** — the site builder, themes and extras, or visual boards. F18
+2. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
    step 1 (publish with one theme) is done.
 3. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
 
@@ -200,7 +263,10 @@ CHANGELOG):
 1. ~~Publish a vault with one theme: choose folders, exclude notes, unlisted link, unpublish.~~
    Still to do from step 1's list: properties marked private (pages show no properties yet), and
    a "publish this note" toggle in the note's ⋯ menu.
-2. The builder: feature toggles with the live preview.
+2. ~~The builder: feature toggles with the live preview.~~ Done 2026-10-18, v0.0.43: page list,
+   contents, backlinks, tag pages, last updated, reading time, light and dark switch. Hover
+   previews need script, which pages don't run, so they're left out; search, graph and RSS are
+   step 4.
 3. Themes and customisation (colours, fonts, logo, home page).
 4. Extras: search, graph, RSS, and a **custom domain as an option (decided 2026-10-12)**: you
    enter a domain such as `notes.example.com`, the builder shows the DNS record to add, the
@@ -448,6 +514,8 @@ From the brainstorm of 2026-10-11 (sizes rough; each must meet [PRINCIPLES.md](P
 
 ## Decided against
 
+- **Hover previews on published sites (F18, 2026-10-18):** they need script, and published pages
+  run none (the CSP allows none, so nothing on a page can act as the app). Links go to the page.
 - **Database storage autoscaling (2026-10-12):** kept off on purpose. While Commonplace is in
   development there's no reason to pass 1 GB, and storage never shrinks once added, so a
   runaway write would quietly raise the bill for good. The server guards the disk itself

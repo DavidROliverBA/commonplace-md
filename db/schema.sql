@@ -356,6 +356,8 @@ create table if not exists site_pages (
   source_md5 text not null, -- the note's text when published, for "changed since you published"
   primary key (vault_id, path)
 );
+-- What a page shows beside its text (F18 step 2): contents, backlinks, tags, date, word count.
+alter table site_pages add column if not exists meta jsonb not null default '{}';
 -- Copies of the files the published pages show, taken at Publish.
 create table if not exists site_files (
   vault_id bigint not null references sites(vault_id) on delete cascade,

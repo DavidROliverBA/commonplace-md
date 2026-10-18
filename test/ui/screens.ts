@@ -55,7 +55,7 @@ try {
   const kitchen = await api(`/vaults/${vaultId}/notes`, {
     path: "Projects/Kitchen/Kitchen plan.md",
     content:
-      "---\ntags: [home, kitchen]\nstatus: in progress\nbudget: 7500\ndue: 2026-11-30\n---\n# Kitchen plan\n\nAgreed with [[Contractors|our builders]]: **quartz** worktops, *oak* floor, and ==new lighting==.\n\n> [!tip] Decision\n> Go with the quartz.\n\n## Tasks\n- [x] Get quotes\n- [ ] Choose tiles\n- [ ] Book the electrician\n\n| Item | Cost |\n|---|---:|\n| Units | £4,200 |\n| Worktops | £1,900 |\n",
+      "---\ntags: [home, kitchen]\nstatus: in progress\nbudget: 7500\ndue: 2026-11-30\n---\n# Kitchen plan\n\nAgreed with [[Contractors|our builders]]: **quartz** worktops, *oak* floor, and ==new lighting==.\n\n> [!tip] Decision\n> Go with the quartz.\n\n## Tasks\n- [x] Get quotes\n- [ ] Choose tiles\n- [ ] Book the electrician\n\n## Costs\n\n| Item | Cost |\n|---|---:|\n| Units | £4,200 |\n| Worktops | £1,900 |\n",
   });
   await api(`/vaults/${vaultId}/notes`, { path: "Recipes/Pancakes.md", content: "# Pancakes\n\n- 100 g flour\n- 2 eggs\n- 300 ml milk" });
   // Types (F16): People and Meetings, related.
@@ -86,7 +86,8 @@ try {
 
   // A published site (F18): Projects and Recipes, then a later edit, so Settings → Website has a
   // change to list.
-  await api(`/vaults/${vaultId}/site/settings`, { include: ["Projects", "Recipes"] }, "PUT");
+  const features = { sidebar: true, contents: true, backlinks: true, tags: true, updated: true, readingTime: true, themeSwitch: true };
+  await api(`/vaults/${vaultId}/site/settings`, { include: ["Projects", "Recipes"], features }, "PUT");
   const { slug } = await api(`/vaults/${vaultId}/site/publish`, {});
   await api(`/vaults/${vaultId}/notes`, { path: "Recipes/Flapjacks.md", content: "# Flapjacks\n\n- oats\n- golden syrup" });
 
@@ -309,6 +310,11 @@ try {
       await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".settings-nav button")].find((b) => b.textContent?.startsWith("Website"))!.click());
       await p.waitForSelector(".site-live");
       await shot(p, `${tag}-7c-website`);
+      // The builder: its features and the preview.
+      await p.evaluate(() => document.querySelector(".site-features")!.scrollIntoView());
+      await p.waitForFunction(() => !!document.querySelector<HTMLIFrameElement>("iframe.site-preview")?.contentDocument?.querySelector("h1"));
+      await Bun.sleep(300);
+      await shot(p, `${tag}-7d-website-builder`);
       await p.keyboard.press("Escape");
       await p.evaluate(() => document.querySelector<HTMLElement>(".modal-backdrop")?.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true })));
       await p.keyboard.down("Meta");

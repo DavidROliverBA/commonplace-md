@@ -119,7 +119,9 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are
   worked out at Publish from the published notes only); a note with `publish: false` stays out, and a link to a note that isn't published shows
   as plain words. Publishing takes a copy, so your edits stay private until you publish again;
-  Settings lists what a republish would add, change or take down. Unlisted (search engines are
+  Settings lists what a republish would add, change or take down. Features to switch on, with a
+  preview of the pages beside them: a page list, contents, backlinks, tag pages, last-updated
+  dates, reading time and a light and dark switch. Unlisted (search engines are
   asked to leave it out), and taking it down has an Undo. The choice is kept in `publish.json`,
   so it goes with an export or a GitHub repo.
 - **GitHub vaults:** open a repository of markdown (or one folder of it, such as `docs/`) as a

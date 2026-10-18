@@ -4,6 +4,17 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-18** — The website builder: F18 step 2 (release v0.0.43; `src/publish.ts`,
+  `web/components/SiteSettings.tsx`). Settings → Website gains seven features to switch on, each
+  off until chosen and kept in `publish.json`: a page list (beside the text, after it on a phone),
+  a contents list of a page's headings, backlinks from published pages, tag pages
+  (`_site/tags/…`), last-updated dates, reading time, and a light and dark switch. Pages still
+  run no script: the switch is three links that set a cookie for the site. A preview beside the
+  switches shows the pages Publish would make, from the notes as they are, to the owner only
+  (`/api/vaults/:v/site/preview/…`, framed with no scripts); a feature changes the preview at once
+  and the site at the next Publish. Each page's details are worked out at Publish into
+  `site_pages.meta`, from the text the page shows, so hidden text and unpublished notes add no
+  backlink or tag. Hover previews need script, so they aren't on offer.
 - **2026-10-17** — iPhone: holding the delete key should keep deleting (release v0.0.42;
   `web/lib/blockHandle.ts`). On a phone the block handle moved beside the cursor's block on every
   keystroke, measuring the line in the middle of CodeMirror's update, before the text was redrawn;

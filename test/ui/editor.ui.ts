@@ -1819,6 +1819,20 @@ describe("website (F18)", () => {
     await p.waitForSelector(".site-folders");
     await p.evaluate(() => [...document.querySelectorAll<HTMLLabelElement>(".site-folders label")].find((l) => l.textContent?.trim() === "Garden")!.click());
     await p.waitForFunction(() => document.querySelector(".modal")?.textContent?.includes("2 notes and 0 files"));
+
+    // The builder: each feature switched on shows in the preview before anything is published.
+    const preview = async () => (await (await p.$("iframe.site-preview"))!.contentFrame())!;
+    await (await preview()).waitForSelector("h1");
+    expect(await (await preview()).$(".site-sidebar")).toBeNull();
+    const boxes = await p.$$eval(".site-features input", (b) => b.length);
+    expect(boxes).toBe(7);
+    for (let i = 0; i < boxes; i++) {
+      await p.click(`.site-features li:nth-child(${i + 1}) input`);
+      await p.waitForFunction((n) => document.querySelectorAll(".site-features input:checked").length === n && !document.querySelector(".site-features input:disabled"), {}, i + 1);
+    }
+    await (await preview()).waitForSelector(".site-sidebar");
+    expect(await (await preview()).$$eval(".site-sidebar a", (as) => as.map((a) => a.textContent))).toEqual(["Roses", "Winter jobs"]);
+    expect(await (await preview()).$(".site-theme")).not.toBeNull();
     await button(p, "Publish");
     await p.waitForSelector(".site-live a");
     const url = await p.$eval(".site-live a", (a) => (a as HTMLAnchorElement).href);

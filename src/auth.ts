@@ -35,7 +35,7 @@ export function cookieValue(req: Request, name: string): string | undefined {
   return undefined;
 }
 
-function isSecure(req: Request): boolean {
+export function isSecure(req: Request): boolean {
   if (settings.cookieSecure !== undefined) return settings.cookieSecure;
   const proto = req.headers.get("x-forwarded-proto") ?? new URL(req.url).protocol.replace(":", "");
   return proto === "https";
