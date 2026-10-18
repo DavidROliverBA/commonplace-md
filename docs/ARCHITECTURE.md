@@ -187,6 +187,15 @@ reads the open folder, and reuses Live Preview, the renderer, embeds, dialogs an
 they are. Chrome and Edge write changes back through the File System Access API; other browsers
 keep edits in the tab and download them as a zip. See `standalone/README.md`.
 
+**Help** (`docs/help/*.md`, `web/lib/help.ts`, `web/components/Help.tsx`): the user guide is
+Markdown pages with Mermaid diagrams and screenshots, read on GitHub as they are and bundled into
+the client as text, where the note renderer draws them in a Settings-like screen (the ? in the
+file panel, or ⌘K → Help). The app serves the pictures at `/help/images/`; the standalone build
+swaps `web/lib/helpImages.ts` for a module with the pictures of its own pages (those marked
+`standalone: true`) inside the file. `bun run help:shots` retakes the pictures from the real app,
+and `test/help.test.ts` checks that every page, link and picture is there and that the shortcuts
+page lists every command's shortcut.
+
 **Mermaid diagrams** (`web/lib/mermaid.ts`): the renderer turns a ```` ```mermaid ```` block into a
 placeholder holding its source, and the embed step (reading view) or a Live Preview widget draws
 it. Mermaid's own browser build isn't bundled: the app serves it at `/vendor/mermaid.js`

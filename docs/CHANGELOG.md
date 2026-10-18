@@ -4,6 +4,19 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-18** — Help (release v0.0.44; `docs/help/`, `web/lib/help.ts`,
+  `web/components/Help.tsx`): a user guide of 17 pages with Mermaid diagrams and 35 screenshots
+  taken from the real app (`bun run help:shots`). The same Markdown is the Help screen in the app
+  (the ? at the bottom of the file panel, ⌘K → Help or Keyboard shortcuts), the Help in the
+  standalone file (its 8 pages, pictures inside the file) and pages on GitHub. Mermaid's dark
+  theme gets a darker edge-label box, to meet WCAG AA contrast. `test/help.test.ts` checks pages,
+  links, pictures and shortcuts; the UI tests open Help on a laptop and an iPhone and in the
+  standalone file, and axe checks it in both themes.
+- **2026-10-18** — Two demo vaults in `demo/` (`bun run demo` zips them into `demo/dist/`):
+  *The Allotment Notebook*, a personal notebook that publishes whole with every website feature on,
+  and *Harbour Studio*, a studio's people, projects and meetings as types, publishing only its
+  handbook. `test/e2e.test.ts` imports and publishes both and checks every page, and that
+  nothing private reaches the site.
 - **2026-10-18** — The website builder: F18 step 2 (release v0.0.43; `src/publish.ts`,
   `web/components/SiteSettings.tsx`). Settings → Website gains seven features to switch on, each
   off until chosen and kept in `publish.json`: a page list (beside the text, after it on a phone),

@@ -771,6 +771,53 @@ describe("commands: the / menu and ⌘K", () => {
   });
 });
 
+describe("help", () => {
+  beforeAll(freshBrowser);
+  const heading = (p: Page) => p.$eval(".help-page h1", (e) => e.textContent);
+
+  test("opens from the file panel and ⌘K; links go between pages; pictures load and diagrams draw", async () => {
+    const p = await open(`/v/${vaultId}`);
+    await p.waitForSelector(".tree-row");
+    await p.click('.sidebar-foot [aria-label="Help"]');
+    await p.waitForSelector(".help-page h1");
+    expect(await heading(p)).toBe("Help");
+    expect(await p.$$eval(".help-nav button", (b) => b.length)).toBe(17);
+    await p.waitForFunction(() => !!document.querySelector(".help-page .mermaid-diagram")?.shadowRoot?.querySelector("svg"));
+    await p.evaluate(() => [...document.querySelectorAll<HTMLAnchorElement>(".help-page a.internal-link")].find((a) => a.textContent === "Links and embeds")!.click());
+    await p.waitForFunction(() => document.querySelector(".help-page h1")?.textContent === "Links and embeds");
+    expect(await p.$eval(".help-nav button.on", (b) => b.textContent)).toBe("Links and embeds");
+    await p.waitForFunction(() => {
+      const imgs = [...document.querySelectorAll<HTMLImageElement>(".help-page img")];
+      return imgs.length > 0 && imgs.every((i) => i.complete && i.naturalWidth > 0);
+    });
+    await p.keyboard.press("Escape");
+    await until(async () => !(await p.$(".help")));
+    await p.keyboard.down("Meta");
+    await p.keyboard.press("k");
+    await p.keyboard.up("Meta");
+    await p.waitForSelector(".palette input");
+    await p.keyboard.type("keyboard shortcuts");
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => document.querySelector(".help-page h1")?.textContent === "Keyboard shortcuts");
+    await p.close();
+  });
+
+  test("on a phone the topics come first, and a page opens in their place with a way back", async () => {
+    const p = await openNote((await note("Help on a phone.md", "# Help on a phone\n")).id, true);
+    await p.click('button[aria-label="Files"]');
+    await Bun.sleep(400); // the drawer slides in
+    await p.click('.sidebar-foot [aria-label="Help"]');
+    await p.waitForSelector(".help-nav button");
+    expect(await p.$(".help-page")).toBeNull();
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === "On the iPhone")!.click());
+    await p.waitForFunction(() => document.querySelector(".help-page h1")?.textContent === "On the iPhone");
+    expect(await p.$eval(".help-nav", (n) => getComputedStyle(n).display)).toBe("none");
+    await p.click(".settings-back");
+    await p.waitForFunction(() => !document.querySelector(".help-page") && !!document.querySelector(".help-nav button"));
+    await p.close();
+  });
+});
+
 describe("block handle (F12)", () => {
   beforeAll(freshBrowser);
   const raw = async (id: number) => (await api(`/vaults/${vaultId}/notes/${id}`)).content as string;
@@ -1770,6 +1817,21 @@ describe("accessibility (axe)", () => {
         await (b as any).click();
         await Bun.sleep(300);
         problems.push(...(await audit(p, `laptop ${scheme} Settings → ${label}`, ".modal")));
+      }
+      await p.close();
+    }
+    // The help: its start, a page with pictures and one with tables, in both themes.
+    for (const scheme of ["light", "dark"] as const) {
+      const p = await open(`/v/${vaultId}`);
+      await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
+      await p.waitForSelector(".tree-row");
+      await p.click('.sidebar-foot [aria-label="Help"]');
+      await p.waitForSelector(".help-page h1");
+      for (const label of ["Help", "Writing notes", "Keyboard shortcuts"]) {
+        await p.evaluate((l) => [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === l)!.click(), label);
+        await p.waitForFunction((l) => document.querySelector(".help-page h1")?.textContent === l, {}, label);
+        await Bun.sleep(300);
+        problems.push(...(await audit(p, `laptop ${scheme} Help → ${label}`, ".modal")));
       }
       await p.close();
     }

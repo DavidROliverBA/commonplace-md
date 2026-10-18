@@ -5,3 +5,4 @@ node_modules
 screens/
 .restore-test/
 standalone/dist/
+demo/dist/

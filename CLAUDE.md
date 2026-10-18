@@ -93,6 +93,15 @@ browser `alert`/`confirm`/`prompt`, works on the iPhone, light and dark, undo ov
 - **Look before you ship UI:** `bun run screens` and check the laptop and phone shots in both
   themes.
 
+## Help
+
+`docs/help/*.md` is the user guide, shown in the app, the standalone file and on GitHub. When a
+feature changes what someone sees or does, update its help page in the same change, and retake
+the pictures with `bun run help:shots` (the shots are listed in `test/ui/screens.ts`).
+`test/help.test.ts` fails on a missing page, link or picture, or a command shortcut the
+shortcuts page doesn't list. Mark a page `standalone: true` only if it holds for the standalone
+file; its pictures go inside that file, so keep them few.
+
 ## Backlog
 
 `docs/BACKLOG.md` is the list of what to do next, with **Now** (risks) before features. When

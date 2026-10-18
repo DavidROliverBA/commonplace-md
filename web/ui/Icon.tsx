@@ -27,6 +27,7 @@ const PATHS: Record<string, string> = {
   file: "M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6",
   chevron: "M9 18l6-6-6-6",
   "chevron-left": "M15 18l-6-6 6-6",
+  help: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01",
   template: "M4 4h16v5H4zM4 13h7v7H4zM15 13h5M15 17h5",
   heading: "M6 4v16M18 4v16M6 12h12",
   "list-ordered": "M10 6h11M10 12h11M10 18h11M4 6h1v4M4 10h2M6 18H4c0-1 2-2 2-3s-1-1.5-2-1",

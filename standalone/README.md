@@ -4,7 +4,7 @@ Commonplace as a single HTML file that edits a folder of Markdown files. No serv
 database: open the file in a browser, choose a folder, and edit. Nothing is uploaded.
 
 ```sh
-bun run standalone        # writes standalone/dist/commonplace.html (about 1.1 MB)
+bun run standalone        # writes standalone/dist/commonplace.html (about 3.2 MB)
 bun run test:standalone   # builds it and drives it in Chrome
 ```
 
@@ -19,6 +19,8 @@ bun run test:standalone   # builds it and drives it in Chrome
 - Pasted or dropped images are saved in `attachments/`, and `![[image.png]]` shows images from
   the folder.
 - Rename, move and delete notes. Renaming doesn't rewrite links to the note.
+- Help (the ? beside the folder's name): the help pages that apply to the standalone file, with
+  their pictures inside the file.
 
 ## Browsers
 

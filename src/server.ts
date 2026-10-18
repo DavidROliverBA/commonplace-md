@@ -107,6 +107,7 @@ function guarded<T extends Record<string, unknown>>(table: T): T {
   return out as T;
 }
 
+const HELP_IMAGES = join(import.meta.dir, "..", "docs", "help", "images");
 const MERMAID_JS = join(dirname(Bun.resolveSync("mermaid/package.json", import.meta.dir)), "dist", "mermaid.min.js");
 
 let shellCache: Promise<{ body: ArrayBuffer; type: string }> | null = null;
@@ -162,6 +163,13 @@ const server = Bun.serve<CollabData>({
       // Mermaid's browser build (web/lib/mermaidLib.ts), fetched the first time a note has a diagram.
       "/vendor/mermaid.js": () =>
         new Response(Bun.file(MERMAID_JS), { headers: { "Content-Type": "text/javascript; charset=utf-8", "Cache-Control": "public, max-age=86400" } }),
+      // The help's pictures (docs/help/images/, shown by web/components/Help.tsx).
+      "/help/images/:name": (req: Bun.BunRequest<"/help/images/:name">) => {
+        const name = req.params.name;
+        if (!/^[a-z0-9-]+\.webp$/.test(name)) return new Response("Not found", { status: 404 });
+        const file = Bun.file(join(HELP_IMAGES, name));
+        return file.size ? new Response(file, { headers: { "Content-Type": "image/webp", "Cache-Control": "public, max-age=86400", "X-Content-Type-Options": "nosniff" } }) : new Response("Not found", { status: 404 });
+      },
       "/health": async () => {
         await sql`select 1`;
         return Response.json({ ok: true });

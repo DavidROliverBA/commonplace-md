@@ -1,6 +1,6 @@
 {
   "name": "commonplace",
-  "version": "0.0.43",
+  "version": "0.0.44",
   "private": true,
   "description": "A multi-user Markdown knowledge base on Postgres + pgvector, with a web UI for laptop and iPhone.",
   "author": "David Oliver",
@@ -15,7 +15,9 @@
     "test": "bun test",
     "test:ui": "bun test --timeout 30000 ./test/ui/editor.ui.ts",
     "screens": "bun test/ui/screens.ts",
+    "help:shots": "bun test/ui/screens.ts screens --help",
     "bench": "bun scripts/bench.ts",
+    "demo": "bun scripts/demo.ts",
     "standalone": "bun standalone/build.ts",
     "test:standalone": "bun test --timeout 30000 ./test/ui/standalone.ui.ts"
   },

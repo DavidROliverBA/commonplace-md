@@ -1,6 +1,7 @@
 // Screenshots of the main screens on a laptop and an iPhone, in light and dark, for checking the
 // design against docs/PRINCIPLES.md. Not a test: `bun run screens [out-dir]` (default ./screens,
-// gitignored). Like the UI tests it needs Chrome and the docker database, on which it drops and
+// gitignored). `bun run screens --help` also writes the help's pictures (docs/help/images/, light
+// only), including one of the standalone file. Like the UI tests it needs Chrome and the docker database, on which it drops and
 // recreates its own scratch database, `commonplace_screens`.
 
 import { mkdirSync } from "node:fs";
@@ -9,13 +10,53 @@ import postgres from "postgres";
 import puppeteer, { type Page } from "puppeteer-core";
 import { startFakeAi } from "../fakeAi";
 import { startFakeGitHub, TOKEN } from "../fakeGitHub";
+import { demoFiles } from "../../scripts/demo";
 import { chromePath } from "./chrome";
 
 const PORT = 3399;
 const BASE = `http://localhost:${PORT}`;
 const ADMIN_DB = process.env.UI_ADMIN_DATABASE_URL ?? "postgres://commonplace:commonplace@localhost:5434/commonplace";
 const DB = ADMIN_DB.replace(/\/[^/]+$/, "/commonplace_screens");
-const OUT = process.argv[2] ?? "screens";
+const OUT = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "screens";
+const HELP = process.argv.includes("--help");
+const HELP_DIR = "docs/help/images";
+/** The shots the help pages show (docs/help/*.md), and their names there. */
+const HELP_SHOTS: Record<string, string> = {
+  "laptop-light-1-home": "vault-home",
+  "laptop-light-2-note": "live-preview",
+  "laptop-light-2c-focus-mode": "focus-mode",
+  "laptop-light-3-menu": "note-menu",
+  "laptop-light-3b-slash": "slash-menu",
+  "laptop-light-3c-palette": "command-palette",
+  "laptop-light-3e-block-menu": "block-menu",
+  "laptop-light-4-files": "file-panel",
+  "laptop-light-6-toast": "undo-toast",
+  "laptop-light-7b-settings": "settings",
+  "laptop-light-7c-website": "website-settings",
+  "laptop-light-7d-website-builder": "website-builder",
+  "laptop-light-8-ai-panel": "ai-panel",
+  "laptop-light-8c-inline": "ai-inline",
+  "laptop-light-9-boyai": "add-assistant",
+  "laptop-light-10-type-page": "type-page",
+  "laptop-light-10b-typed-note": "typed-note",
+  "laptop-light-10c-type-editor": "type-editor",
+  "laptop-light-10d-new-type": "new-type",
+  "laptop-light-11-embed-card": "embeds",
+  "laptop-light-12-tasks": "tasks",
+  "laptop-light-12b-mentions": "links-panel",
+  "laptop-light-13-branch-bar": "github-branch-bar",
+  "laptop-light-13b-changes": "github-changes",
+  "laptop-light-13c-pull-request": "github-pull-request",
+  "laptop-light-14-site-page": "published-page",
+  "laptop-light-15-graph": "graph",
+  "laptop-light-16-diagram": "diagram-and-query",
+  "laptop-light-17-search": "search",
+  "laptop-light-18-history": "history",
+  "phone-light-2-note": "phone-note",
+  "phone-light-4-files": "phone-files",
+  "phone-light-7-share-setup": "phone-share-setup",
+};
+if (HELP) mkdirSync(HELP_DIR, { recursive: true });
 mkdirSync(OUT, { recursive: true });
 
 const admin = postgres(ADMIN_DB, { onnotice: () => {} });
@@ -64,6 +105,10 @@ try {
   for (const [name, role, company, phone] of [["Sam Okafor", "Builder", "Okafor & Sons", "07700 900123"], ["Priya Shah", "Designer", "Shah Interiors", "07700 900456"], ["Tom Reed", "Electrician", "Reed Electrical", ""]])
     await api(`/vaults/${vaultId}/notes`, { path: `People/${name}.md`, content: `---\ntype: Person\nrole: ${role}\ncompany: ${company}\n${phone ? `phone: ${phone}\n` : ""}---\n# ${name}\n` });
   const kickoff = await api(`/vaults/${vaultId}/notes`, { path: "Meetings/Kitchen kickoff.md", content: '---\ntype: Meeting\ndate: 2026-10-08\nattendees:\n  - "[[Sam Okafor]]"\n  - "[[Priya Shah]]"\n---\n# Kitchen kickoff\n\n## Agenda\n- Worktops\n- Lighting\n' });
+  const timeline = await api(`/vaults/${vaultId}/notes`, {
+    path: "Projects/Kitchen/Timeline.md",
+    content: '# Timeline\n\n```mermaid\nflowchart LR\n  Q[Quotes] --> O[Order units] --> F[Fit] --> D[Done]\n```\n\nEvery project, from its properties:\n\n```dataview\nTABLE status, due, budget\nFROM "Projects"\nWHERE status\n```\n',
+  });
   const overview = await api(`/vaults/${vaultId}/notes`, { path: "Projects/Kitchen/Overview.md", content: "# Kitchen overview\n\nThe builder:\n\n[[Sam Okafor]]\n\nWhat's left, from the plan:\n\n![[Kitchen plan#Tasks]]\n" });
   await api("/me/assistants", { name: "Claude", provider: "compatible", baseUrl: `${fake.url}/v1`, model: "claude-opus-5-5", apiKey: "screens-fake-key" });
   // One AI exchange: a search, an answer with a link, and a page proposed for approval.
@@ -97,9 +142,10 @@ try {
   const shot = async (p: Page, name: string) => {
     await Bun.sleep(350); // let animations settle
     await p.screenshot({ path: join(OUT, `${name}.png`) });
+    if (HELP && HELP_SHOTS[name]) await p.screenshot({ path: join(HELP_DIR, `${HELP_SHOTS[name]}.webp`) as `${string}.webp`, type: "webp", quality: 72 });
   };
   for (const device of ["laptop", "phone"] as const) {
-    for (const scheme of ["light", "dark"] as const) {
+    for (const scheme of HELP ? (["light"] as const) : (["light", "dark"] as const)) {
       await browser.close();
       browser = await launch();
       const p = await browser.newPage();
@@ -226,6 +272,35 @@ try {
       await p.waitForSelector(".task-list li");
       await shot(p, `${tag}-12-tasks`);
       if (device === "laptop") {
+        await p.goto(`${BASE}/v/${vaultId}/graph`, { waitUntil: "load" });
+        await p.waitForSelector(".graph-canvas");
+        await Bun.sleep(2500);
+        await shot(p, `${tag}-15-graph`);
+        await p.goto(`${BASE}/v/${vaultId}/n/${timeline.id}`, { waitUntil: "load" });
+        await p.waitForFunction(() => !!document.querySelector(".mermaid-diagram")?.shadowRoot?.querySelector("svg"));
+        await p.waitForSelector(".dataview-block table");
+        await shot(p, `${tag}-16-diagram`);
+        await p.keyboard.down("Meta");
+        await p.keyboard.down("Shift");
+        await p.keyboard.press("f");
+        await p.keyboard.up("Shift");
+        await p.keyboard.up("Meta");
+        const q = await p.waitForSelector(".search-panel input");
+        await q!.type("worktops");
+        await p.waitForSelector(".search-results li");
+        await Bun.sleep(400);
+        await shot(p, `${tag}-17-search`);
+        await p.goto(`${BASE}/v/${vaultId}/n/${kitchen.id}`, { waitUntil: "load" });
+        await p.waitForSelector(".cm-content");
+        await p.click('button[aria-label="More"]');
+        await p.waitForSelector(".menu");
+        await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent?.includes("Version history"))!.click());
+        await p.waitForSelector(".history");
+        await Bun.sleep(400);
+        await shot(p, `${tag}-18-history`);
+        await p.keyboard.press("Escape");
+      }
+      if (device === "laptop") {
         await p.goto(`${BASE}/v/${vaultId}/n/${contractors.id}`, { waitUntil: "load" });
         await p.waitForSelector(".cm-content");
         if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
@@ -328,6 +403,22 @@ try {
         await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".assistant-form [role=radio]")].find((b) => b.textContent === "relaxAI")!.click());
         await shot(p, `${tag}-9-boyai`);
       }
+      // Help: its start, and a page with pictures (on a phone, the topics first).
+      await p.goto(`${BASE}/v/${vaultId}/n/${kitchen.id}`, { waitUntil: "load" });
+      await p.waitForSelector(".cm-content");
+      if (device === "phone") {
+        await p.click('button[aria-label="Files"]');
+        await Bun.sleep(400);
+      }
+      await p.click('.sidebar-foot [aria-label="Help"]');
+      await p.waitForSelector(".help-nav button");
+      await Bun.sleep(500);
+      await shot(p, `${tag}-19-help`);
+      await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".help-nav button")].find((b) => b.textContent === "Links and embeds")!.click());
+      await p.waitForFunction(() => document.querySelector<HTMLImageElement>(".help-page img")?.complete); // the first; the rest load lazily
+      await Bun.sleep(300);
+      await shot(p, `${tag}-19b-help-page`);
+      await p.keyboard.press("Escape");
       // The published site, as a reader sees it.
       await p.goto(`${BASE}/p/${slug}/Projects/Kitchen/Kitchen%20plan`, { waitUntil: "load" });
       await shot(p, `${tag}-14-site-page`);
@@ -335,6 +426,46 @@ try {
       await shot(p, `${tag}-14b-site-home`);
       await p.close();
     }
+  }
+  // The standalone file with the allotment demo folder open, for the help's page about it.
+  if (HELP) {
+    const build = Bun.spawnSync(["bun", "standalone/build.ts"]);
+    if (build.exitCode !== 0) throw new Error(build.stderr.toString());
+    const html = Bun.file("standalone/dist/commonplace.html");
+    const file = Bun.serve({ port: PORT + 1, fetch: () => new Response(html, { headers: { "Content-Type": "text/html" } }) });
+    const files = Object.fromEntries(Object.entries(demoFiles("allotment")).map(([k, v]) => [k, new TextDecoder().decode(v)]));
+    const p = await browser.newPage();
+    await p.setViewport({ width: 1280, height: 800 });
+    await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
+    await p.goto(`http://localhost:${PORT + 1}/`);
+    await p.waitForSelector(".login-card");
+    await p.screenshot({ path: join(HELP_DIR, "standalone-welcome.webp") as `${string}.webp`, type: "webp", quality: 72 });
+    await p.evaluate(async (files) => {
+      const root = await navigator.storage.getDirectory();
+      for await (const name of (root as any).keys()) await root.removeEntry(name, { recursive: true });
+      for (const [path, text] of Object.entries(files)) {
+        const parts = path.split("/");
+        let d = root;
+        for (const part of parts.slice(0, -1)) d = await d.getDirectoryHandle(part, { create: true });
+        const w = await (await d.getFileHandle(parts.at(-1)!, { create: true })).createWritable();
+        await w.write(text);
+        await w.close();
+      }
+      (window as any).showDirectoryPicker = async () => root;
+    }, files);
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".login-card button")].find((b) => b.textContent?.includes("Open a folder"))!.click());
+    await p.waitForSelector(".sidebar .tree-row.note");
+    await p.keyboard.down("Meta");
+    await p.keyboard.press("o");
+    await p.keyboard.up("Meta");
+    await p.waitForSelector(".switcher input");
+    await p.keyboard.type("Plot plan");
+    await Bun.sleep(200);
+    await p.keyboard.press("Enter");
+    await p.waitForFunction(() => !!document.querySelector(".mermaid-diagram")?.shadowRoot?.querySelector("svg"));
+    await Bun.sleep(600);
+    await p.screenshot({ path: join(HELP_DIR, "standalone.webp") as `${string}.webp`, type: "webp", quality: 72 });
+    file.stop(true);
   }
   await browser.close();
   console.log(`Screenshots in ${OUT}/`);

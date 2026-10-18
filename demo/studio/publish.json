@@ -1,0 +1,11 @@
+{
+  "title": "Harbour Studio Handbook",
+  "include": ["Handbook"],
+  "features": {
+    "sidebar": true,
+    "contents": true,
+    "backlinks": true,
+    "updated": true,
+    "themeSwitch": true
+  }
+}

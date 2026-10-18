@@ -34,6 +34,8 @@ async function mermaid(): Promise<Mermaid> {
       startOnLoad: false,
       securityLevel: "strict",
       theme,
+      // Dark's edge labels are #ccc on #585858, just short of WCAG AA (4.5:1); a darker box clears it.
+      ...(theme === "dark" ? { themeVariables: { edgeLabelBackground: "#454545" } } : {}),
       fontFamily: getComputedStyle(document.body).fontFamily,
       suppressErrorRendering: true,
       // A note's %%{init}%% may change the look, but not add CSS of its own.

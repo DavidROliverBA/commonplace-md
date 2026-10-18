@@ -12,6 +12,7 @@ import type { Mode } from "../components/NoteView";
 import { formatDate } from "./templates";
 import { chooseDialog } from "../ui/overlays";
 import { PALETTE } from "./colours";
+import { openHelp } from "./help";
 import { openSettings } from "./settings";
 import { focusModeOn, setFocusMode } from "./focusMode";
 import { typesState } from "./types";
@@ -113,7 +114,7 @@ export function provide<K extends keyof Ctx>(key: K, value: Ctx[K]): void {
 }
 export const currentCtx = (): Ctx => ctx;
 
-export type Group = "Insert" | "Note" | "Create" | "Go" | "View" | "Vault" | "Settings";
+export type Group = "Insert" | "Note" | "Create" | "Go" | "View" | "Vault" | "Settings" | "Help";
 
 export interface Command {
   id: string;
@@ -285,6 +286,8 @@ export const COMMANDS: Command[] = [
   { id: "settings.site", title: "Publish as a website", group: "Settings", icon: "globe", keywords: "web site publish public page share link unlisted take down unpublish", when: (c) => !!c.app, run: () => openSettings("site") },
   { id: "settings.assistants", title: "AI assistants", group: "Settings", icon: "sparkle", keywords: "bring your own ai key model provider daily limit", when: (c) => !!c.app, run: () => openSettings("assistants") },
   { id: "settings.connections", title: "Connections", group: "Settings", icon: "link", keywords: "github token claude mcp code agent iphone share shortcut capture", when: (c) => !!c.app, run: () => openSettings("connections") },
+  { id: "help.open", title: "Help", group: "Help", icon: "help", keywords: "guide manual how to docs documentation explain learn ?", when: (c) => !!c.app, run: () => openHelp() },
+  { id: "help.shortcuts", title: "Keyboard shortcuts", group: "Help", icon: "help", keywords: "keys hotkeys help", when: (c) => !!c.app, run: () => openHelp("shortcuts") },
   { id: "settings.admin", title: "Admin", group: "Settings", icon: "users", keywords: "accounts users create storage database", when: (c) => !!c.app?.isAdmin, run: () => openSettings("admin") },
 ];
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 260" font-family="sans-serif" font-size="16">
+  <title>Plan of plot 14: four beds either side of a central path, and a raised strawberry bed by the gate</title>
+  <rect width="500" height="260" fill="#e8f0dc"/>
+  <rect x="235" y="0" width="30" height="260" fill="#c9b79c"/>
+  <g fill="#8b6b4a">
+    <rect x="15" y="15" width="205" height="105" rx="6"/>
+    <rect x="280" y="15" width="205" height="105" rx="6"/>
+    <rect x="15" y="140" width="205" height="105" rx="6"/>
+    <rect x="280" y="140" width="125" height="105" rx="6"/>
+  </g>
+  <rect x="415" y="140" width="70" height="105" rx="6" fill="#b5463c"/>
+  <g fill="#fff" text-anchor="middle">
+    <text x="117" y="65">Bed 1</text><text x="117" y="88" font-size="13">Legumes</text>
+    <text x="382" y="65">Bed 2</text><text x="382" y="88" font-size="13">Brassicas</text>
+    <text x="117" y="190">Bed 3</text><text x="117" y="213" font-size="13">Roots and onions</text>
+    <text x="342" y="190">Bed 4</text><text x="342" y="213" font-size="13">Potatoes, tomatoes</text>
+    <text x="450" y="196" font-size="12">Straw-</text><text x="450" y="211" font-size="12">berries</text>
+  </g>
+</svg>

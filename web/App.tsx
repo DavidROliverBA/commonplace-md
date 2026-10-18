@@ -31,6 +31,7 @@ import { loadSavedSearches } from "./lib/savedSearches";
 import { focusModeOn, setFocusMode, useFocusMode } from "./lib/focusMode";
 import { Sidebar } from "./components/Sidebar";
 import { Trash } from "./components/Trash";
+import { HelpHost } from "./components/Help";
 import { SettingsHost } from "./components/Settings";
 import { openSettings } from "./lib/settings";
 import { api, type Note, type NoteSummary, type Session, type Vault } from "./lib/api";
@@ -684,6 +685,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
       {prDialog && git && <PullRequestDialog vaultId={vault.id} status={git} user={session.user!} onClose={() => setPrDialog(false)} />}
       {ghDialog && <GitHubVaultDialog onClose={() => setGhDialog(false)} onCreated={() => loadVaults()} />}
       {/* After the dialogs that open it, and before the one it opens, so each is on top */}
+      <HelpHost />
       <SettingsHost
         vault={vault}
         user={session.user!}

@@ -1,0 +1,13 @@
+{
+  "title": "The Allotment Notebook",
+  "include": [],
+  "features": {
+    "sidebar": true,
+    "contents": true,
+    "backlinks": true,
+    "tags": true,
+    "updated": true,
+    "readingTime": true,
+    "themeSwitch": true
+  }
+}

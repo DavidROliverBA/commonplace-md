@@ -247,6 +247,22 @@ describe("standalone, with a folder", () => {
     await page.waitForFunction(() => document.querySelector(".note-title")?.textContent === "Kickoff");
   });
 
+  test("Help shows the standalone pages, with their pictures inside the file", async () => {
+    await page.click('.sidebar [aria-label="Help"]');
+    await page.waitForSelector(".help-page h1");
+    const topics = await page.$$eval(".help-nav button", (b) => b.map((x) => x.textContent));
+    expect(topics).toEqual(["Help", "Writing notes", "Links and embeds", "Organising notes", "Finding things", "Queries and diagrams", "The standalone file", "Keyboard shortcuts"]);
+    // A link to a page only the app's help has is plain words here.
+    expect(await page.$$eval(".help-page a.internal-link", (a) => a.map((x) => x.getAttribute("data-target")))).not.toContain("getting-started.md");
+    await clickText(page, ".help-nav button", "The standalone file");
+    await page.waitForFunction(() => {
+      const imgs = [...document.querySelectorAll<HTMLImageElement>(".help-page img")];
+      return imgs.length === 2 && imgs.every((i) => i.src.startsWith("data:image/webp") && i.complete && i.naturalWidth > 0);
+    });
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(() => !document.querySelector(".help"));
+  });
+
   test("⌘O opens a note by name", async () => {
     await page.keyboard.down("Meta");
     await page.keyboard.press("o");

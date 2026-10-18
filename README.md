@@ -7,12 +7,15 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
 
 **Documentation:**
 
+- [Help](docs/help/index.md): the user guide, with diagrams and screenshots. The same pages are
+  in the app (the ? at the bottom of the file panel, or ⌘K → Help) and in the standalone file.
 - [Architecture](docs/ARCHITECTURE.md): how it's built, and why.
 - [Principles](docs/PRINCIPLES.md): the design bar.
 - [Backlog](docs/BACKLOG.md) and [Changelog](docs/CHANGELOG.md).
 - [Connecting Claude over MCP](docs/MCP.md).
 - [The iPhone Shortcut](docs/IPHONE-SHORTCUT.md).
 - [Tests](test/README.md).
+- [Demo vaults](demo/README.md) to import and publish.
 - [The standalone version](standalone/README.md): one HTML file that edits a folder of Markdown files, with no server.
 - [Contributing](CONTRIBUTING.md) and [Security](SECURITY.md).
 

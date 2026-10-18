@@ -1,7 +1,8 @@
 // Builds Commonplace as one self-contained HTML file: `bun standalone/build.ts`.
 // Bundles standalone/main.tsx (which reuses the app's editor, renderer, dialogs and styles),
 // swaps web/lib/api.ts for a stand-in that reads the open folder, and inlines the script and
-// stylesheet (and Mermaid, packed) so the file works from disk with no server.
+// stylesheet (and Mermaid, packed) so the file works from disk with no server. The help's pages
+// marked `standalone: true` come with their pictures inside (web/lib/helpImages.ts is swapped).
 
 import { gzipSync } from "fflate";
 import { dataviewjsSandbox } from "../src/sandbox";
@@ -12,6 +13,16 @@ const out = join(here, "dist", "commonplace.html");
 const shim = join(here, "api-shim.ts");
 const mermaidShim = join(here, "mermaid-lib.ts");
 const pkg = await Bun.file(join(here, "..", "package.json")).json();
+
+// The help's pictures that the standalone pages show, as data: addresses.
+const helpDir = join(here, "..", "docs", "help");
+const helpImages: Record<string, string> = {};
+for (const page of new Bun.Glob("*.md").scanSync(helpDir)) {
+  const text = await Bun.file(join(helpDir, page)).text();
+  if (!/^---\n[\s\S]*?^standalone: true$[\s\S]*?^---$/m.test(text)) continue;
+  for (const [, name] of text.matchAll(/\]\(images\/([\w-]+\.webp)\)/g))
+    helpImages[name!] = `data:image/webp;base64,${Buffer.from(await Bun.file(join(helpDir, "images", name!)).bytes()).toString("base64")}`;
+}
 
 const result = await Bun.build({
   entrypoints: [join(here, "main.tsx")],
@@ -29,6 +40,12 @@ const result = await Bun.build({
         });
         // Mermaid comes from inside the file, not the server.
         b.onResolve({ filter: /(^|\/)mermaidLib(\.ts)?$/ }, () => ({ path: mermaidShim }));
+        // The help shows only its standalone pages, with their pictures inside the file.
+        b.onResolve({ filter: /(^|\/)helpImages(\.ts)?$/ }, () => ({ path: "help-images", namespace: "cp-help" }));
+        b.onLoad({ filter: /.*/, namespace: "cp-help" }, () => ({
+          loader: "ts",
+          contents: `const IMAGES: Record<string, string> = ${JSON.stringify(helpImages)};\nexport const HELP_STANDALONE = true;\nexport const helpImageUrl = (name: string) => IMAGES[name] ?? "";\n`,
+        }));
       },
     },
   ],

@@ -9,7 +9,9 @@ import { refreshDataview } from "../web/lib/dataview";
 import { hydrate } from "../web/lib/embeds";
 import { resolveLocal } from "../web/lib/links";
 import { renderMarkdown, toggleTask } from "../web/lib/render";
+import { HelpHost } from "../web/components/Help";
 import { QuickSwitcher } from "../web/components/QuickSwitcher";
+import { openHelp } from "../web/lib/help";
 import { Icon } from "../web/ui/Icon";
 import { Menu } from "../web/ui/Menu";
 import { confirmDialog, Overlays, promptDialog, toast, toastError } from "../web/ui/overlays";
@@ -169,6 +171,7 @@ export function App() {
       {switcher && (
         <QuickSwitcher notes={notes} canCreate onPick={(n) => (setSwitcher(false), openNote(n))} onCreate={(t) => (setSwitcher(false), void openLink(t))} onClose={() => setSwitcher(false)} />
       )}
+      <HelpHost />
       <Overlays />
     </div>
   );
@@ -261,7 +264,11 @@ function Welcome({ onOpened }: { onOpened: () => void }) {
         />
         <input ref={filePicker} type="file" hidden multiple accept=".md,text/markdown,image/*" onChange={(e) => fromInput(e.currentTarget, "Files")} />
         <p className="muted small">Or drop Markdown files here.</p>
+        <button className="quiet" onClick={() => openHelp("standalone")}>
+          <Icon name="help" size={16} /> How it works
+        </button>
       </div>
+      <HelpHost />
       <Overlays />
     </div>
   );
@@ -388,6 +395,9 @@ function Sidebar(p: {
         <span className="standalone-vault-name" title={vault.vaultName()}>
           <Icon name="folder" size={16} /> {vault.vaultName()}
         </span>
+        <button className="icon-btn" onClick={() => openHelp()} title="Help" aria-label="Help">
+          <Icon name="help" />
+        </button>
         <button className="icon-btn" onClick={p.onSwitch} title="Open another folder" aria-label="Open another folder">
           <Icon name="vault" />
         </button>

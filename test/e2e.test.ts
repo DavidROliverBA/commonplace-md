@@ -16,6 +16,7 @@ import { WebsocketProvider } from "y-websocket";
 import * as Y from "yjs";
 import { startFakeAi } from "./fakeAi";
 import { startFakeGitHub, TOKEN } from "./fakeGitHub";
+import { demoFiles } from "../scripts/demo";
 
 const PORT = 3199;
 const BASE = `http://localhost:${PORT}`;
@@ -2048,5 +2049,49 @@ describe("security headers and Trash purge rules (N13)", () => {
     await bob.ok(`/vaults/${v}/trash/${ta}/restore`, { method: "POST" });
     expect((await alice.ok(`/vaults/${v}/trash/${tb}`, { method: "DELETE" })).deleted).toBe(1);
     expect((await alice.ok(`/vaults/${v}/trash`)).items).toHaveLength(0);
+  });
+});
+
+describe("the demo vaults (demo/)", () => {
+  const get = (path: string) => fetch(`${BASE}${path}`, { redirect: "manual" });
+  const site = async (name: string) => {
+    const v = (await alice.ok("/vaults", { body: { name } })).id;
+    const form = new FormData();
+    form.append("files", new File([zipSync(demoFiles(name))], `${name}.zip`));
+    expect((await alice.ok(`/vaults/${v}/import`, { form })).errors).toEqual([]);
+    const state = await alice.ok(`/vaults/${v}/site`);
+    const { slug } = await alice.ok(`/vaults/${v}/site/publish`, { body: {} });
+    const pages: Record<string, string> = {};
+    for (const n of state.notes as string[]) {
+      const r = await get(`/p/${slug}/${n.replace(/\.md$/, "").split("/").map(encodeURIComponent).join("/")}`);
+      expect(r.status).toBe(200);
+      pages[n] = await r.text();
+      expect(pages[n]).not.toContain("[[");
+    }
+    return { v, slug, state, pages, home: await (await get(`/p/${slug}/`)).text() };
+  };
+
+  test("the allotment notebook imports and publishes with its features, leaving out what's private", async () => {
+    const { slug, state, pages, home } = await site("allotment");
+    expect(state.held.sort()).toEqual(["Private/Shed and gate.md", "Types/Book.md", "Types/Idea.md"]);
+    expect(state.settings).toMatchObject({ include: [], features: { sidebar: true, themeSwitch: true } });
+    expect(home).toContain("The Allotment Notebook");
+    expect(home).toContain("site-sidebar");
+    expect(home).toMatch(/There are\s*(<[^>]+>)*4/);
+    expect(pages["Kitchen/Recipes.md"]).toMatch(/<table[\s\S]*Green tomato chutney[\s\S]*Strawberry jam/);
+    expect(pages["Reading/Books.md"]).toMatch(/Christopher Lloyd[\s\S]*Carol Klein/);
+    expect(pages["Garden/Plants/Tomatoes.md"]).toMatch(/site-backlinks[\s\S]*Green tomato chutney/);
+    expect((await get(`/p/${slug}/attachments/plot-plan.svg`)).status).toBe(200);
+    for (const html of [home, ...Object.values(pages)]) expect(html).not.toContain("Shed and gate");
+  });
+
+  test("the studio publishes only its handbook", async () => {
+    const { state, pages, home } = await site("studio");
+    expect(state.notes).toEqual(expect.arrayContaining(["Handbook/Welcome.md", "Handbook/How we work.md"]));
+    expect(state.notes.every((n: string) => n.startsWith("Handbook/"))).toBe(true);
+    expect(home).toContain("Harbour Studio Handbook");
+    expect(pages["Handbook/Welcome.md"]).toContain(`href="../Handbook/How%20we%20work"`);
+    expect(pages["Handbook/Tools.md"]).toMatch(/How%20we%20work#estimate"[^>]*>estimates<\/a>/);
+    for (const html of [home, ...Object.values(pages)]) for (const secret of ["Sam Rivera", "Lighthouse", "Dashboard"]) expect(html).not.toContain(secret);
   });
 });

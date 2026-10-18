@@ -8,7 +8,7 @@ import { fuzzyScore } from "../lib/links";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 
-const ORDER: Group[] = ["Insert", "Note", "View", "Create", "Go", "Vault", "Settings"];
+const ORDER: Group[] = ["Insert", "Note", "View", "Create", "Go", "Vault", "Settings", "Help"];
 
 /** Each word of the query must match the command, in any order ("account settings" finds
  *  Settings → Account); a match in the title counts for more. -Infinity if a word doesn't match. */

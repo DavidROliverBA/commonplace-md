@@ -17,6 +17,7 @@ import { useTreeDrag } from "../lib/useTreeDrag";
 import { Icon } from "../ui/Icon";
 import { Menu } from "../ui/Menu";
 import { promptDialog, toast, toastError } from "../ui/overlays";
+import { openHelp } from "../lib/help";
 import { openSettings } from "../lib/settings";
 import { SearchPanel } from "./SearchPanel";
 import { Invitations } from "./Invitations";
@@ -497,6 +498,9 @@ export function Sidebar(p: Props) {
           <span className="avatar small">{p.session.user!.name.slice(0, 1).toUpperCase()}</span>
           <span className="account-name">{p.session.user!.name}</span>
           <Icon name="user" size={16} />
+        </button>
+        <button className="icon-btn" onClick={() => openHelp()} title="Help" aria-label="Help">
+          <Icon name="help" size={16} />
         </button>
         {canWrite && (
           <button className="icon-btn" onClick={p.onTrash} title="Trash" aria-label="Trash">
