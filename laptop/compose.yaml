@@ -1,0 +1,57 @@
+# Commonplace on a laptop: the app and its own Postgres (with pgvector), nothing else.
+# Use ./commonplace.sh (start, stop, backup, …) or plain `docker compose` from this folder.
+# Reachable only from this machine (127.0.0.1) unless COMMONPLACE_LISTEN says otherwise.
+# Data lives in the commonplace-laptop-data volume.
+name: commonplace-laptop
+
+services:
+  app:
+    image: ${COMMONPLACE_IMAGE:-commonplace:laptop}
+    build:
+      context: ..
+    ports:
+      - "${COMMONPLACE_LISTEN:-127.0.0.1}:${COMMONPLACE_PORT:-8070}:3000"
+    environment:
+      DATABASE_URL: postgres://commonplace:commonplace@db:5432/commonplace
+      PORT: "3000"
+      # Encrypts people's AI keys and GitHub tokens. commonplace.sh writes one into .env on first
+      # start; keep it, or everyone re-enters theirs.
+      SECRETS_KEY: ${SECRETS_KEY:-}
+      ALLOW_SIGNUP: ${ALLOW_SIGNUP:-false}
+      TIME_ZONE: ${TIME_ZONE:-Europe/London}
+      # The storage guard's disk size: new data is refused at 90% of it.
+      DB_DISK_GB: ${DB_DISK_GB:-20}
+      # Optional, from laptop/.env: semantic search. hash works offline with no model.
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-hash}
+      RELAX_API_KEY: ${RELAX_API_KEY:-}
+      VOYAGE_API_KEY: ${VOYAGE_API_KEY:-}
+      OLLAMA_URL: ${OLLAMA_URL:-http://host.docker.internal:11434}
+      # No SETUP_TOKEN on purpose: the server makes one for the first account and prints it in the
+      # log, which ./commonplace.sh start shows you.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg18
+    environment:
+      POSTGRES_USER: commonplace
+      POSTGRES_PASSWORD: commonplace
+      POSTGRES_DB: commonplace
+    # No port published: only the app can reach the database.
+    volumes:
+      # From 18 the image keeps data in a versioned subfolder, so the volume mounts one level up.
+      - data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U commonplace -d commonplace"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+volumes:
+  data:
+    name: commonplace-laptop-data

@@ -6,3 +6,8 @@ screens/
 .restore-test/
 standalone/dist/
 demo/dist/
+# Laptop kit (laptop/README.md)
+laptop/.env
+laptop/backups/
+laptop/images/
+laptop/*.tar.gz

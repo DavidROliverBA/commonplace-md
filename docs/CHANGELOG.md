@@ -4,6 +4,14 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-22** — Commonplace on a laptop (release v0.0.45; `laptop/`,
+  `scripts/reset-password.ts`): the app and its own Postgres as a compose project reachable only
+  from this computer, with `laptop/commonplace.sh` to start (it makes `SECRETS_KEY` and shows the
+  setup token), stop, back up and restore the whole database, update, reset a password and package
+  both images into one `.tar.gz` for a computer with no internet or source (for this kind of
+  machine, or `linux/amd64`). `COMMONPLACE_LISTEN=0.0.0.0` lets an iPhone on the same Wi-Fi in.
+  `laptop/README.md` is an install guide for Mac, Windows and Linux with a FAQ. Tested end to end:
+  first account with the token, notes, restart, backup, restore, password reset, kit and load.
 - **2026-10-18** — Help (release v0.0.44; `docs/help/`, `web/lib/help.ts`,
   `web/components/Help.tsx`): a user guide of 17 pages with Mermaid diagrams and 35 screenshots
   taken from the real app (`bun run help:shots`). The same Markdown is the Help screen in the app

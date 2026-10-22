@@ -990,6 +990,20 @@ describe("backup", () => {
       await testDb.unsafe("drop database if exists commonplace_restore_test");
     }
   });
+
+  test("reset-password gives an account a new password and signs it out everywhere", async () => {
+    const pat = new Client("pat");
+    await pat.ok("/register", { body: { email: "pat@example.com", password: "old-password-1", name: "Pat" } });
+    const run = Bun.spawnSync(["bun", "scripts/reset-password.ts", "Pat@Example.com"], { env: { ...process.env, DATABASE_URL: DB } });
+    expect(run.exitCode).toBe(0);
+    const password = run.stdout.toString().match(/New password for pat@example\.com: (\S+)/)?.[1];
+    expect(password).toBeTruthy();
+    expect((await pat.req("/vaults")).status).toBe(401);
+    expect((await new Client("pat").req("/login", { body: { email: "pat@example.com", password: "old-password-1" } })).status).toBe(401);
+    await new Client("pat").ok("/login", { body: { email: "pat@example.com", password } });
+    const none = Bun.spawnSync(["bun", "scripts/reset-password.ts", "nobody@example.com"], { env: { ...process.env, DATABASE_URL: DB } });
+    expect(none.exitCode).toBe(1);
+  });
 });
 
 describe("capture from the iPhone", () => {

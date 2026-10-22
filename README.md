@@ -167,6 +167,14 @@ Screen**. Over plain HTTP the session cookie is not marked `Secure`. Anywhere be
 network, put it behind HTTPS (Caddy, Tailscale Serve, Cloudflare Tunnel) and set
 `COOKIE_SECURE=true`.
 
+### On a laptop
+
+`laptop/` runs the whole app on one computer, with nothing to host: `./commonplace.sh start` from
+that folder builds the image, starts the app and its own Postgres on <http://localhost:8070>
+(this computer only), and prints the setup token for the first account. The same script backs up,
+restores, updates and packages everything into one file for a computer with no internet.
+[laptop/README.md](laptop/README.md) is the full guide, for Mac, Windows and Linux.
+
 ### On Render
 
 `render.yaml` is a Blueprint: a Docker web service plus Render Postgres (which has pgvector) in

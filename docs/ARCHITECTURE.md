@@ -131,7 +131,11 @@ flowchart TB
   limit so a stuck save can't outlast the host's 30-second grace period.
 - **Deployment.** `Dockerfile` builds a slim Bun image, and `render.yaml` describes the Render
   Blueprint: one starter web service and one Postgres database in Frankfurt.
-  `docker-compose.yml` runs the same pair locally.
+  `docker-compose.yml` runs the same pair locally. `laptop/` is a kit for running it on one
+  computer with no server: its own compose project (app plus Postgres, bound to 127.0.0.1, data in
+  the `commonplace-laptop-data` volume) and `laptop/commonplace.sh`, which makes the `SECRETS_KEY`,
+  shows the setup token, backs up with `pg_dump`, restores, resets a password
+  (`scripts/reset-password.ts`) and packages both images into one file for an offline install.
 
 Configuration comes only from environment variables (`src/settings.ts`, documented in
 `.env.example`). No secret is ever committed.
@@ -469,7 +473,8 @@ To report a vulnerability, see [SECURITY.md](../SECURITY.md).
 - **Backups:** `GET /api/backup` (bearer `BACKUP_TOKEN`) streams every vault as markdown, plus
   history, members and Trash as JSON. `.github/workflows/backup.yml` fetches it daily and keeps
   14 days. `scripts/restore.ts` restores a backup into the database at `DATABASE_URL` (into an empty one, it creates the owner as admin). Passwords, AI keys,
-  GitHub tokens and GitHub links are deliberately left out of backups.
+  GitHub tokens and GitHub links are deliberately left out of backups. The laptop kit backs up the
+  whole database instead (`./commonplace.sh backup`), since there's no server to fetch from.
 - **Storage guard:** the database's size is checked (cached for a minute) against `DB_DISK_GB`.
   At 80% admins see a warning. At 90%, new notes, files, imports and agents' edits are refused
   with a message saying why. Typing in open notes is never refused.
