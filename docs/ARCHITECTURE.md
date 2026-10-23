@@ -155,7 +155,7 @@ All server code is in `src/`. Most modules are small and own one concern.
 | **Import / export** | `transfer.ts` | Import a zip or folder of Markdown files, export a vault or a note, and the streamed backup zip. Limits on size and entry counts guard against zip bombs. |
 | **Capture** | `capture.ts`, `weblinks.ts`, `images.ts`, `imageWorker.ts`, `imageMath.ts` | The iPhone share target. Weblink notes come from an SSRF-guarded fetch, and photos are converted (HEIC to JPEG, shrunk, upright) in a child process. |
 | **AI** | `ai.ts`, `llm.ts`, `tools.ts`, `mcp.ts`, `assistants.ts`, `prices.ts`, `secrets.ts` | Each tool is defined once in `tools.ts`. `mcp.ts` serves the tools to agents over MCP. `ai.ts` runs them in-process for the in-app assistant. `llm.ts` translates to each provider's format. `assistants.ts` holds sealed keys and daily £ limits. |
-| **GitHub vaults** | `git.ts`, `github.ts`, `merge3.ts` | Copy in, track changes, push and open a PR, update from the base with a three-way merge, and cancel. Uses the REST API only. |
+| **GitHub vaults** | `git.ts`, `github.ts`, `merge3.ts`, `gitAuto.ts`, `schedule.ts` | Copy in, track changes, push and open a PR, update from the base with a three-way merge, and cancel; send on a schedule, once idle, or straight to a branch (F19). Uses the REST API only. |
 | **Publishing** | `publish.ts` | Renders a snapshot of the chosen notes to HTML in `site_pages` and `site_files`, then serves `/p/<slug>/` from that snapshot. |
 | **Guards** | `storage.ts`, `settings.ts` | The disk guard (warns at 80%, refuses new data at 90%; typing is never refused) and the environment settings. |
 
@@ -394,7 +394,8 @@ step, a read-only token exposes only the read tools.
 ### 7.5 GitHub vaults
 
 A vault can be a copy of a repository, or of one folder in it. The workflow is a branch and a
-pull request; nothing reaches the base branch directly.
+pull request; nothing reaches the base branch directly unless an owner chooses to publish
+straight to it (step 6).
 
 1. **Copy in.** The Trees and Blobs APIs read only markdown, canvases and attachments. Each
    file's base is recorded in `git_files`: repo path, blob SHA, an md5 and, for notes, the text.
@@ -407,6 +408,15 @@ pull request; nothing reaches the base branch directly.
    line by line (`merge3.ts`). A real clash waits in `git_clashes`; conflict markers are never
    written into a note.
 5. **Cancel.** Every note goes back to its base through `overwriteContent`.
+6. **Sending on its own (F19, `gitAuto.ts`, `schedule.ts`).** An owner picks a mode per vault,
+   stored on `vault_git`: ask (step 3 by hand), a PR on a UK-time schedule, each note pushed once
+   idle, or a commit straight onto the base branch. A once-a-minute check runs whatever is due
+   with the token of the owner who chose (`send_as`), and stores `next_run_at`, so a restart loses
+   nothing and a missed run happens once. Each run merges first (step 4); a clash, a sender who
+   can't send any more, or a refusal from GitHub pauses it with the reason, and a busy or
+   unreachable GitHub is retried later. Notes held back (`git_held`) stay out, and a push keeps
+   whatever an earlier push left on the branch for them (`git_pushed.sha`). After a PR merges,
+   a note whose text there is exactly what was pushed takes the local text without a merge.
 
 There is no git binary or clone URL anywhere. The token travels only in the `Authorization`
 header.

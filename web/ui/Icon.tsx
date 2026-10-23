@@ -52,6 +52,8 @@ const PATHS: Record<string, string> = {
   "check-plain": "M20 6L9 17l-5-5",
   send: "M22 2L11 13M22 2l-7 20-4-9-9-4z",
   stop: "M6 6h12v12H6z",
+  pause: "M8 5v14M16 5v14",
+  play: "M7 4l13 8-13 8z",
   "new-chat": "M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7M18.4 2.6a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4z",
   copy: "M9 9h11v11H9zM5 15H4V4h11v1",
   sparkle: "M12 3l1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2z",

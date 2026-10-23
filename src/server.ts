@@ -8,6 +8,7 @@ import { currentUser, sameOrigin, sessionHash } from "./auth";
 import { type CollabData, flushAll, onClose, onMessage, onOpen } from "./collab";
 import { sql } from "./db";
 import { backfill } from "./embed";
+import { startScheduler } from "./gitAuto";
 import { dbVersions, migrate } from "./migrate";
 import { pruneRevisions, purgeTrash } from "./notes";
 import { serveSite } from "./publish";
@@ -26,6 +27,9 @@ const purge = () =>
   ]).catch((e) => console.error("tidying failed:", e));
 void purge();
 setInterval(purge, 6 * 60 * 60 * 1000).unref();
+
+// Automatic pushes to GitHub (F19): due vaults are looked for once a minute.
+startScheduler();
 
 // ── security headers (N13) ──────────────────────────────────────────────────────────────────
 // Bun's HTML-bundle route takes no headers, so the bundle is mounted at a private path and the app's

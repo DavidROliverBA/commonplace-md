@@ -11,7 +11,7 @@ import { toast } from "../ui/overlays";
 const title = (path: string) => path.split("/").pop()!.replace(/\.md$/i, "");
 
 function summary(st: GitStatus, onlyUnpushed: boolean): string {
-  const list = st.changes.filter((c) => !onlyUnpushed || c.unpushed);
+  const list = st.changes.filter((c) => !c.held && (!onlyUnpushed || c.unpushed));
   const names = list.map((c) => title(c.path));
   if (!names.length) return st.mergePending ? `Merge ${st.baseBranch}` : "Update notes";
   if (names.length === 1) return `${list[0]!.kind === "added" ? "Add" : list[0]!.kind === "deleted" ? "Remove" : "Update"} ${names[0]}`;
@@ -23,7 +23,7 @@ export function PullRequestDialog({ vaultId, status: st, user, onClose }: { vaul
   const first = !st.pr;
   const [branch, setBranch] = useState(st.branch);
   const [prTitle, setPrTitle] = useState(() => summary(st, false));
-  const [body, setBody] = useState(() => st.changes.map((c) => `- ${c.kind === "moved" ? `Moved ${c.from} to ${c.path}` : `${c.kind[0]!.toUpperCase()}${c.kind.slice(1)} ${c.path}`}`).join("\n") + "\n\nEdited in Commonplace.");
+  const [body, setBody] = useState(() => st.changes.filter((c) => !c.held).map((c) => `- ${c.kind === "moved" ? `Moved ${c.from} to ${c.path}` : `${c.kind[0]!.toUpperCase()}${c.kind.slice(1)} ${c.path}`}`).join("\n") + "\n\nEdited in Commonplace.");
   const coauthors = useMemo(() => st.authors.filter((a) => a.id !== user.id).map((a) => `Co-authored-by: ${a.name} <${a.email}>`), [st, user]);
   const [message, setMessage] = useState(() => [summary(st, st.pushed), ...(coauthors.length ? ["", ...coauthors] : [])].join("\n"));
   const [busy, setBusy] = useState(false);
@@ -62,6 +62,7 @@ export function PullRequestDialog({ vaultId, status: st, user, onClose }: { vaul
           {first
             ? `Your changes go to ${st.repo} as one commit on a new branch, with a pull request into ${st.baseBranch}. Nothing reaches ${st.baseBranch} until it's merged on GitHub.`
             : `${st.unpushed} change${st.unpushed === 1 ? "" : "s"} since the last push${st.mergePending ? `, and the newer ${st.baseBranch} merged in` : ""}, as one more commit on ${st.branch}.`}
+          {st.held > 0 && ` ${st.held === 1 ? "One change is" : `${st.held} changes are`} held back and stay${st.held === 1 ? "s" : ""} here.`}
         </p>
         {first && !st.pushed && (
           <label className="field">

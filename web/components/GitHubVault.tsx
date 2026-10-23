@@ -89,7 +89,7 @@ export function GitHubAccount() {
   return (
     <section className="settings-section">
       <h3>GitHub</h3>
-      <p className="muted">Open a repository of markdown as a vault: edit it here, then send your changes back as a pull request. Uses your own token; nothing reaches the main branch without a PR.</p>
+      <p className="muted">Open a repository of markdown as a vault: edit it here, then send your changes back as a pull request. Uses your own token; nothing reaches the main branch without a PR unless a vault's owner chooses to publish straight to it.</p>
       {!state.available ? (
         <p className="notice">This server can't store tokens yet: an admin needs to set SECRETS_KEY.</p>
       ) : state.connection ? (

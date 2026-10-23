@@ -4,6 +4,20 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-23** — GitHub vaults send on their own: F19 (release v0.0.46; `src/gitAuto.ts`,
+  `src/schedule.ts`, `web/components/GitHubSending.tsx`). Settings → This vault → Sending to
+  GitHub offers four ways: Ask me (as before), Regular review (a PR every hour, day or week at a
+  UK time, joining the open one until it's merged), Keep a branch in sync (each note pushed once
+  nobody has typed in it for two minutes), and Publish straight to a branch (`main` or another,
+  on a schedule or soon after edits; deletions wait for Send now; a warning about deploys). Every
+  automatic run merges first and pauses on a clash. It also pauses when GitHub refuses (for
+  example a protected branch) or when the sender disconnects or stops being an editor, and the bar
+  says why. "Hold back" in Review changes keeps a note out. The bar shows "Next PR at 18:00 · 2
+  changes waiting · sends as Sam", with Send now and Pause; ⌘K has both. Commits name other
+  editors, with emails only if the owner opts in. Fixed on the way: after your own PR merged, an
+  edit to the same note showed as a clash on the next Update. Tests: 12 end to end against the
+  fake GitHub (now able to protect a branch) and 3 for UK times across the clock changes. Design:
+  [design/F19.md](design/F19.md).
 - **2026-10-22** — Commonplace on a laptop (release v0.0.45; `laptop/`,
   `scripts/reset-password.ts`): the app and its own Postgres as a compose project reachable only
   from this computer, with `laptop/commonplace.sh` to start (it makes `SECRETS_KEY` and shows the

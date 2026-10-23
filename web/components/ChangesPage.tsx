@@ -1,11 +1,12 @@
 // Review changes on a GitHub vault (F14): every note and file that differs from the repo
 // (added, edited, moved, deleted), each with its diff against what's on GitHub and a Revert, and
-// the clashes from an update waiting for a side to be picked.
+// the clashes from an update waiting for a side to be picked. A change can be held back from
+// pushes until it's ready (F19).
 
 import { useEffect, useState } from "react";
 import { api, type NoteSummary, type Vault } from "../lib/api";
 import { lineDiff } from "../lib/diff";
-import { changedLabel, type GitChange, type GitStatus, refreshGit, setGit, useGit } from "../lib/git";
+import { changedLabel, type GitChange, type GitStatus, holdChange, refreshGit, sendNow, setGit, useGit } from "../lib/git";
 import { navigate, noteUrl } from "../lib/router";
 import { Diff } from "../ui/Diff";
 import { Icon } from "../ui/Icon";
@@ -37,7 +38,7 @@ interface DiffText {
   note: boolean;
 }
 
-function ChangeRow({ vault, c, canWrite, pushed, onOpen }: { vault: Vault; c: GitChange; canWrite: boolean; pushed: boolean; onOpen: (id: number) => void }) {
+function ChangeRow({ vault, c, canWrite, pushed, publishing, onOpen }: { vault: Vault; c: GitChange; canWrite: boolean; pushed: boolean; publishing: boolean; onOpen: (id: number) => void }) {
   const [open, setOpen] = useState(false);
   const [d, setD] = useState<DiffText | null>(null);
   useEffect(() => {
@@ -67,8 +68,19 @@ function ChangeRow({ vault, c, canWrite, pushed, onOpen }: { vault: Vault; c: Gi
           <span className="change-path">{c.path}</span>
         )}
         {c.from && <span className="muted change-from">from {c.from}</span>}
-        {pushed && c.unpushed && <span className="change-unpushed">not pushed yet</span>}
+        {c.held ? (
+          <span className="change-held">held back</span>
+        ) : publishing && c.kind === "deleted" ? (
+          <span className="change-unpushed">waits for Send now</span>
+        ) : (
+          pushed && c.unpushed && <span className="change-unpushed">not pushed yet</span>
+        )}
         <span className="change-actions">
+          {canWrite && (
+            <button className="quiet" onClick={() => void holdChange(vault.id, c.path, !c.held)} title={c.held ? "Send it with the next push" : "Keep it out of pushes until you release it"}>
+              {c.held ? "Release" : "Hold back"}
+            </button>
+          )}
           {showDiff && (
             <button className="quiet" onClick={() => setOpen(!open)} aria-expanded={open}>
               {open ? "Hide" : "Diff"}
@@ -188,10 +200,15 @@ export function ChangesPage(p: Props) {
                 </h3>
                 <ul className="change-list">
                   {st.changes.map((c) => (
-                    <ChangeRow key={c.path} vault={p.vault} c={c} canWrite={canWrite} pushed={st.pushed} onOpen={open} />
+                    <ChangeRow key={c.path} vault={p.vault} c={c} canWrite={canWrite} pushed={st.pushed} publishing={st.auto.mode === "publish"} onOpen={open} />
                   ))}
                 </ul>
-                {canWrite && (st.unpushed > 0 || !st.pushed) && (
+                {canWrite && st.auto.mode !== "ask" && (st.auto.waiting > 0 || st.auto.deletionsWaiting > 0) && (
+                  <button className="primary" onClick={() => void sendNow(p.vault.id, st)} disabled={st.clashes.length > 0}>
+                    <Icon name="upload" size={16} /> Send now
+                  </button>
+                )}
+                {canWrite && st.auto.mode === "ask" && (st.unpushed > 0 || !st.pushed) && (
                   <button className="primary" onClick={p.onPullRequest} disabled={st.clashes.length > 0}>
                     <Icon name="pull-request" size={16} /> {st.pushed ? `Push ${st.unpushed} more change${st.unpushed === 1 ? "" : "s"}` : "Open pull request"}
                   </button>

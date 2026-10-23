@@ -30,7 +30,7 @@ beforeAll(async () => {
   await sql`create schema public`;
   await sql.end();
   proc = Bun.spawn(["bun", "src/server.ts"], {
-    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", EMBEDDING_PROVIDER: "hash", EMBED_DEBOUNCE_MS: "50", SETUP_TOKEN: "test-setup-token", BACKUP_TOKEN: "test-backup-token", SECRETS_KEY: "test-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3187", NODE_ENV: "production" },
+    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", EMBEDDING_PROVIDER: "hash", EMBED_DEBOUNCE_MS: "50", SETUP_TOKEN: "test-setup-token", BACKUP_TOKEN: "test-backup-token", SECRETS_KEY: "test-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3187", GIT_TICK_MS: "200", GIT_IDLE_MS: "600", NODE_ENV: "production" },
     stdout: "ignore",
     stderr: "inherit",
   });
@@ -1860,6 +1860,173 @@ describe("GitHub vaults (F14)", () => {
 
   test("the token only ever travels in the Authorization header", () => {
     expect(gh.seen.length).toBeGreaterThan(20);
+    expect(gh.seen.every((r) => !/github_pat_/.test(r.url) && r.auth?.startsWith("Bearer github_pat_"))).toBe(true);
+  });
+});
+
+describe("sending to GitHub automatically (F19)", () => {
+  // A fresh repo, started once F14's has stopped (same port); Alice's token from F14 still works.
+  let gh: ReturnType<typeof startFakeGitHub>;
+  beforeAll(() => void (gh = startFakeGitHub(3187)));
+  afterAll(() => gh.stop());
+  let v: number;
+  const list = async () => (await alice.ok(`/vaults/${v}/notes`)) as { id: number; path: string }[];
+  const idOf = async (path: string) => (await list()).find((n) => n.path === path)!.id;
+  const write = async (path: string, content: string) => alice.ok(`/vaults/${v}/notes/${await idOf(path)}/content`, { method: "PUT", body: { content } });
+  const status = () => alice.ok(`/vaults/${v}/git`);
+  const auto = (b: object) => alice.ok(`/vaults/${v}/git/auto`, { method: "PUT", body: b });
+  const hold = (path: string, held: boolean) => alice.ok(`/vaults/${v}/git/hold`, { body: { path, held } });
+  /** Make the schedule due now, as if the time had come (or the server had been down then). */
+  const due = () => testDb`update vault_git set next_run_at = now() - interval '1 minute' where vault_id = ${v}`;
+  const ranAgain = () => until(async () => +new Date((await status()).auto.nextRunAt) > Date.now());
+  const branch = async () => (await status()).branch as string;
+
+  test("only an owner chooses how changes are sent; they become the sender", async () => {
+    v = (await alice.ok("/vaults/github", { body: { repo: "sam/house", branch: "main", folder: "docs" } })).vault.id;
+    expect((await status()).auto).toMatchObject({ mode: "ask", sendAs: null, paused: null, waiting: 0 });
+    await addMember(v, bob, "editor");
+    expect((await bob.req(`/vaults/${v}/git/auto`, { method: "PUT", body: { mode: "review" } })).status).toBe(403);
+    expect((await alice.req(`/vaults/${v}/git/send-now`, { body: {} })).data.error).toContain("use Open pull request");
+    const st = await auto({ mode: "review", every: "day", at: "18:00" });
+    expect(st.auto).toMatchObject({ mode: "review", every: "day", at: "18:00", sendAs: { name: "Alice" }, paused: null });
+    expect(+new Date(st.auto.nextRunAt)).toBeGreaterThan(Date.now());
+  });
+
+  test("Regular review: nothing changed, nothing sent", async () => {
+    await due();
+    await ranAgain();
+    expect([...gh.refs.keys()]).toEqual(["main"]);
+    expect(gh.pulls).toHaveLength(0);
+  });
+
+  test("a due run opens one PR with what changed; a held note stays out", async () => {
+    await write("Boiler.md", "# Boiler\n\nServiced in May by Sam.\n\n- filter\n- pressure\n");
+    await write("Garden.md", "# Garden\n\nPlant bulbs in October.\n");
+    const st = await hold("Garden.md", true);
+    expect(st).toMatchObject({ held: 1, auto: { waiting: 1 } });
+    expect(st.changes.find((c: any) => c.path === "Garden.md").held).toBe(true);
+    await due();
+    await until(() => gh.pulls.length === 1);
+    const b = await branch();
+    expect(gh.files(b)["docs/Boiler.md"]).toContain("by Sam");
+    expect(gh.files(b)["docs/Garden.md"]).toBe("# Garden\n\nPlant bulbs.\n");
+    expect(gh.pulls[0]).toMatchObject({ base: "main", title: expect.stringContaining("Notes from Commonplace") });
+    expect(gh.files("main")["docs/Boiler.md"]).not.toContain("by Sam");
+    expect(await status()).toMatchObject({ pushed: true, unpushed: 0, held: 1 });
+  });
+
+  test("the next period adds to the open PR; a held note keeps the version already pushed", async () => {
+    await hold("Garden.md", false);
+    await due();
+    await until(async () => gh.files(await branch())["docs/Garden.md"]?.includes("October") ?? false);
+    await hold("Garden.md", true);
+    await write("Garden.md", "# Garden\n\nPlant bulbs in October, not yet.\n");
+    await write("Boiler.md", "# Boiler\n\nServiced in May by Sam.\n\n- filter\n- pressure\n- flue\n");
+    await due();
+    await until(async () => gh.files(await branch())["docs/Boiler.md"]!.includes("flue"));
+    expect(gh.files(await branch())["docs/Garden.md"]).toBe("# Garden\n\nPlant bulbs in October.\n");
+    expect(gh.pulls).toHaveLength(1);
+    await hold("Garden.md", false);
+  });
+
+  test("a clash pauses sending, and settling it carries on", async () => {
+    gh.commitToMain({ "docs/Boiler.md": "# Boiler\n\nServiced in June.\n\n- filter\n- pressure\n" });
+    await write("Boiler.md", "# Boiler\n\nServiced in May by Sam, again.\n\n- filter\n- pressure\n- flue\n");
+    await due();
+    await until(async () => (await status()).auto.paused?.by === "clashes");
+    expect((await status()).auto.paused.message).toContain("1 note to settle");
+    expect((await alice.ok(`/vaults/${v}/notes/${await idOf("Boiler.md")}`)).content).not.toContain("<<<<<<<");
+    await alice.ok(`/vaults/${v}/git/resolve`, { body: { path: "Boiler.md", take: "mine" } });
+    await until(async () => (await status()).auto.paused === null);
+    await due();
+    await until(async () => gh.files(await branch())["docs/Boiler.md"]!.includes("again"));
+    expect(gh.parentsOf(await branch())).toHaveLength(2); // main merged in, never forced
+  });
+
+  test("Pause stops automatic pushes; Send now still sends", async () => {
+    const paused = await alice.ok(`/vaults/${v}/git/pause`, { body: { paused: true } });
+    expect(paused.auto.paused).toMatchObject({ by: "person" });
+    await write("Garden.md", "# Garden\n\nPlant bulbs in November.\n");
+    const head = gh.refs.get(await branch());
+    await due();
+    await Bun.sleep(800);
+    expect(gh.refs.get(await branch())).toBe(head);
+    const sent = await alice.ok(`/vaults/${v}/git/send-now`, { body: {} });
+    expect(sent.auto.waiting).toBe(0);
+    expect(gh.files(await branch())["docs/Garden.md"]).toContain("November");
+    expect((await alice.ok(`/vaults/${v}/git/pause`, { body: { paused: false } })).auto.paused).toBeNull();
+  });
+
+  test("once the PR is merged, the next period opens a fresh one", async () => {
+    gh.mergePr(1);
+    await write("Garden.md", "# Garden\n\nPlant bulbs in December.\n");
+    await due();
+    await until(() => gh.pulls.length === 2);
+    expect(gh.files(gh.pulls[1]!.head)["docs/Garden.md"]).toContain("December");
+  });
+
+  test("Keep a branch in sync: a note goes once nobody has typed in it for a while, with no PR", async () => {
+    gh.mergePr(2);
+    await auto({ mode: "sync" });
+    await write("Garden.md", "# Garden\n\nPlant bulbs in January.\n");
+    expect((await status()).auto).toMatchObject({ mode: "sync", waiting: 1, nextRunAt: null });
+    await until(async () => {
+      const st = await status();
+      return st.pushed && gh.files(st.branch)["docs/Garden.md"]?.includes("January");
+    });
+    expect(gh.pulls).toHaveLength(2); // you open the PR when you choose
+  });
+
+  test("a sender who disconnects GitHub pauses sending, and the bar says why", async () => {
+    await alice.ok("/me/github", { method: "DELETE" });
+    await until(async () => (await status()).auto.paused?.by === "sender");
+    expect((await status()).auto.paused.message).toContain("Alice disconnected GitHub");
+    expect((await alice.req(`/vaults/${v}/git/pause`, { body: { paused: false } })).status).toBe(409);
+    await alice.ok("/me/github", { method: "PUT", body: { token: TOKEN } });
+    expect((await auto({ mode: "sync" })).auto.paused).toBeNull();
+  });
+
+  test("Publish straight to main: edits land on main; a deletion waits for a person", async () => {
+    expect((await alice.req(`/vaults/${v}/git/auto`, { method: "PUT", body: { mode: "publish" } })).data.error).toContain("Finish or cancel the branch");
+    await alice.ok(`/vaults/${v}/git/cancel`, { body: {} });
+    await auto({ mode: "publish", soon: true });
+    await write("Boiler.md", "# Boiler\n\nServiced in July.\n");
+    await alice.ok(`/vaults/${v}/notes/${await idOf("Garden.md")}`, { method: "DELETE" });
+    // GitHub has it a moment before the vault records it as the new base: wait for both.
+    await until(async () => gh.files("main")["docs/Boiler.md"]!.includes("July") && (await status()).auto.waiting === 0);
+    expect(gh.files("main")["docs/Garden.md"]).toBeDefined();
+    let st = await status();
+    expect(st.auto).toMatchObject({ deletionsWaiting: 1, waiting: 0 });
+    expect(st.changes.map((c: any) => [c.path, c.kind])).toEqual([["Garden.md", "deleted"]]);
+    expect(gh.pulls).toHaveLength(2);
+    st = await alice.ok(`/vaults/${v}/git/send-now`, { body: {} });
+    expect(gh.files("main")["docs/Garden.md"]).toBeUndefined();
+    expect(st.changes).toEqual([]);
+    expect(gh.files("main")["src/index.ts"]).toBe("console.log('hi')\n");
+  });
+
+  test("a protected branch refuses the push: sending pauses with GitHub's reason", async () => {
+    gh.protect("main");
+    await write("Boiler.md", "# Boiler\n\nServiced in August.\n");
+    await until(async () => (await status()).auto.paused?.by === "github");
+    expect((await status()).auto.paused.message).toContain("Protected branch");
+    gh.protect("main", false);
+    await alice.ok(`/vaults/${v}/git/pause`, { body: { paused: false } });
+    await until(() => gh.files("main")["docs/Boiler.md"]!.includes("August"));
+  });
+
+  test("publishing to another branch makes it if it's new, and the vault follows it", async () => {
+    const st = await auto({ mode: "publish", every: "week", day: 5, at: "17:00", branch: "site" });
+    expect(st).toMatchObject({ baseBranch: "site", auto: { mode: "publish", every: "week" } });
+    expect(gh.refs.get("site")).toBe(gh.refs.get("main"));
+    await write("Boiler.md", "# Boiler\n\nServiced in September.\n");
+    await due();
+    await until(async () => gh.files("site")["docs/Boiler.md"]!.includes("September") && (await status()).auto.waiting === 0);
+    expect(gh.files("main")["docs/Boiler.md"]).toContain("August");
+    await auto({ mode: "ask" });
+  });
+
+  test("the token only ever travels in the Authorization header", () => {
     expect(gh.seen.every((r) => !/github_pat_/.test(r.url) && r.auth?.startsWith("Bearer github_pat_"))).toBe(true);
   });
 });

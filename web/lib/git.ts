@@ -12,6 +12,27 @@ export interface GitChange {
   note: boolean;
   noteId: number | null;
   unpushed: boolean;
+  /** Held back from pushes until released (F19). */
+  held: boolean;
+}
+
+export type SendMode = "ask" | "review" | "sync" | "publish";
+
+/** How a vault's changes go to GitHub (F19, src/gitAuto.ts). */
+export interface AutoStatus {
+  mode: SendMode;
+  every: "hour" | "day" | "week";
+  at: string;
+  day: number;
+  soon: boolean;
+  coauthorEmails: boolean;
+  sendAs: { id: number; name: string } | null;
+  paused: { by: "person" | "clashes" | "sender" | "github"; message: string } | null;
+  nextRunAt: string | null;
+  lastSentAt: string | null;
+  lastError: string | null;
+  waiting: number;
+  deletionsWaiting: number;
 }
 export interface GitStatus {
   repo: string;
@@ -26,6 +47,8 @@ export interface GitStatus {
   unpushed: number;
   authors: { id: number; name: string; email: string }[];
   mergePending: boolean;
+  held: number;
+  auto: AutoStatus;
 }
 
 const cache = new Map<number, GitStatus>();
@@ -110,5 +133,86 @@ export async function cancelBranch(vaultId: number, st: GitStatus): Promise<bool
   } catch (e) {
     toastError(e);
     return false;
+  }
+}
+
+// ── sending on its own (F19) ─────────────────────────────────────────────────────────────
+
+export const MODES: { id: SendMode; label: string; help: string }[] = [
+  { id: "ask", label: "Ask me", help: "Nothing is sent until you press Open pull request, or push more to it." },
+  { id: "review", label: "Regular review", help: "One pull request every hour, day or week. Changes join the open one until it's merged." },
+  { id: "sync", label: "Keep a branch in sync", help: "Each note goes to the working branch once nobody has typed in it for a couple of minutes. You open the pull request when you choose." },
+  { id: "publish", label: "Publish straight to a branch", help: "No pull request: changes go onto the branch itself, main included, on a schedule or soon after edits." },
+];
+
+export const DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+/** "18:00", or "Fri 18:00" when it isn't today, in UK time. */
+function when(iso: string): string {
+  const d = new Date(iso);
+  const uk = (o: Intl.DateTimeFormatOptions, t: Date) => new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/London", ...o }).format(t);
+  const time = uk({ hour: "2-digit", minute: "2-digit" }, d);
+  return uk({ dateStyle: "short" }, d) === uk({ dateStyle: "short" }, new Date()) ? time : `${uk({ weekday: "short" }, d)} ${time}`;
+}
+
+function ago(iso: string): string {
+  const min = Math.round((Date.now() - +new Date(iso)) / 60_000);
+  if (min < 1) return "just now";
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 24 ? `${h} hour${h === 1 ? "" : "s"} ago` : when(iso);
+}
+
+/** The branch bar's line about automatic pushes: what's next, what's waiting, who sends. */
+export function autoLine(st: GitStatus): string | null {
+  const a = st.auto;
+  if (a.mode === "ask") return null;
+  if (a.paused) return a.paused.message;
+  const waiting = a.waiting ? plural(a.waiting, "change") + " waiting" : "";
+  const target = a.mode === "publish" ? st.baseBranch : st.pr?.state === "open" ? `#${st.pr.number}` : null;
+  let next = "";
+  if (a.mode === "review" || (a.mode === "publish" && !a.soon)) {
+    if (a.nextRunAt) next = `${a.mode === "publish" ? `Next publish to ${target}` : target ? `Next push to ${target}` : "Next PR"} at ${when(a.nextRunAt)}`;
+  } else if (a.waiting) next = a.mode === "publish" ? `Publishing to ${target} once edits pause` : "Pushing once edits pause";
+  else if (a.lastSentAt) next = `${a.mode === "publish" ? "Published" : "Pushed"} ${ago(a.lastSentAt)}`;
+  else next = a.mode === "publish" ? `Publishes to ${target} soon after edits` : "Pushes soon after edits";
+  const parts = [next, waiting, a.deletionsWaiting ? `${plural(a.deletionsWaiting, "deletion")} wait${a.deletionsWaiting === 1 ? "s" : ""} for you` : "", a.lastError ? "last try failed, trying again" : "", a.sendAs ? `sends as ${a.sendAs.name}` : ""];
+  return parts.filter(Boolean).join(" · ");
+}
+
+/** Send now: as you, deletions included (after a confirm that names them). */
+export async function sendNow(vaultId: number, st: GitStatus): Promise<void> {
+  const deletions = st.changes.filter((c) => c.kind === "deleted" && !c.held);
+  if (st.auto.mode === "publish" && deletions.length) {
+    const names = deletions.map((c) => c.path).slice(0, 5).join(", ") + (deletions.length > 5 ? "…" : "");
+    const ok = await confirmDialog({ title: `Delete ${plural(deletions.length, "note")} on ${st.baseBranch}?`, message: `${names} ${deletions.length === 1 ? "goes" : "go"} from ${st.repo} along with the other changes. Hold a deletion back in Review changes to keep it waiting.`, action: "Send now", danger: true });
+    if (!ok) return;
+  }
+  try {
+    const next = await api<GitStatus>(`/vaults/${vaultId}/git/send-now`, { body: {} });
+    setGit(vaultId, next);
+    toast(st.auto.mode === "publish" ? `Published to ${next.baseBranch}` : next.pr ? `Sent to pull request #${next.pr.number}` : `Sent to ${next.branch}`);
+  } catch (e) {
+    toastError(e);
+    void refreshGit(vaultId);
+  }
+}
+
+export async function setPaused(vaultId: number, paused: boolean): Promise<void> {
+  try {
+    setGit(vaultId, await api<GitStatus>(`/vaults/${vaultId}/git/pause`, { body: { paused } }));
+    toast(paused ? "Automatic pushes paused" : "Automatic pushes carry on");
+  } catch (e) {
+    toastError(e);
+  }
+}
+
+/** Hold a change back from pushes, or let it go with the next one. */
+export async function holdChange(vaultId: number, path: string, held: boolean): Promise<void> {
+  try {
+    setGit(vaultId, await api<GitStatus>(`/vaults/${vaultId}/git/hold`, { body: { path, held } }));
+    toast(held ? `${path} is held back` : `${path} goes with the next push`);
+  } catch (e) {
+    toastError(e);
   }
 }

@@ -137,3 +137,45 @@
   font-size: var(--text-input);
   resize: vertical;
 }
+
+/* sending on its own (F19): the bar's second line, held changes, the choice in Settings */
+.branch-auto {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  font-size: var(--text-small);
+  color: var(--muted);
+}
+.branch-auto.paused {
+  color: var(--warn);
+}
+.branch-auto .link {
+  font-size: var(--text-small);
+  margin-left: 4px;
+}
+.change-held {
+  font-size: var(--text-caption);
+  color: var(--muted);
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-pill);
+}
+.send-when {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin: 12px 0 0 28px;
+}
+.send-when .field {
+  min-width: 120px;
+}
+.send-modes .notice {
+  margin: 8px 0 0;
+}
+.send-credit {
+  margin-top: 12px;
+}
+.send-modes input {
+  flex-shrink: 0;
+}

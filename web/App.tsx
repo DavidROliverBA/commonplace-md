@@ -24,7 +24,7 @@ import { BranchBar } from "./components/BranchBar";
 import { ChangesPage } from "./components/ChangesPage";
 import { GitHubVaultDialog } from "./components/GitHubVault";
 import { PullRequestDialog } from "./components/PullRequestDialog";
-import { cancelBranch, updateFromBase, useGit } from "./lib/git";
+import { cancelBranch, sendNow, setPaused, updateFromBase, useGit } from "./lib/git";
 import { TypePage } from "./components/TypePage";
 import { loadBookmarks } from "./lib/bookmarks";
 import { loadSavedSearches } from "./lib/savedSearches";
@@ -463,6 +463,10 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
             pullRequest: () => setPrDialog(true),
             update: () => void updateFromBase(vault.id, git),
             cancel: () => void cancelBranch(vault.id, git),
+            auto: git.auto.mode !== "ask",
+            paused: !!git.auto.paused,
+            sendNow: () => void sendNow(vault.id, git),
+            setPaused: (on: boolean) => void setPaused(vault.id, on),
           }
         : null,
     });

@@ -134,8 +134,12 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   against GitHub with a Revert, and **Open pull request** sends them as one commit on a new
   branch with a PR (later edits are more commits on it). **Update from main** brings in newer
   work: unchanged notes update in place, notes changed on both sides merge line by line, and a
-  real clash waits for you to pick a side. **Cancel the branch** puts every note back. Nothing
-  reaches `main` without a pull request.
+  real clash waits for you to pick a side. **Cancel the branch** puts every note back. An owner
+  can also have changes sent on their own (Settings → This vault): a pull request every hour, day
+  or week; each note pushed to the branch once it goes quiet; or straight onto a branch, `main`
+  included, with no PR. Automatic sends merge first and pause on a clash, leave out notes held
+  back in Review changes, and say in the bar what's next and whose token sends. Unless an owner
+  chooses that last way, nothing reaches `main` without a pull request.
 - **Works offline:** a service worker keeps the app and what it needs to open, and every note you
   open is kept on the device (its CRDT state in IndexedDB), so the home-screen app opens with no
   signal, notes take edits, and they merge when it reconnects. Signing out forgets it all.

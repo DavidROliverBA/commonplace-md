@@ -11,7 +11,7 @@ Sizes are rough: **S** an evening, **M** a few days, **L** a week or more.
 
 Add new ideas under **Ideas** in a line or two; promote them to **Next** once it's clear what
 done looks like. Finished items go to [CHANGELOG.md](CHANGELOG.md), and a finished item's
-design moves to [design/](design/) (F12, F14, F16, F17 so far).
+design moves to [design/](design/) (F12, F14, F16, F17, F19 so far).
 
 **Contents**
 
@@ -150,77 +150,14 @@ down here or in the CHANGELOG.
 items, chosen by what's used every day (see Ideas, such as `#Type` inline; the history diff, saved searches, focus mode, turning a
 line into a typed note and the tour are done).
 
-1. **F19** — choose how and when a GitHub vault's changes go to GitHub (after N11).
-2. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
-   step 1 (publish with one theme) is done.
-3. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
+1. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
+   steps 1–2 (publish, and the builder) are done.
+2. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
+
+F19 (GitHub vaults sending on their own) is done; see the CHANGELOG. Its automatic modes should
+first be tried on the live site after N11's fine-grained-token run.
 
 L8 (the iPhone and desktop apps) waits on the Apple Developer decision.
-
-### F19 — GitHub vaults: choose how and when changes go to GitHub
-
-**Size** M · **Evidence** F14 (`src/git.ts` `push`, `update`, `resolve`; `git_clashes`) sends
-changes only when someone presses Push, always as a PR into the base branch; the push, the
-three-way merge and the clash handling are already there to reuse. Agreed 2026-10-12.
-
-**Changes F14's rule.** F14 said nothing reaches `main` without a PR. That stays the default,
-but an owner can now choose to publish straight to a branch, `main` included, after a clear
-warning. One working branch per vault and one open PR at a time still hold.
-
-**Four ways to send, chosen per vault** (Settings → This vault → GitHub, owners only; one line
-explains each):
-- **Ask me** (the default, as today): you press Push and it opens or adds to the PR.
-- **Regular review:** one PR every **hour, day or week**, at a time you choose (UK time). If
-  nothing changed, nothing is sent. While a PR is still open, a new period's changes are added
-  to it; once it's merged, the next period opens a fresh one. No monthly option: a month of
-  changes is too big a PR to review, and the branch drifts far from `main`.
-- **Keep a branch in sync:** a note is pushed to the working branch once nobody has typed in
-  it for about two minutes, so an editing session is one commit; you open the PR when you
-  choose.
-- **Publish straight to a branch** (any branch, `main` included), on a schedule or soon after
-  edits. For `main` the schedule is the default, and the warning says a push to `main` often
-  builds or deploys a site, so "soon after edits" could mean a deploy every few minutes. If
-  GitHub protects the branch, the push is refused and the bar says why.
-
-**Safeguards for every automatic mode:**
-- **Hold back what isn't ready:** mark a note "not ready" in Review changes; held notes stay
-  out of automatic pushes until released. The hold is kept in the database (`git_files`), not
-  as a property in the note, which would itself be pushed and show in the repo. When
-  publishing straight to a branch, deletions also wait for a person to confirm them.
-- **Pause:** one "Pause automatic pushes" button in the branch bar, for a big reorganisation.
-  **Send now** works in every mode.
-- **Merge before every push:** run the same three-way merge as Update from `main`. Clean:
-  push. A real clash: pause and show "Auto-push paused: 1 note to settle", as F14 does; never
-  a force push, never conflict markers in a note.
-- **Whose token:** the person who set the mode; the bar says "Sends as sam". If they
-  disconnect GitHub or leave the vault, sending pauses and the bar says so.
-- **Co-authors:** automatic commits name other editors without their emails by default
-  (the repo may be public); including emails is an opt-in in the setting.
-- **What's coming:** the bar shows "Next PR at 18:00 · 3 notes waiting" or "Pushed 2 min ago".
-
-**Coming in, too:** the same setting can bring GitHub's changes in on a schedule, as Update
-from `main` does: clean merges arrive by themselves and clashes wait to be settled. Staying
-close to `main` also makes outgoing pushes clash less.
-
-**Open question: whose token sends.** F14 chose personal tokens, "switching to a GitHub App if
-this gets used by anyone but me". Automatic pushes made for a whole vault with one person's
-long-lived token are close to that line. A GitHub App ("Install Commonplace on these repos")
-gives short-lived tokens that belong to the installation, not a person. Decide before step 1:
-personal token for a personal vault, App for a shared one, or App only.
-
-**Why settings live in the database here but in a file for F18:** F19's settings are about
-how this server talks to GitHub (schedule, next run, whose token), which means nothing to the
-repo or an export; F18's `publish.json` describes the site, which should travel with the vault.
-
-**How it runs:** the server checks once a minute for vaults that are due; the next run time is
-stored in `vault_git`, so a restart or deploy loses nothing, and missed runs catch up at boot.
-One instance (see L4), so a push can't be sent twice; a lock per vault covers a slow push
-overlapping the next check.
-
-**Done when** each mode works against the fake GitHub in tests (schedule due, nothing changed,
-PR still open, PR merged, clash pauses, held note skipped, protected branch refused, token
-disconnected), the bar shows what's next on the laptop and the iPhone in both themes, and a
-restart mid-schedule neither loses nor repeats a push.
 
 ### F18 — Publish a vault to the web: a site builder with themes and features to switch on
 

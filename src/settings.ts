@@ -42,5 +42,9 @@ export const settings = {
   secretsKey: process.env.SECRETS_KEY?.trim() ?? "",
   /** GitHub's REST API (F14); tests point it at a fake. */
   githubApi: (process.env.GITHUB_API_URL?.trim() || "https://api.github.com").replace(/\/+$/, ""),
+  /** F19: how often due automatic pushes are looked for, and how long a note must go untouched
+   *  before "keep a branch in sync" sends it. Shorter only in tests. */
+  gitTickMs: Number(process.env.GIT_TICK_MS ?? 60_000),
+  gitIdleMs: Number(process.env.GIT_IDLE_MS ?? 120_000),
   maxImportBytes: Number(process.env.MAX_IMPORT_MB ?? 200) * 1024 * 1024,
 };

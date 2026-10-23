@@ -75,6 +75,11 @@ export interface GitActions {
   pullRequest(): void;
   update(): void;
   cancel(): void;
+  /** Changes go on their own (F19), and whether that's paused. */
+  auto: boolean;
+  paused: boolean;
+  sendNow(): void;
+  setPaused(paused: boolean): void;
 }
 export interface SidebarActions {
   newFolder(): void;
@@ -262,6 +267,10 @@ export const COMMANDS: Command[] = [
   { id: "git.review", title: "Review changes", group: "Vault", icon: "branch", keywords: "github git diff branch changed", when: (c) => !!c.app?.git, run: (c) => c.app!.git!.review() },
   { id: "git.pr", title: "Open pull request", group: "Vault", icon: "pull-request", keywords: "github pr push commit", when: (c) => !!c.app?.canWrite && !!c.app.git && !c.app.git.hasPr && c.app.git.changes > 0, run: (c) => c.app!.git!.pullRequest() },
   { id: "git.push", title: "Push changes to the pull request", group: "Vault", icon: "pull-request", keywords: "github pr commit", when: (c) => !!c.app?.canWrite && !!c.app.git?.hasPr && c.app.git.unpushed > 0, run: (c) => c.app!.git!.pullRequest() },
+  { id: "git.send", title: "Send to GitHub now", group: "Vault", icon: "upload", keywords: "github push publish sync automatic", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto, run: (c) => c.app!.git!.sendNow() },
+  { id: "git.pause", title: "Pause automatic pushes", group: "Vault", icon: "pause", keywords: "github stop hold sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && !c.app.git.paused, run: (c) => c.app!.git!.setPaused(true) },
+  { id: "git.resume", title: "Carry on with automatic pushes", group: "Vault", icon: "play", keywords: "github resume unpause sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && c.app.git.paused, run: (c) => c.app!.git!.setPaused(false) },
+  { id: "git.sending", title: "How changes go to GitHub…", group: "Settings", icon: "settings", keywords: "github automatic schedule review sync publish main push", when: (c) => !!c.app?.git, run: () => openSettings("vault") },
   { id: "git.update", title: "Update from GitHub", group: "Vault", icon: "download", keywords: "pull main merge sync fetch", when: (c) => !!c.app?.canWrite && !!c.app.git, run: (c) => c.app!.git!.update() },
   { id: "git.cancel", title: "Cancel the branch", group: "Vault", icon: "undo", keywords: "github discard revert reset", danger: true, when: (c) => !!c.app?.canWrite && !!c.app.git && (c.app.git.changes > 0 || c.app.git.pushed), run: (c) => c.app!.git!.cancel() },
   { id: "create.folder", title: "New folder", group: "Create", icon: "folder-plus", keywords: "directory", when: (c) => canCreate(c) && !!c.sidebar, run: (c) => c.sidebar!.newFolder() },

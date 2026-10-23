@@ -1,7 +1,8 @@
 // A fake GitHub for tests: the REST endpoints GitHub vaults use (src/github.ts), over an in-memory
 // git: blobs with real git SHAs, flat trees, commits, branches and pull requests. Only the token
 // TOKEN is accepted, and every request is recorded so tests can check the token never
-// appears in a URL. `commitToMain` and `mergePr` play the part of someone working on GitHub.
+// appears in a URL. `commitToMain` and `mergePr` play the part of someone working on GitHub; `protect`
+// refuses pushes to a branch, as branch protection does.
 
 import { createHash } from "node:crypto";
 
@@ -21,6 +22,8 @@ export function startFakeGitHub(port: number) {
   const seen: { method: string; url: string; auth: string | null }[] = [];
   /** The next pull request create is refused with this, as GitHub does (e.g. 422). */
   let refusePull: { status: number; message: string } | null = null;
+  /** Branches GitHub protects: a push straight to one is refused, as branch protection does. */
+  const protectedBranches = new Set<string>();
   const REPO = "sam/house";
 
   const putBlob = (data: Uint8Array) => {
@@ -122,6 +125,7 @@ export function startFakeGitHub(port: number) {
           // A fast-forward only: the new commit must descend from the branch's head.
           const head = refs.get(name);
           if (!head) return no(422, "Reference does not exist");
+          if (protectedBranches.has(name)) return no(422, `Protected branch update failed for refs/heads/${name}.`);
           const descends = (c: string): boolean => c === head || (commits.get(c)?.parents ?? []).some(descends);
           if (!body.force && !descends(body.sha)) return no(422, "Update is not a fast forward");
           refs.set(name, body.sha);
@@ -163,6 +167,7 @@ export function startFakeGitHub(port: number) {
       pr.merged = true;
     },
     refuseNextPull: (status: number, message: string) => void (refusePull = { status, message }),
+    protect: (branch: string, on = true) => void (on ? protectedBranches.add(branch) : protectedBranches.delete(branch)),
     parentsOf: (branch: string) => commits.get(refs.get(branch)!)!.parents,
     stop: () => server.stop(true),
   };

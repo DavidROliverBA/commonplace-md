@@ -43,7 +43,9 @@ key flows, decisions); read it before structural changes, and keep it current wh
   its tree on the base tree, so files that weren't copied in (code, dot-folders) can't change.
   Writes to notes go through `createNote` / `overwriteContent` like any other, and an update
   never writes conflict markers into a note: clashes wait in `git_clashes`. Tests use
-  `test/fakeGitHub.ts`.
+  `test/fakeGitHub.ts`. Automatic sending (F19, `src/gitAuto.ts`) reuses `update`, `push` and
+  `publish`: it always merges first, pauses on a clash or refusal (never forces), leaves held
+  notes out, and sends with the chosen owner's token; branch protection is GitHub's to enforce.
 - **Types are notes** (F16, `src/types.ts`): `Types/X.md` defines a type in its frontmatter; a
   note is an X when it says `type: X`; relations are `[[wikilinks]]` in properties. The type is
   a generated column (`notes.type_name`). Never store type data outside the markdown, so a vault

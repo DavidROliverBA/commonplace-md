@@ -298,6 +298,35 @@ create table if not exists git_pushed (
   primary key (vault_id, path)
 );
 
+-- How a vault's changes go to GitHub (F19): 'ask' (someone presses Push, as F14), 'review' (a PR
+-- every hour, day or week), 'sync' (each note pushed to the working branch once idle) or
+-- 'publish' (straight onto the base branch, on the schedule or once idle). Sent with `send_as`'s
+-- token. `paused_why` null while paused means a person paused it; otherwise it's why sending stopped.
+alter table vault_git add column if not exists send_mode text not null default 'ask';
+alter table vault_git add column if not exists send_every text not null default 'day';
+alter table vault_git add column if not exists send_at text not null default '18:00';
+alter table vault_git add column if not exists send_day int not null default 5;
+alter table vault_git add column if not exists send_soon boolean not null default false;
+alter table vault_git add column if not exists send_as bigint references users(id) on delete set null;
+alter table vault_git add column if not exists coauthor_emails boolean not null default false;
+alter table vault_git add column if not exists next_run_at timestamptz;
+alter table vault_git add column if not exists paused_at timestamptz;
+alter table vault_git add column if not exists paused_why text;
+alter table vault_git add column if not exists last_sent_at timestamptz;
+alter table vault_git add column if not exists last_error text;
+-- The git blob each pushed path holds on the branch, so a held note keeps its pushed version.
+alter table git_pushed add column if not exists sha text;
+
+-- Notes held back from pushes (F19) until someone releases them. Kept here, not as a property in
+-- the note, which would itself be pushed.
+create table if not exists git_held (
+  vault_id   bigint not null references vaults(id) on delete cascade,
+  path       text not null,
+  held_by    bigint references users(id) on delete set null,
+  created_at timestamptz not null default now(),
+  primary key (vault_id, path)
+);
+
 -- Notes changed both here and on GitHub that didn't merge line by line: the note keeps its text
 -- here until someone picks a side; `theirs` is GitHub's (null = deleted there).
 create table if not exists git_clashes (

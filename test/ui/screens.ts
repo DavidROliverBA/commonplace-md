@@ -47,6 +47,8 @@ const HELP_SHOTS: Record<string, string> = {
   "laptop-light-13-branch-bar": "github-branch-bar",
   "laptop-light-13b-changes": "github-changes",
   "laptop-light-13c-pull-request": "github-pull-request",
+  "laptop-light-13d-auto-bar": "github-auto-bar",
+  "laptop-light-13f-sending": "github-sending",
   "laptop-light-14-site-page": "published-page",
   "laptop-light-15-graph": "graph",
   "laptop-light-16-diagram": "diagram-and-query",
@@ -128,6 +130,15 @@ try {
   const ghBoiler = ghNotes.find((n) => n.path === "Boiler.md")!.id;
   await api(`/vaults/${ghVault}/notes/${ghBoiler}/content`, { content: "# Boiler\n\nServiced in May by Sam Okafor.\n\n- filter\n- pressure\n- flue checked\n" }, "PUT");
   await api(`/vaults/${ghVault}/notes/${ghNotes.find((n) => n.path === "Garden.md")!.id}/content`, { content: "# Garden\n\nPlant bulbs in October.\n" }, "PUT");
+
+  // The same repo again, sending a weekly pull request on its own (F19), with one note held back.
+  const ghAuto = (await api("/vaults/github", { repo: "sam/house", branch: "main", folder: "docs", name: "House (weekly review)" })).vault.id;
+  const ghAutoNotes = (await api(`/vaults/${ghAuto}/notes`)) as { id: number; path: string }[];
+  const ghAutoBoiler = ghAutoNotes.find((n) => n.path === "Boiler.md")!.id;
+  await api(`/vaults/${ghAuto}/notes/${ghAutoBoiler}/content`, { content: "# Boiler\n\nServiced in May by Sam Okafor.\n\n- filter\n- pressure\n" }, "PUT");
+  await api(`/vaults/${ghAuto}/notes/${ghAutoNotes.find((n) => n.path === "Garden.md")!.id}/content`, { content: "# Garden\n\nPlant bulbs, maybe.\n" }, "PUT");
+  await api(`/vaults/${ghAuto}/git/auto`, { mode: "review", every: "week", day: 5, at: "17:00" }, "PUT");
+  await api(`/vaults/${ghAuto}/git/hold`, { path: "Garden.md", held: true });
 
   // A published site (F18): Projects and Recipes, then a later edit, so Settings → Website has a
   // change to list.
@@ -322,6 +333,21 @@ try {
       await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".changes-page button.primary")].pop()?.click());
       await p.waitForSelector(".pr-form");
       await shot(p, `${tag}-13c-pull-request`);
+      await p.keyboard.press("Escape");
+      // Sending on its own (F19): the bar's line, a held change, and the choice in Settings.
+      await p.goto(`${BASE}/v/${ghAuto}/n/${ghAutoBoiler}`, { waitUntil: "load" });
+      await p.waitForSelector(".branch-auto");
+      await Bun.sleep(400);
+      await shot(p, `${tag}-13d-auto-bar`);
+      await p.goto(`${BASE}/v/${ghAuto}/changes`, { waitUntil: "load" });
+      await p.waitForSelector(".change-held");
+      await shot(p, `${tag}-13e-held`);
+      await p.click('.branch-bar button[aria-label="Branch"]');
+      await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent?.includes("How changes are sent"))!.click());
+      await p.waitForSelector(".send-modes");
+      await p.evaluate(() => document.querySelector(".send-modes")!.closest(".settings-section")!.scrollIntoView());
+      await Bun.sleep(300);
+      await shot(p, `${tag}-13f-sending`);
       await p.keyboard.press("Escape");
 
       await p.goto(`${BASE}/v/${vaultId}/n/${overview.id}`, { waitUntil: "load" });

@@ -1,8 +1,10 @@
-// Settings → This vault: name, members and invitations, import, export, and leave or delete.
+// Settings → This vault: name, how a GitHub vault sends its changes (F19), members and invitations,
+// import, export, and leave or delete.
 
 import { useEffect, useRef, useState } from "react";
 import { api, type Role, type User, type Vault } from "../lib/api";
 import { navigate } from "../lib/router";
+import { GitHubSending } from "./GitHubSending";
 import { confirmDialog, promptDialog, toast, toastError } from "../ui/overlays";
 
 interface Member {
@@ -163,6 +165,8 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
           Your role: <b>{vault.role}</b>. {vault.note_count} notes.
         </p>
       </section>
+
+      {vault.git_repo && <GitHubSending vault={vault} />}
 
       <section className="settings-section">
         <h3>Members</h3>

@@ -10,6 +10,7 @@ import { HttpError, requireUser, type User } from "./auth";
 import { ChatRequest, chatResponse } from "./ai";
 import * as assistants from "./assistants";
 import * as git from "./git";
+import * as gitAuto from "./gitAuto";
 import * as github from "./github";
 import * as captureTokens from "./capture";
 import { mcpRoute } from "./mcp";
@@ -838,6 +839,44 @@ export const apiRoutes = {
       const { vaultId, user } = await vaultCtx(ctx, "editor");
       const b = await body(ctx.req, z.object({ path: z.string().max(1000), take: z.enum(["mine", "theirs"]) }));
       return git.resolve(vaultId, user, b.path, b.take);
+    }),
+  },
+  // F19 (src/gitAuto.ts): how changes are sent, chosen by an owner; pause, send now, hold back.
+  "/api/vaults/:v/git/auto": {
+    PUT: route(async (ctx) => {
+      const { vaultId, user } = await vaultCtx(ctx, "owner");
+      const b = await body(
+        ctx.req,
+        z.object({
+          mode: z.enum(["ask", "review", "sync", "publish"]),
+          every: z.enum(["hour", "day", "week"]).default("day"),
+          at: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, "A time is HH:MM").default("18:00"),
+          day: z.number().int().min(0).max(6).default(5),
+          soon: z.boolean().default(false),
+          coauthorEmails: z.boolean().default(false),
+          branch: z.string().max(200).optional(),
+        }),
+      );
+      return gitAuto.configure(vaultId, user, b);
+    }),
+  },
+  "/api/vaults/:v/git/pause": {
+    POST: route(async (ctx) => {
+      const { vaultId, user } = await vaultCtx(ctx, "editor");
+      return gitAuto.pause(vaultId, user, (await body(ctx.req, z.object({ paused: z.boolean() }))).paused);
+    }),
+  },
+  "/api/vaults/:v/git/send-now": {
+    POST: route(async (ctx) => {
+      const { vaultId, user } = await vaultCtx(ctx, "editor");
+      return gitAuto.run(vaultId, user);
+    }),
+  },
+  "/api/vaults/:v/git/hold": {
+    POST: route(async (ctx) => {
+      const { vaultId, user } = await vaultCtx(ctx, "editor");
+      const b = await body(ctx.req, z.object({ path: z.string().max(1000), held: z.boolean() }));
+      return git.hold(vaultId, user, b.path, b.held);
     }),
   },
   "/api/vaults/:v/git/branch": {

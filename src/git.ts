@@ -1,5 +1,6 @@
 // GitHub vaults (F14): a repo (or a folder of it) copied in as a vault, edited here as a branch,
-// finished with a pull request. Nothing reaches the base branch without a PR.
+// finished with a pull request. Nothing reaches the base branch without a PR, unless an owner
+// chooses to publish straight to it (F19, src/gitAuto.ts, which also sends on a schedule).
 //
 //   copy in    the tree at the branch's head; markdown, canvases and attachments only (code,
 //              dot-folders such as app settings and .github/ stay on GitHub). Each file's base is kept in git_files.
@@ -84,9 +85,23 @@ export interface VaultGit {
   pr_url: string | null;
   pr_state: string | null;
   pr_checked_at: Date | null;
+  send_mode: SendMode;
+  send_every: "hour" | "day" | "week";
+  send_at: string;
+  send_day: number;
+  send_soon: boolean;
+  send_as: number | null;
+  coauthor_emails: boolean;
+  next_run_at: Date | null;
+  paused_at: Date | null;
+  paused_why: string | null;
+  last_sent_at: Date | null;
+  last_error: string | null;
 }
 
-async function gitRow(vaultId: number): Promise<VaultGit> {
+export type SendMode = "ask" | "review" | "sync" | "publish";
+
+export async function gitRow(vaultId: number): Promise<VaultGit> {
   const [g] = await sql<VaultGit[]>`select * from vault_git where vault_id = ${vaultId}`;
   if (!g) throw new HttpError(404, "This vault isn't from GitHub");
   return g;
@@ -197,6 +212,10 @@ export interface Change {
   mode: string;
   /** Not on the pushed branch yet. */
   unpushed: boolean;
+  /** Held back from pushes until someone releases it (F19). */
+  held: boolean;
+  /** When the note last changed (null for a deletion): automatic pushes wait for it to go quiet. */
+  updatedAt: Date | null;
 }
 
 interface Row {
@@ -232,6 +251,7 @@ export async function changes(vaultId: number, g?: VaultGit): Promise<Change[]> 
   const git = g ?? (await gitRow(vaultId));
   const rows = await changeRows(vaultId);
   const pushed = new Map((await sql`select path, hash from git_pushed where vault_id = ${vaultId}`).map((r) => [r.path as string, r.hash as string]));
+  const held = await heldPaths(vaultId);
   const deleted = rows.filter((r) => r.cur_hash === null);
   const usedAsMove = new Set<string>();
   const out: Change[] = [];
@@ -248,19 +268,31 @@ export async function changes(vaultId: number, g?: VaultGit): Promise<Change[]> 
       }
     }
     const repoPath = r.repo_path ?? prefixOf(git.folder) + r.path;
-    out.push({ path: r.path, kind, from, note: r.is_note, noteId: r.note_id, hash: r.cur_hash, repoPath, mode: r.mode ?? "100644", unpushed: pushed.get(r.path) !== r.cur_hash });
+    out.push({ path: r.path, kind, from, note: r.is_note, noteId: r.note_id, hash: r.cur_hash, repoPath, mode: r.mode ?? "100644", unpushed: pushed.get(r.path) !== r.cur_hash, held: held.has(r.path) || (!!from && held.has(from)), updatedAt: r.updated_at });
   }
   for (const d of deleted) {
     if (usedAsMove.has(d.path)) continue; // a move's old path is listed with the move, not as a deletion
-    out.push({ path: d.path, kind: "deleted", note: d.is_note, noteId: null, hash: "", repoPath: d.repo_path!, mode: d.mode ?? "100644", unpushed: pushed.get(d.path) !== "" });
+    out.push({ path: d.path, kind: "deleted", note: d.is_note, noteId: null, hash: "", repoPath: d.repo_path!, mode: d.mode ?? "100644", unpushed: pushed.get(d.path) !== "", held: held.has(d.path), updatedAt: null });
   }
   return out;
 }
 
+async function heldPaths(vaultId: number): Promise<Set<string>> {
+  return new Set((await sql`select path from git_held where vault_id = ${vaultId}`).map((r) => r.path as string));
+}
+
+/** Hold a note back from pushes, or release it (F19). */
+export async function hold(vaultId: number, user: User, path: string, held: boolean): Promise<Status> {
+  if (held) await sql`insert into git_held (vault_id, path, held_by) values (${vaultId}, ${path}, ${user.id}) on conflict do nothing`;
+  else await sql`delete from git_held where vault_id = ${vaultId} and path = ${path}`;
+  emit(vaultId, { type: "vault.changed" });
+  return status(vaultId, user.id);
+}
+
 /** Paths pushed earlier that have since gone back to their base: the branch still differs. */
-function revertedSincePush(list: Change[], pushed: Map<string, string>, moves: Set<string>): number {
+function revertedSincePush(list: Change[], pushed: Map<string, string>, moves: Set<string>, held: Set<string>): number {
   const now = new Set(list.map((c) => c.path));
-  return [...pushed.keys()].filter((p) => !now.has(p) && !moves.has(p)).length;
+  return [...pushed.keys()].filter((p) => !now.has(p) && !moves.has(p) && !held.has(p)).length;
 }
 
 const slug = (s: string) =>
@@ -295,6 +327,40 @@ export interface Status {
   authors: { id: number; name: string; email: string }[];
   /** A newer base is merged into the branch on the next push. */
   mergePending: boolean;
+  /** Changes held back from pushes. */
+  held: number;
+  /** How changes go to GitHub (F19). */
+  auto: AutoStatus;
+}
+
+export interface AutoStatus {
+  mode: SendMode;
+  every: VaultGit["send_every"];
+  at: string;
+  day: number;
+  soon: boolean;
+  coauthorEmails: boolean;
+  sendAs: { id: number; name: string } | null;
+  /** Why automatic sending has stopped: a person paused it, a clash, the sender, or GitHub. */
+  paused: { by: "person" | "clashes" | "sender" | "github"; message: string } | null;
+  nextRunAt: Date | null;
+  lastSentAt: Date | null;
+  lastError: string | null;
+  /** Changes an automatic push would send now (not held; deletions wait when publishing). */
+  waiting: number;
+  /** Deletions that wait for a person when publishing straight to the branch. */
+  deletionsWaiting: number;
+}
+
+/** Whether automatic pushes leave this change out: held, or a deletion when publishing. */
+export const leftOut = (c: Change, mode: SendMode) => c.held || (mode === "publish" && c.kind === "deleted");
+
+function pausedOf(g: VaultGit, clashes: number): AutoStatus["paused"] {
+  if (!g.paused_at) return null;
+  if (!g.paused_why) return { by: "person", message: "Automatic pushes are paused" };
+  if (g.paused_why === "clashes") return { by: "clashes", message: `Automatic pushes are paused: ${clashes === 1 ? "1 note" : `${clashes} notes`} to settle` };
+  if (g.paused_why.startsWith("sender:")) return { by: "sender", message: g.paused_why.slice(7) };
+  return { by: "github", message: g.paused_why.replace(/^github:/, "") };
 }
 
 export async function status(vaultId: number, userId?: number): Promise<Status> {
@@ -316,6 +382,9 @@ export async function status(vaultId: number, userId?: number): Promise<Status> 
   const clashes = await sql`select path, theirs is null as deleted_there from git_clashes where vault_id = ${vaultId} order by path`;
   const ids = [...new Set((await changeRows(vaultId)).map((r) => r.updated_by).filter((x): x is number => x != null))];
   const authors = ids.length ? await sql<{ id: number; name: string; email: string }[]>`select id, name, email from users where id in ${sql(ids)} order by name` : [];
+  const held = await heldPaths(vaultId);
+  const [sender] = g.send_as ? await sql<{ id: number; name: string }[]>`select id, name from users where id = ${g.send_as}` : [];
+  const sendable = list.filter((c) => !leftOut(c, g.send_mode));
   let branch = g.branch;
   if (!branch) {
     const first = list.find((c) => c.note) ?? list[0];
@@ -331,9 +400,25 @@ export async function status(vaultId: number, userId?: number): Promise<Status> 
     pr: g.pr_number ? { number: g.pr_number, url: g.pr_url!, state: g.pr_state ?? "open" } : null,
     changes: list,
     clashes: clashes.map((c) => ({ path: c.path, deletedThere: c.deleted_there })),
-    unpushed: g.head_sha ? list.filter((c) => c.unpushed).length + revertedSincePush(list, pushed, moves) + (g.merge_sha ? 1 : 0) : list.length,
+    unpushed: g.head_sha ? list.filter((c) => c.unpushed && !c.held).length + revertedSincePush(list, pushed, moves, held) + (g.merge_sha ? 1 : 0) : list.filter((c) => !c.held).length,
     authors,
     mergePending: !!g.merge_sha,
+    held: list.filter((c) => c.held).length,
+    auto: {
+      mode: g.send_mode,
+      every: g.send_every,
+      at: g.send_at,
+      day: g.send_day,
+      soon: g.send_soon,
+      coauthorEmails: g.coauthor_emails,
+      sendAs: sender ?? null,
+      paused: pausedOf(g, clashes.length),
+      nextRunAt: g.next_run_at,
+      lastSentAt: g.last_sent_at,
+      lastError: g.last_error,
+      waiting: sendable.filter((c) => c.unpushed).length,
+      deletionsWaiting: g.send_mode === "publish" ? list.filter((c) => c.kind === "deleted" && !c.held).length : 0,
+    },
   };
 }
 
@@ -412,10 +497,12 @@ export async function renameBranch(vaultId: number, name: string): Promise<void>
 
 // ── push and pull request ────────────────────────────────────────────────────────────────
 
-/** Commit every change onto the branch (creating it on the first push), then open the PR if
- *  there isn't one and a title was given. */
-export async function push(vaultId: number, user: User, opts: { message: string; title?: string; body?: string; branch?: string }): Promise<Status> {
+/** Commit the changes onto the branch (creating it on the first push), then open the PR if
+ *  there isn't one and a title was given. Held notes stay out, as does anything `send` refuses;
+ *  whatever stays out keeps the version an earlier push put on the branch. */
+export async function push(vaultId: number, user: User, opts: { message: string; title?: string; body?: string; branch?: string; send?: (c: Change) => boolean }): Promise<Status> {
   const g = await gitRow(vaultId);
+  if (g.send_mode === "publish") throw new HttpError(409, `This vault publishes straight to ${g.base_branch}: use Send now`);
   const [{ n: clashCount }] = (await sql`select count(*)::int as n from git_clashes where vault_id = ${vaultId}`) as any;
   if (clashCount) throw new HttpError(409, `Settle the ${clashCount === 1 ? "clash" : `${clashCount} clashes`} in Review changes first`);
   if (g.pr_state === "merged") throw new HttpError(409, `Pull request #${g.pr_number} was merged: Update from ${g.base_branch} first, then your new changes go on a new branch`);
@@ -427,28 +514,35 @@ export async function push(vaultId: number, user: User, opts: { message: string;
     await openPr(vaultId, gh, repo, g.branch!, g.base_branch, opts);
     return status(vaultId, user.id);
   }
-  if (!g.head_sha && !st.changes.length) throw new HttpError(400, "Nothing has changed yet");
+  const sent = st.changes.filter((c) => !c.held && (opts.send?.(c) ?? true));
+  if (!g.head_sha && !sent.length) throw new HttpError(400, st.held ? `Nothing to send: ${st.held === 1 ? "the one change is" : `all ${st.held} changes are`} held back` : "Nothing has changed yet");
   if (g.head_sha && !st.unpushed) throw new HttpError(400, "Everything is on GitHub already");
   const message = opts.message.trim();
   if (!message) throw new HttpError(400, "Write a commit message");
   const branch = g.head_sha ? g.branch! : checkBranch(opts.branch ?? st.branch);
 
-  const entries: { path: string; mode: string; type: "blob"; sha?: string | null; content?: string }[] = [];
-  for (const c of st.changes) {
+  const entries: TreeItem[] = [];
+  const shas = new Map<string, string | null>(); // what each sent path now holds on the branch
+  for (const c of sent) {
     if (c.kind === "moved") {
       const [old] = await sql`select repo_path, mode from git_files where vault_id = ${vaultId} and path = ${c.from!}`;
       if (old) entries.push({ path: old.repo_path, mode: old.mode, type: "blob", sha: null });
+      shas.set(c.from!, null);
     }
-    if (c.kind === "deleted") {
-      entries.push({ path: c.repoPath, mode: c.mode, type: "blob", sha: null });
-    } else if (c.note) {
-      const [n] = await sql`select content from notes where id = ${c.noteId}`;
-      entries.push({ path: c.repoPath, mode: c.mode, type: "blob", content: n!.content });
-    } else {
-      const [a] = await sql`select data from attachments where vault_id = ${vaultId} and path = ${c.path}`;
-      const b = await gh.post<{ sha: string }>(`${repo}/git/blobs`, { content: Buffer.from(a!.data).toString("base64"), encoding: "base64" });
-      entries.push({ path: c.repoPath, mode: c.mode, type: "blob", sha: b.sha });
-    }
+    const e = await entryFor(vaultId, gh, repo, c);
+    entries.push(e.item);
+    shas.set(c.path, e.sha);
+  }
+  // Left out this time (held, or still being typed in): the branch keeps what an earlier push
+  // put there, rather than going back to the base. Paths reverted since then go back unless held.
+  const pushedRows = await sql<{ path: string; hash: string; sha: string | null }[]>`select path, hash, sha from git_pushed where vault_id = ${vaultId}`;
+  const held = await heldPaths(vaultId);
+  const changed = new Map(st.changes.map((c) => [c.path, c]));
+  const keep = pushedRows.filter((r) => !shas.has(r.path) && (changed.has(r.path) || st.changes.some((c) => c.from === r.path) || held.has(r.path)));
+  for (const r of keep) {
+    const rp = changed.get(r.path)?.repoPath ?? (await repoPathOf(vaultId, g, r.path));
+    if (r.hash === "") entries.push({ path: rp, mode: "100644", type: "blob", sha: null });
+    else if (r.sha) entries.push({ path: rp, mode: changed.get(r.path)?.mode ?? "100644", type: "blob", sha: r.sha });
   }
   const tree = entries.length ? (await gh.post<{ sha: string }>(`${repo}/git/trees`, { base_tree: g.base_tree, tree: entries })).sha : g.base_tree;
   const parents = g.head_sha ? [g.head_sha, ...(g.merge_sha ? [g.merge_sha] : [])] : [g.base_sha];
@@ -472,12 +566,87 @@ export async function push(vaultId: number, user: User, opts: { message: string;
   // PR leaves a vault that knows its branch (and can try the PR again), not one that tries to
   // create the branch a second time.
   await sql.begin(async (tx) => {
-    await tx`update vault_git set branch = ${branch}, head_sha = ${commit.sha}, merge_sha = null where vault_id = ${vaultId}`;
+    await tx`update vault_git set branch = ${branch}, head_sha = ${commit.sha}, merge_sha = null, last_sent_at = now() where vault_id = ${vaultId}`;
     await tx`delete from git_pushed where vault_id = ${vaultId}`;
-    const snap = [...st.changes.map((c) => ({ vault_id: vaultId, path: c.path, hash: c.hash })), ...st.changes.filter((c) => c.from).map((c) => ({ vault_id: vaultId, path: c.from!, hash: "" }))];
+    const snap = [
+      ...keep.map((r) => ({ vault_id: vaultId, path: r.path, hash: r.hash, sha: r.sha })),
+      ...sent.map((c) => ({ vault_id: vaultId, path: c.path, hash: c.hash, sha: shas.get(c.path) ?? null })),
+      ...sent.filter((c) => c.from).map((c) => ({ vault_id: vaultId, path: c.from!, hash: "", sha: null })),
+    ];
     if (snap.length) await tx`insert into git_pushed ${tx(snap)} on conflict do nothing`;
   });
   if (!g.pr_number && opts.title?.trim()) await openPr(vaultId, gh, repo, branch, g.base_branch, opts);
+  return status(vaultId, user.id);
+}
+
+type TreeItem = { path: string; mode: string; type: "blob"; sha?: string | null; content?: string };
+
+/** git's own id for a blob, so a note's pushed version is known without asking GitHub. */
+const blobSha = (data: string | Uint8Array) => {
+  const bytes = typeof data === "string" ? new TextEncoder().encode(data) : data;
+  return createHash("sha1").update(`blob ${bytes.byteLength}\0`).update(bytes).digest("hex");
+};
+
+/** The tree entry that puts a change on a branch, and the blob it leaves there (null: deleted). */
+async function entryFor(vaultId: number, gh: GitHub, repo: string, c: Change): Promise<{ item: TreeItem; sha: string | null; content?: string }> {
+  if (c.kind === "deleted") return { item: { path: c.repoPath, mode: c.mode, type: "blob", sha: null }, sha: null };
+  if (c.note) {
+    const [n] = await sql`select content from notes where id = ${c.noteId}`;
+    return { item: { path: c.repoPath, mode: c.mode, type: "blob", content: n!.content }, sha: blobSha(n!.content), content: n!.content };
+  }
+  const [a] = await sql`select data from attachments where vault_id = ${vaultId} and path = ${c.path}`;
+  const b = await gh.post<{ sha: string }>(`${repo}/git/blobs`, { content: Buffer.from(a!.data).toString("base64"), encoding: "base64" });
+  return { item: { path: c.repoPath, mode: c.mode, type: "blob", sha: b.sha }, sha: b.sha };
+}
+
+async function repoPathOf(vaultId: number, g: VaultGit, path: string): Promise<string> {
+  const [f] = await sql`select repo_path from git_files where vault_id = ${vaultId} and path = ${path}`;
+  return f?.repo_path ?? prefixOf(g.folder) + path;
+}
+
+/** Publish straight to the base branch (F19): one commit on its head, no pull request. What's
+ *  sent becomes the new base here, so it no longer shows as a change. */
+export async function publish(vaultId: number, user: User, opts: { message: string; send: (c: Change) => boolean }): Promise<Status> {
+  const g = await gitRow(vaultId);
+  if (g.head_sha) throw new HttpError(409, `Finish or cancel the branch ${g.branch} first`);
+  const [{ n: clashCount }] = (await sql`select count(*)::int as n from git_clashes where vault_id = ${vaultId}`) as any;
+  if (clashCount) throw new HttpError(409, `Settle the ${clashCount === 1 ? "clash" : `${clashCount} clashes`} in Review changes first`);
+  const list = await changes(vaultId, g);
+  const sent = list.filter((c) => !c.held && opts.send(c));
+  if (!sent.length) return status(vaultId, user.id);
+  const gh = await clientFor(user.id);
+  const repo = repoPath(g.repo);
+  const entries: TreeItem[] = [];
+  const done: { c: Change; sha: string | null; content?: string }[] = [];
+  for (const c of sent) {
+    if (c.kind === "moved") {
+      const [old] = await sql`select repo_path, mode from git_files where vault_id = ${vaultId} and path = ${c.from!}`;
+      if (old) entries.push({ path: old.repo_path, mode: old.mode, type: "blob", sha: null });
+    }
+    const e = await entryFor(vaultId, gh, repo, c);
+    entries.push(e.item);
+    done.push({ c, sha: e.sha, content: e.content });
+  }
+  const tree = (await gh.post<{ sha: string }>(`${repo}/git/trees`, { base_tree: g.base_tree, tree: entries })).sha;
+  const commit = await gh.post<{ sha: string }>(`${repo}/git/commits`, { message: opts.message.trim() || "Update notes", tree, parents: [g.base_sha] });
+  try {
+    await gh.req("PATCH", `${repo}/git/refs/heads/${enc(g.base_branch)}`, { sha: commit.sha, force: false });
+  } catch (err) {
+    // Moved on since the last update: the next run updates first and tries again. Never forced.
+    if (err instanceof HttpError && err.status === 409 && /fast.?forward/i.test(err.message)) throw new HttpError(409, `${g.base_branch} changed on GitHub meanwhile; the next try brings that in first`);
+    throw err;
+  }
+  await sql.begin(async (tx) => {
+    for (const { c, sha, content } of done) {
+      if (c.from) await tx`delete from git_files where vault_id = ${vaultId} and path = ${c.from}`;
+      if (c.kind === "deleted") await tx`delete from git_files where vault_id = ${vaultId} and path = ${c.path}`;
+      else
+        await tx`insert into git_files (vault_id, path, repo_path, git_sha, mode, hash, content) values (${vaultId}, ${c.path}, ${c.repoPath}, ${sha!}, ${c.mode}, ${content === undefined ? c.hash : md5(content)}, ${content ?? null})
+                 on conflict (vault_id, path) do update set repo_path = excluded.repo_path, git_sha = excluded.git_sha, mode = excluded.mode, hash = excluded.hash, content = excluded.content`;
+    }
+    await tx`update vault_git set base_sha = ${commit.sha}, base_tree = ${tree}, last_sent_at = now() where vault_id = ${vaultId}`;
+  });
+  emit(vaultId, { type: "vault.changed" });
   return status(vaultId, user.id);
 }
 
@@ -524,6 +693,9 @@ export async function update(vaultId: number, user: User): Promise<UpdateReport>
   const theirs = new Map(wanted(await treeAt(gh, g.repo, head.tree), g.folder).map((e) => [e.path, e]));
   const ours = new Map((await sql`select * from git_files where vault_id = ${vaultId}`).map((f) => [f.repo_path as string, f]));
 
+  // What our pushes put on the branch: once that PR is merged, the base holds exactly this, so
+  // edits made here since then win outright rather than clashing with themselves.
+  const pushed = new Map((await sql`select path, hash, sha from git_pushed where vault_id = ${vaultId}`).map((r) => [r.path as string, r as { hash: string; sha: string | null }]));
   const clash = (path: string, text: string | null) =>
     sql`insert into git_clashes (vault_id, path, theirs) values (${vaultId}, ${path}, ${text}) on conflict (vault_id, path) do update set theirs = excluded.theirs, created_at = now()`;
 
@@ -550,7 +722,9 @@ export async function update(vaultId: number, user: User): Promise<UpdateReport>
       } else {
         const [n] = await sql`select content from notes where id = ${local.id}`;
         const mine = n!.content as string;
-        const r = merge3(f?.content ?? (mine === text ? text : ""), mine, text);
+        const p = pushed.get(vp);
+        const ourPush = !!p && p.hash !== "" && (p.sha === e.sha || p.hash === md5(text));
+        const r = ourPush ? { clean: true, text: mine } : merge3(f?.content ?? (mine === text ? text : ""), mine, text);
         if (!r.clean) {
           await clash(vp, text);
           report.clashes++;
