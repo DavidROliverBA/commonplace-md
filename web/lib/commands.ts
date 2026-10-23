@@ -8,6 +8,7 @@
 
 import type { EditorHandle } from "../components/Editor";
 import type { Assistant } from "./ai";
+import { panel } from "./aiPanel";
 import type { Mode } from "../components/NoteView";
 import { formatDate } from "./templates";
 import { chooseDialog } from "../ui/overlays";
@@ -281,6 +282,8 @@ export const COMMANDS: Command[] = [
   { id: "go.graph", title: "Graph view", group: "Go", icon: "graph", keywords: "map links network", when: (c) => !!c.app, run: (c) => c.app!.graph() },
   { id: "go.home", title: "Vault home", group: "Go", icon: "vault", keywords: "start recent", when: (c) => !!c.app, run: (c) => c.app!.home() },
   { id: "view.files", title: "Show or hide the file panel", group: "View", icon: "panel-left", shortcut: "⌘\\", keywords: "sidebar files tree left folders focus", when: (c) => !!c.app, run: (c) => c.app!.toggleLeft() },
+  { id: "ai.web.on", title: "Let the AI use the web", group: "View", icon: "globe", keywords: "assistant internet search browse online brave", when: () => !!panel.conv?.assistant.web && !panel.conv.web, run: () => panel.conv!.setWeb(true) },
+  { id: "ai.web.off", title: "Stop the AI using the web", group: "View", icon: "globe", keywords: "assistant internet search offline", when: () => !!panel.conv?.web, run: () => panel.conv!.setWeb(false) },
   { id: "view.ai", title: "Ask AI in the side panel", group: "View", icon: "sparkle", shortcut: "⌘J", keywords: "assistant chat claude librarian organise", when: (c) => !!c.app, run: (c) => c.app!.askAi() },
   { id: "view.focus", title: "Focus mode", group: "View", icon: "book", keywords: "zen distraction free writing typewriter hide everything", when: (c) => !!c.note && !focusModeOn(), run: () => setFocusMode(true) },
   { id: "view.unfocus", title: "Leave focus mode", group: "View", icon: "x", keywords: "zen distraction exit", when: (c) => !!c.note && focusModeOn(), run: () => setFocusMode(false) },

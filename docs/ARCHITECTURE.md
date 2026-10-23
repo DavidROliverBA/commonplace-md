@@ -154,7 +154,7 @@ All server code is in `src/`. Most modules are small and own one concern.
 | **Structure** | `types.ts`, `typeIndex.ts`, `vaultViews.ts`, `tour.ts` | Types defined as notes in `Types/`, type pages and relations, tasks across the vault, unlinked mentions, bookmarks, and the first-run tour. |
 | **Import / export** | `transfer.ts` | Import a zip or folder of Markdown files, export a vault or a note, and the streamed backup zip. Limits on size and entry counts guard against zip bombs. |
 | **Capture** | `capture.ts`, `weblinks.ts`, `images.ts`, `imageWorker.ts`, `imageMath.ts` | The iPhone share target. Weblink notes come from an SSRF-guarded fetch, and photos are converted (HEIC to JPEG, shrunk, upright) in a child process. |
-| **AI** | `ai.ts`, `llm.ts`, `tools.ts`, `mcp.ts`, `assistants.ts`, `prices.ts`, `secrets.ts` | Each tool is defined once in `tools.ts`. `mcp.ts` serves the tools to agents over MCP. `ai.ts` runs them in-process for the in-app assistant. `llm.ts` translates to each provider's format. `assistants.ts` holds sealed keys and daily £ limits. |
+| **AI** | `ai.ts`, `llm.ts`, `tools.ts`, `mcp.ts`, `assistants.ts`, `prices.ts`, `secrets.ts`, `web.ts` | Each tool is defined once in `tools.ts` (the web tools, in-app only, in `web.ts`). `mcp.ts` serves the tools to agents over MCP. `ai.ts` runs them in-process for the in-app assistant. `llm.ts` translates to each provider's format. `assistants.ts` holds sealed keys and daily £ limits. |
 | **GitHub vaults** | `git.ts`, `github.ts`, `merge3.ts`, `gitAuto.ts`, `schedule.ts` | Copy in, track changes, push and open a PR, update from the base with a three-way merge, and cancel; send on a schedule, once idle, or straight to a branch (F19). Uses the REST API only. |
 | **Publishing** | `publish.ts` | Renders a snapshot of the chosen notes to HTML in `site_pages` and `site_files`, then serves `/p/<slug>/` from that snapshot. |
 | **Guards** | `storage.ts`, `settings.ts` | The disk guard (warns at 80%, refuses new data at 90%; typing is never refused) and the environment settings. |
@@ -391,6 +391,15 @@ The server keeps no conversation state: the browser sends the whole conversation
 agents call the same `tools.ts` functions through `mcp.ts`. Since those agents have no approval
 step, a read-only token exposes only the read tools.
 
+**The web** (`web.ts`) is offered to the in-app assistant only, never to MCP agents, and only when
+its owner allowed the assistant it (`user_assistants.web`) and the conversation has turned it on.
+`read_web_page` fetches through `weblinks.ts`'s `safeFetch` (no private addresses) and keeps the
+page's readable text. `web_search` calls Brave Search with the person's own sealed key
+(`user_search`). A page could carry instructions meant to make the model leak notes in a URL or a
+search, so once a conversation has made a web request, every further one is a pending call that
+shows the exact search or address, and every change asks, even to the open note. A link that a
+search returned opens without asking, since Brave chose that address, not the model.
+
 ### 7.5 GitHub vaults
 
 A vault can be a copy of a repository, or of one folder in it. The workflow is a branch and a
@@ -471,7 +480,7 @@ the token's inbox note, through `overwriteContent`:
 | XSS in the app | Rendered markdown goes through DOMPurify; dataviewjs code runs only in a sandboxed, opaque-origin frame with no network (`src/sandbox.ts`), and what it drew for a published page is cut down to a few tags and attributes on the server; Dataview results are built from escaped values and sanitised Markdown, and never run a note's code; Mermaid runs in strict mode, its SVG is sanitised and shadow-rooted, and a note's `%%{init}%%` can't add CSS. Attachments are served with `nosniff` and a sandboxing CSP, so an uploaded SVG can't run script. | `web/lib/render.ts`, `api.ts` |
 | Security headers | The app's page has a CSP: scripts only from the bundle's own files (`'unsafe-inline'` only in development, for Bun's dev script), inline styles (React, CodeMirror), images from `https:` (remote images in notes), connections to itself and its own ws/wss. Nothing may frame it (`frame-ancestors 'none'`, `X-Frame-Options`). Every app response has `nosniff`, `Referrer-Policy: same-origin` (a remote image never learns which note it's in) and, when the cookie is `Secure`, HSTS. Bun's HTML-bundle route takes no headers, so the bundle is mounted at a random private path and `"/*"` serves its HTML with them. | `server.ts` |
 | XSS on sites | Pages are rendered on the server with a tag allow-list and no attributes, and served with a no-script, sandboxed CSP. | `publish.ts` |
-| SSRF | Weblink fetches allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |
+| SSRF | Weblink fetches and the assistant's `read_web_page` allow only http(s) on the standard ports and refuse private, loopback, link-local and metadata addresses, re-checked at every redirect. Assistants' base URLs can't be local in production unless `ALLOW_LOCAL_AI` is set, and are resolved and checked again at every call. Both connect to the address that was checked (Host header and TLS server name set to the name, so the certificate is checked as usual), never to a second lookup, so DNS rebinding can't get past the check. | `egress.ts`, `weblinks.ts`, `llm.ts`, `assistants.ts` |
 | Resource abuse | Limits on note size (5 MB), file and upload size (25 MB), zip entries and expanded size, WebSocket messages (16 MB), tool-loop steps, and image megapixels. A daily £ limit per assistant. | `storage.ts`, `transfer.ts`, `ai.ts`, `imageWorker.ts` |
 | First account | The first account becomes admin. When `SETUP_TOKEN` is set (the Render Blueprint generates one), creating it needs that token, so a fresh deploy can't be claimed by a stranger. Set it on any public deploy. | `auth.ts` |
 

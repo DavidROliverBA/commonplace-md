@@ -25,7 +25,13 @@ export interface Assistant {
   /** £ a day, or null for no limit. */
   daily_cap: number | null;
   spent_today: number;
+  /** Allowed to use the web, when a conversation turns it on. */
+  web: boolean;
 }
+
+/** The tools that reach the web (src/web.ts): approving one sends a request, not a change, so
+ *  there's nothing to undo. */
+export const WEB_TOOLS = new Set(["web_search", "read_web_page"]);
 
 export interface Call {
   id: string;
@@ -157,6 +163,8 @@ export class Conversation {
   cost: number | null = 0;
   today: { spent: number; cap: number | null } | null = null;
   status: Status = "idle";
+  /** The web, on for this conversation (the globe); only if the assistant is allowed it. */
+  web = false;
   error = "";
   notice = "";
   private clientDone = new Map<string, { content: string; isError?: boolean }>();
@@ -178,6 +186,12 @@ export class Conversation {
   private changed() {
     this.version++;
     this.listeners.forEach((f) => f());
+  }
+
+  /** Turn the web on or off for this conversation; it starts off. */
+  setWeb(on: boolean) {
+    this.web = on && this.assistant.web;
+    this.changed();
   }
 
   get busy() {
@@ -239,7 +253,7 @@ export class Conversation {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assistantId: this.assistant.id, vaultId, noteId, messages: this.messages, resolved, clientTools: clientTools() }),
+        body: JSON.stringify({ assistantId: this.assistant.id, vaultId, noteId, messages: this.messages, resolved, clientTools: clientTools(), web: this.web && this.assistant.web }),
         signal: abort.signal,
       });
     } catch {
@@ -270,7 +284,7 @@ export class Conversation {
           this.tools.set(e.id, line);
           this.live.push({ kind: "tool", line });
           const p = applying.get(e.id);
-          if (p && e.ok) this.applied.push({ tool: p.name, preview: p.preview!, createdId: e.noteId ?? null });
+          if (p && e.ok && !WEB_TOOLS.has(p.name)) this.applied.push({ tool: p.name, preview: p.preview!, createdId: e.noteId ?? null });
         } else if (e.type === "end") end = e;
         else if (e.type === "error") return this.fail(e.message);
         this.changed();

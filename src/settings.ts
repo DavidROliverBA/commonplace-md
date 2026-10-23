@@ -45,6 +45,8 @@ export const settings = {
   /** F19: how often due automatic pushes are looked for, and how long a note must go untouched
    *  before "keep a branch in sync" sends it. Shorter only in tests. */
   gitTickMs: Number(process.env.GIT_TICK_MS ?? 60_000),
+  /** Brave Search's API, for the assistant's web search; a fake one in tests. */
+  braveApi: (process.env.BRAVE_API_URL?.trim() || "https://api.search.brave.com/res/v1").replace(/\/+$/, ""),
   gitIdleMs: Number(process.env.GIT_IDLE_MS ?? 120_000),
   maxImportBytes: Number(process.env.MAX_IMPORT_MB ?? 200) * 1024 * 1024,
 };

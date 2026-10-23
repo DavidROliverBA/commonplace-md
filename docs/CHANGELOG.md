@@ -4,6 +4,24 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-23** — The AI assistant can use the web (release v0.0.47; `src/web.ts`). It needs
+  switching on in two places: Settings → AI assistants → Change → "may search the web and read
+  pages" (off by default), then the globe in a conversation (off at the start of each one; ⌘K → Let
+  the AI use the web). `read_web_page` reads any public page through the weblinks fetcher (no
+  private addresses) and keeps its readable text. `web_search` uses the person's own Brave Search
+  key, added under Settings → AI assistants → Web search, checked with one search and kept sealed.
+  Against pages that try to make the model leak notes: after the first web request in a
+  conversation, each further one waits for the person, showing the exact search or address (Allow
+  or Don't), and so does every change, even to the open note. Links a search returned open without
+  asking. MCP agents don't get these tools. Tests: 5 end to end (a fake Brave and local pages)
+  and 2 for page text.
+- **2026-10-23** — N11 passed: GitHub vaults on the live site with a **fine-grained** token,
+  through the UI. The token connected, the copy-in worked, and a push opened a PR on the test
+  repo with one note and no other files. Switched to Keep a branch in sync, the next edit went to
+  the same PR by itself about 2–3 minutes after typing stopped ("Sent automatically by
+  Commonplace"). Hold back, Release and Pause weren't tried live; the e2e tests cover them.
+  Lesson: give the token **only** the repositories it's for. The first try picked the public
+  repo from the list, and its PR had to be closed.
 - **2026-10-23** — GitHub vaults send on their own: F19 (release v0.0.46; `src/gitAuto.ts`,
   `src/schedule.ts`, `web/components/GitHubSending.tsx`). Settings → This vault → Sending to
   GitHub offers four ways: Ask me (as before), Regular review (a PR every hour, day or week at a

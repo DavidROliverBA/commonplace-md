@@ -112,7 +112,7 @@ try {
     content: '# Timeline\n\n```mermaid\nflowchart LR\n  Q[Quotes] --> O[Order units] --> F[Fit] --> D[Done]\n```\n\nEvery project, from its properties:\n\n```dataview\nTABLE status, due, budget\nFROM "Projects"\nWHERE status\n```\n',
   });
   const overview = await api(`/vaults/${vaultId}/notes`, { path: "Projects/Kitchen/Overview.md", content: "# Kitchen overview\n\nThe builder:\n\n[[Sam Okafor]]\n\nWhat's left, from the plan:\n\n![[Kitchen plan#Tasks]]\n" });
-  await api("/me/assistants", { name: "Claude", provider: "compatible", baseUrl: `${fake.url}/v1`, model: "claude-opus-5-5", apiKey: "screens-fake-key" });
+  await api("/me/assistants", { name: "Claude", provider: "compatible", baseUrl: `${fake.url}/v1`, model: "claude-opus-5-5", apiKey: "screens-fake-key", web: true });
   // One AI exchange: a search, an answer with a link, and a page proposed for approval.
   const aiScript = () =>
     fake.script.push(
@@ -243,6 +243,7 @@ try {
         await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((b) => b.textContent?.includes("AI"))?.click());
       }
       const box = await p.waitForSelector(".ai-panel textarea");
+      await p.click(".ai-panel .ai-web"); // the web on for this conversation: the globe lights up
       aiScript();
       await box!.click();
       await p.keyboard.type("What's left on the kitchen?");

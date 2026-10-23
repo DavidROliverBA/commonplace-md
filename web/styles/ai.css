@@ -310,3 +310,14 @@
 .money-row .muted {
   flex: 1 1 180px;
 }
+
+/* the web (src/web.ts): the globe in a conversation's header, on or off, and the note on a web
+   request waiting to be allowed */
+.ai-web.on {
+  color: var(--accent);
+  background: var(--accent-soft);
+}
+.ai-change-note {
+  font-size: var(--text-ui-sm);
+  margin: 4px 0 8px;
+}

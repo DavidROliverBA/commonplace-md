@@ -211,6 +211,17 @@ create unique index if not exists user_assistants_name on user_assistants (user_
 alter table user_assistants add column if not exists price_in numeric;
 alter table user_assistants add column if not exists price_out numeric;
 alter table user_assistants add column if not exists daily_cap numeric default 1.00;
+-- May this assistant use the web (search and read pages) when a conversation turns it on? Off
+-- until its owner allows it.
+alter table user_assistants add column if not exists web boolean not null default false;
+-- Each person's own web search key (Brave Search), sealed with SECRETS_KEY like AI keys.
+create table if not exists user_search (
+  user_id    bigint primary key references users(id) on delete cascade,
+  provider   text not null default 'brave',
+  key_enc    text not null,
+  key_hint   text not null,
+  created_at timestamptz not null default now()
+);
 -- The ledger: tokens and £ per assistant per day.
 create table if not exists ai_usage (
   assistant_id  bigint not null references user_assistants(id) on delete cascade,

@@ -38,6 +38,11 @@ key flows, decisions); read it before structural changes, and keep it current wh
   of the app uses its neutral `Msg` shape. Tests use the fake provider in `test/fakeAi.ts`.
   Model prices (£ per million, with the date checked) are in `src/prices.ts`: update the table
   and its date together. Each call is recorded in `ai_usage`, which the daily £ limit reads.
+- **The assistant's web** (`src/web.ts`): in-app only (never in `tools.ts`, so never over MCP),
+  and only when the assistant is allowed it and the conversation turns it on. Pages go through
+  `safeFetch`; searches use the person's own sealed Brave key. Once a conversation has used the
+  web, further web requests and all changes must ask first (`ai.ts`), except opening a link a
+  search returned. Keep that rule for any new tool that sends data out.
 - **GitHub vaults** (F14, `src/git.ts`): REST API only, no git binary, no clone URLs; the
   token goes in the `Authorization` header and never into a URL, log or response. A push builds
   its tree on the base tree, so files that weren't copied in (code, dot-folders) can't change.

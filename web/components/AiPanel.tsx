@@ -6,6 +6,7 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { normalisePath } from "../../src/markdown";
 import { api, type Note, type NoteSummary } from "../lib/api";
 import { type Assistant, cachedAssistants, Conversation, loadAssistants, onAssistants } from "../lib/ai";
+import { panel } from "../lib/aiPanel";
 import { navigate, noteUrl } from "../lib/router";
 import { formatDate } from "../lib/templates";
 import { toast, toastError } from "../ui/overlays";
@@ -16,7 +17,7 @@ let conv: Conversation | null = null;
 let seq = 0;
 const listeners = new Set<() => void>();
 const setConv = (c: Conversation | null) => {
-  conv = c;
+  conv = panel.conv = c;
   seq++;
   listeners.forEach((f) => f());
 };

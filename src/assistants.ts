@@ -29,6 +29,8 @@ export interface Assistant {
   /** £ a day, or null for no limit. */
   daily_cap: number | null;
   spent_today: number;
+  /** Allowed to use the web when a conversation turns it on. */
+  web: boolean;
 }
 export interface AssistantWithKey extends Assistant {
   apiKey: string;
@@ -53,6 +55,8 @@ export interface Draft {
   price?: Price | null;
   /** £ a day; null for none. */
   dailyCap?: number | null;
+  /** May use the web (off unless allowed). */
+  web?: boolean;
 }
 
 /** Today in the server's time zone, as YYYY-MM-DD: the ledger's day. */
@@ -108,7 +112,7 @@ const shape = (r: Row): Assistant => {
 
 export async function listAssistants(userId: number): Promise<Assistant[]> {
   const rows = await sql<Row[]>`
-    select a.id, a.name, a.provider, a.base_url, a.model, a.key_hint, a.created_at, a.last_used_at,
+    select a.id, a.name, a.provider, a.base_url, a.model, a.key_hint, a.created_at, a.last_used_at, a.web,
            a.price_in, a.price_out, a.daily_cap, coalesce(u.cost_gbp, 0) as spent_today
     from user_assistants a left join ai_usage u on u.assistant_id = a.id and u.day = ${today()}
     where a.user_id = ${userId} order by lower(a.name)`;
@@ -127,9 +131,9 @@ export async function createAssistant(user: User, d: Draft): Promise<Assistant> 
   const [{ n }] = (await sql`select count(*)::int as n from user_assistants where user_id = ${user.id} and lower(name) = lower(${name})`) as any;
   if (n) throw new HttpError(409, `You already have an assistant called ${name}`);
   const [r] = await sql`
-    insert into user_assistants (user_id, name, provider, base_url, model, key_enc, key_hint, price_in, price_out, daily_cap)
+    insert into user_assistants (user_id, name, provider, base_url, model, key_enc, key_hint, price_in, price_out, daily_cap, web)
     values (${user.id}, ${name}, ${d.provider}, ${baseUrl}, ${model}, ${seal(d.apiKey.trim())}, ${hint(d.apiKey)},
-            ${d.price?.in ?? null}, ${d.price?.out ?? null}, ${cap})
+            ${d.price?.in ?? null}, ${d.price?.out ?? null}, ${cap}, ${d.web ?? false})
     returning id`;
   return (await listAssistants(user.id)).find((a) => a.id === Number(r!.id))!;
 }
@@ -152,7 +156,8 @@ export async function updateAssistant(user: User, id: number, d: Partial<Draft>)
   await sql`
     update user_assistants set name = ${name}, provider = ${provider}, base_url = ${baseUrl}, model = ${model},
       key_enc = ${key ? seal(key) : sql`key_enc`}, key_hint = ${key ? hint(key) : sql`key_hint`},
-      price_in = ${price?.in ?? null}, price_out = ${price?.out ?? null}, daily_cap = ${cap}
+      price_in = ${price?.in ?? null}, price_out = ${price?.out ?? null}, daily_cap = ${cap},
+      web = ${d.web ?? sql`web`}
     where id = ${id} and user_id = ${user.id}`;
   return (await listAssistants(user.id)).find((a) => a.id === id)!;
 }

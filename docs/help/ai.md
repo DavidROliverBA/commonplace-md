@@ -32,6 +32,17 @@ Changes to the open note happen straight away, and stay in its version history. 
 
 ![The AI side panel with a proposed new page to apply or discard](images/ai-panel.webp)
 
+## The web
+
+An assistant can also search the web and read pages, if you switch it on in two places:
+
+1. **Allow it.** In Settings → **AI assistants**, press **Change** on the assistant and tick **may search the web and read pages**. This is off until you tick it.
+2. **Turn it on for a conversation.** Press the globe at the top of the conversation. It lights up while the web is on. Each new conversation starts with it off. `⌘K` → **Let the AI use the web** does the same for the side panel.
+
+Reading a page needs nothing more. To let the assistant **search**, add a Brave Search API key of your own under Settings → **AI assistants** → **Web search**. Its searches go to Brave under your key.
+
+A web page could try to trick the assistant into sending your notes somewhere. So after its first web request in a conversation, it asks you before each further search or page, and before any change, even to the open note. The card shows exactly what would go out: **Allow** or **Don't**. Opening a link that a search returned doesn't ask, because the address came from Brave, not from the assistant.
+
 ## Connecting Claude
 
 Settings → **Connections** → **Connect Claude** makes a personal token, so Claude Code and other agents can search, read and write your notes as you, over MCP. The screen shows the command to run. An agent has your roles: it can't see vaults you can't, and it can't write where you're a viewer.

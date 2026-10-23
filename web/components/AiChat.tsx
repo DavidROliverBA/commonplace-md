@@ -1,12 +1,13 @@
 // One AI conversation on screen (F13): the `@name` box in a note and the AI side panel are both
 // this. Replies stream in; what the assistant did shows as quiet lines ("Searched for boiler: 3
 // found"); a change it wants to make outside the open note shows as a card with a diff, to apply
-// or discard. Every applied change gets an Undo.
+// or discard. Every applied change gets an Undo. The globe turns the web on for this conversation,
+// when the assistant is allowed it; a web request waiting to be allowed shows what goes out.
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { api, type NoteSummary } from "../lib/api";
 import { pounds } from "../../src/prices";
-import { type Applied, type Conversation, type Msg, type Pending, tokens } from "../lib/ai";
+import { type Applied, type Conversation, type Msg, type Pending, tokens, WEB_TOOLS } from "../lib/ai";
 import { diffStats, lineDiff } from "../lib/diff";
 import { Diff } from "../ui/Diff";
 import { renderMarkdown } from "../lib/render";
@@ -83,6 +84,17 @@ export function AiChat(p: Props) {
               {cost}
               {nearCap && t ? ` · ${pounds(t.spent)} of ${pounds(t.cap!)} today` : ""}
             </span>
+          )}
+          {conv.assistant.web && (
+            <button
+              className={`icon-btn ai-web${conv.web ? " on" : ""}`}
+              onClick={() => conv.setWeb(!conv.web)}
+              aria-pressed={conv.web}
+              aria-label={conv.web ? "The web is on for this conversation: turn it off" : "Let it use the web in this conversation"}
+              title={conv.web ? "The web is on: it can search and read pages. Click to turn off." : "The web is off. Click to let it search and read pages."}
+            >
+              <Icon name="globe" />
+            </button>
           )}
           {p.onKeep && (
             <button className="icon-btn" onClick={p.onKeep} disabled={conv.empty || conv.busy} aria-label={p.keepLabel ?? "Keep"} title={p.keepLabel ?? "Keep"}>
@@ -219,14 +231,16 @@ function ToolLineView({ ok, summary }: { ok: boolean; summary: string }) {
 function ChangeCard({ pending, onDecide }: { pending: Pending; onDecide: (yes: boolean) => void }) {
   const pv = pending.preview!;
   const isMove = pending.name === "move_note";
+  const isWeb = WEB_TOOLS.has(pending.name);
   const diff = useMemo(() => (isMove || pv.after === null ? null : lineDiff(pv.before ?? "", pv.after)), [pv]);
   const [open, setOpen] = useState(true);
   return (
     <div className="ai-change">
       <div className="ai-change-head">
-        <Icon name={pv.noteId === null ? "plus" : isMove ? "folder" : "edit"} size={16} />
+        <Icon name={isWeb ? "globe" : pv.noteId === null ? "plus" : isMove ? "folder" : "edit"} size={16} />
         <b>{pv.summary}</b>
       </div>
+      {isWeb && <p className="muted ai-change-note">It has read from the web in this conversation, so each further web request asks first. Check nothing private is in it.</p>}
       {diff && (
         <>
           <button className="ai-change-toggle" onClick={() => setOpen(!open)} aria-expanded={open}>
@@ -239,9 +253,9 @@ function ChangeCard({ pending, onDecide }: { pending: Pending; onDecide: (yes: b
         </>
       )}
       <div className="dialog-actions">
-        <button onClick={() => onDecide(false)}>Discard</button>
+        <button onClick={() => onDecide(false)}>{isWeb ? "Don't" : "Discard"}</button>
         <button className="primary" onClick={() => onDecide(true)}>
-          Apply
+          {isWeb ? "Allow" : "Apply"}
         </button>
       </div>
     </div>

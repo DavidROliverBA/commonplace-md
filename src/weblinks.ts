@@ -45,8 +45,8 @@ async function checkUrl(raw: string, deps: FetchDeps = {}): Promise<{ url: URL; 
   } catch {
     throw new HttpError(400, "That isn't a web address");
   }
-  if (u.protocol !== "http:" && u.protocol !== "https:") throw new HttpError(400, "Only http and https links can be saved");
-  if (u.username || u.password) throw new HttpError(400, "Links with a name and password in them can't be saved");
+  if (u.protocol !== "http:" && u.protocol !== "https:") throw new HttpError(400, "Only http and https links can be opened");
+  if (u.username || u.password) throw new HttpError(400, "Links with a name and password in them can't be opened");
   const local = allowLocal(); // tests serve their pages from this machine
   if (!local && u.port && u.port !== "80" && u.port !== "443") throw new HttpError(400, "Only links on the usual web ports can be fetched");
   if (!local && /^localhost$|\.localhost$|\.local$|\.internal$/i.test(bareHost(u))) throw new HttpError(400, "That address isn't on the public web");
@@ -84,7 +84,7 @@ export async function safeFetch(raw: string, accept: string, deps: FetchDeps = {
   throw new HttpError(400, "That link redirects too many times");
 }
 
-async function readCapped(res: Response, max: number): Promise<Uint8Array> {
+export async function readCapped(res: Response, max: number): Promise<Uint8Array> {
   const reader = res.body?.getReader();
   if (!reader) return new Uint8Array();
   const chunks: Uint8Array[] = [];

@@ -30,7 +30,7 @@ beforeAll(async () => {
   await sql`create schema public`;
   await sql.end();
   proc = Bun.spawn(["bun", "src/server.ts"], {
-    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", EMBEDDING_PROVIDER: "hash", EMBED_DEBOUNCE_MS: "50", SETUP_TOKEN: "test-setup-token", BACKUP_TOKEN: "test-backup-token", SECRETS_KEY: "test-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3187", GIT_TICK_MS: "200", GIT_IDLE_MS: "600", NODE_ENV: "production" },
+    env: { ...process.env, DATABASE_URL: DB, PORT: String(PORT), ALLOW_SIGNUP: "true", EMBEDDING_PROVIDER: "hash", EMBED_DEBOUNCE_MS: "50", SETUP_TOKEN: "test-setup-token", BACKUP_TOKEN: "test-backup-token", SECRETS_KEY: "test-secrets-key", ALLOW_LOCAL_AI: "true", WEBLINKS_ALLOW_LOCAL: "true", GITHUB_API_URL: "http://localhost:3187", GIT_TICK_MS: "200", GIT_IDLE_MS: "600", BRAVE_API_URL: "http://localhost:3396", NODE_ENV: "production" },
     stdout: "ignore",
     stderr: "inherit",
   });
@@ -1706,6 +1706,92 @@ describe("bring your own AI", () => {
     script.push({ calls: [{ name: "merge_notes", input: { keep: "Priya", merge: "Acme" } }] }, { text: "Can't." });
     const bad = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "merge" }] });
     expect(bad.events.find((e) => e.type === "tool")).toMatchObject({ name: "merge_notes", ok: false });
+  });
+
+  // The web (src/web.ts): a fake Brave Search and two pages, on this machine.
+  const BRAVE_KEY = "brave-test-key-0001";
+  const PAGE = "http://localhost:3396/boiler.html";
+  const braveSeen: { q: string; token: string | null }[] = [];
+  const braveServer = Bun.serve({
+    port: 3396,
+    fetch(req) {
+      const url = new URL(req.url);
+      if (url.pathname === "/web/search") {
+        braveSeen.push({ q: url.searchParams.get("q") ?? "", token: req.headers.get("x-subscription-token") });
+        if (req.headers.get("x-subscription-token") !== BRAVE_KEY) return Response.json({ error: "bad key" }, { status: 401 });
+        return Response.json({ web: { results: [{ title: "Boiler <strong>servicing</strong>", url: PAGE, description: "How often to service a boiler" }] } });
+      }
+      if (url.pathname === "/boiler.html") return new Response("<html><head><title>Boiler servicing</title></head><body><nav>Menu</nav><article><h1>Servicing</h1><p>Service it every 12 months.</p><script>x()</script></article></body></html>", { headers: { "content-type": "text/html; charset=utf-8" } });
+      if (url.pathname === "/other.html") return new Response("Plain text page.", { headers: { "content-type": "text/plain" } });
+      return new Response("not found", { status: 404 });
+    },
+  });
+  afterAll(() => braveServer.stop(true));
+  const toolNames = () => (seen[seen.length - 1]!.body.tools as { name: string }[]).map((t) => t.name);
+
+  test("the web is offered only when the assistant is allowed it and the conversation turns it on", async () => {
+    expect((await alice.ok("/me/assistants")).find((a: any) => a.id === claude).web).toBe(false);
+    await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "hi" }], web: true });
+    expect(toolNames()).not.toContain("read_web_page");
+    expect((await alice.ok(`/me/assistants/${claude}`, { method: "PATCH", body: { web: true } })).web).toBe(true);
+    await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "hi" }] });
+    expect(toolNames()).not.toContain("read_web_page");
+    await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "hi" }], web: true });
+    expect(toolNames()).toContain("read_web_page");
+    expect(toolNames()).not.toContain("web_search"); // no search key yet
+  });
+
+  test("a Brave Search key is checked with Brave, kept sealed and never sent back", async () => {
+    expect((await alice.ok("/me/web-search")).connection).toBeNull();
+    expect((await alice.req("/me/web-search", { method: "PUT", body: { key: "not-the-right-key" } })).data.error).toContain("refused the key");
+    expect(await alice.ok("/me/web-search", { method: "PUT", body: { key: BRAVE_KEY } })).toEqual({ provider: "brave", key_hint: "0001" });
+    expect(JSON.stringify(await alice.ok("/me/web-search"))).not.toContain(BRAVE_KEY);
+    const [row] = await testDb`select key_enc from user_search`;
+    expect(row!.key_enc).not.toContain(BRAVE_KEY);
+    expect((await bob.ok("/me/web-search")).connection).toBeNull();
+  });
+
+  test("it searches and reads a result at once; after that a change, even to the open note, asks first", async () => {
+    braveSeen.length = 0;
+    script.push(
+      { calls: [{ name: "web_search", input: { query: "boiler service interval" } }] },
+      { calls: [{ name: "read_web_page", input: { url: PAGE } }] },
+      { calls: [{ name: "append_to_note", input: { note: "Summary", text: "- Service the boiler every 12 months" } }] },
+    );
+    const before = await content(summary);
+    const r = await chat(alice, { assistantId: claude, vaultId: av, noteId: summary, messages: [{ role: "user", text: "How often should the boiler be serviced?" }], web: true });
+    const lines = r.events.filter((e) => e.type === "tool");
+    expect(lines.map((e) => [e.name, e.ok])).toEqual([["web_search", true], ["read_web_page", true]]);
+    expect(lines[0].summary).toBe("Searched the web for “boiler service interval”: 1 results");
+    expect(lines[1].summary).toBe("Read Boiler servicing");
+    expect(braveSeen).toEqual([{ q: "boiler service interval", token: BRAVE_KEY }]);
+    const page = r.end.messages.flatMap((m: any) => (m.role === "tool" ? m.results : [])).find((x: any) => x.name === "read_web_page");
+    expect(page.content).toContain("Service it every 12 months.");
+    expect(page.content).not.toContain("x()");
+    expect(r.end.pending.map((x: any) => x.name)).toEqual(["append_to_note"]);
+    expect(await content(summary)).toBe(before);
+  });
+
+  test("after the first web request, the next one waits for the person, showing exactly what goes out", async () => {
+    braveSeen.length = 0;
+    script.push({ calls: [{ name: "read_web_page", input: { url: "http://localhost:3396/other.html" } }] }, { calls: [{ name: "web_search", input: { query: "Service due in March" } }] });
+    const r = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "Read that page" }], web: true });
+    expect(r.events.find((e) => e.type === "tool")).toMatchObject({ name: "read_web_page", ok: true });
+    expect(r.end.pending).toHaveLength(1);
+    expect(r.end.pending[0]).toMatchObject({ name: "web_search", kind: "approve", preview: { summary: "Search the web for “Service due in March”" } });
+    expect(braveSeen).toHaveLength(0);
+    script.push({ text: "Done." });
+    const r2 = await chat(alice, { assistantId: claude, vaultId: av, messages: r.end.messages, resolved: [{ id: r.end.pending[0].id, approve: true }], web: true });
+    expect(r2.events.find((e) => e.type === "tool")).toMatchObject({ name: "web_search", ok: true });
+    expect(braveSeen.map((b) => b.q)).toEqual(["Service due in March"]);
+  });
+
+  test("with the web taken away from the assistant, a web call is refused even if the model asks", async () => {
+    await alice.ok(`/me/assistants/${claude}`, { method: "PATCH", body: { web: false } });
+    script.push({ calls: [{ name: "read_web_page", input: { url: PAGE } }] }, { text: "ok" });
+    const off = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "read it" }], web: true });
+    expect(off.events.find((e) => e.type === "tool")).toMatchObject({ name: "read_web_page", ok: false });
+    await alice.ok(`/me/assistants/${claude}`, { method: "PATCH", body: { web: true } });
   });
 
   test("a provider error comes back as a plain message", async () => {

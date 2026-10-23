@@ -11,6 +11,7 @@ import { ChatRequest, chatResponse } from "./ai";
 import * as assistants from "./assistants";
 import * as git from "./git";
 import * as gitAuto from "./gitAuto";
+import * as web from "./web";
 import * as github from "./github";
 import * as captureTokens from "./capture";
 import { mcpRoute } from "./mcp";
@@ -99,6 +100,7 @@ const AssistantDraft = z.object({
   apiKey: z.string().max(1000),
   price: z.object({ in: z.number(), out: z.number() }).nullable().optional(),
   dailyCap: z.number().nullable().optional(),
+  web: z.boolean().optional(),
 });
 
 export const apiRoutes = {
@@ -189,6 +191,16 @@ export const apiRoutes = {
   "/api/me/assistants": {
     GET: route(async ({ req }) => assistants.listAssistants((await requireUser(req)).id)),
     POST: route(async ({ req }) => assistants.createAssistant(await requireUser(req), await body(req, AssistantDraft))),
+  },
+  // The assistant's web search (src/web.ts): each person's own Brave Search key, write-only.
+  "/api/me/web-search": {
+    GET: route(async ({ req }) => ({ available: secretsAvailable(), connection: await web.connection((await requireUser(req)).id) })),
+    PUT: route(async ({ req }) => {
+      const user = await requireUser(req);
+      if (!secretsAvailable()) throw new HttpError(503, "This server can't store keys yet: an admin needs to set SECRETS_KEY");
+      return web.connect(user.id, (await body(req, z.object({ key: z.string().max(300) }))).key);
+    }),
+    DELETE: route(async ({ req }) => web.disconnect((await requireUser(req)).id)),
   },
   "/api/me/assistants/test": {
     POST: route(async ({ req }) => {

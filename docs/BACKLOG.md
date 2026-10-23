@@ -28,23 +28,6 @@ design moves to [design/](design/) (F12, F14, F16, F17, F19 so far).
 Things that could lose data, stop the service, or that are visibly wrong today. These come
 before features.
 
-### N11 — Try GitHub vaults against real GitHub
-
-**Size** S · **Evidence** every F14 test ran against `test/fakeGitHub.ts`
-
-**Mostly done 2026-10-13.** A script drove a local server against a real private repo
-(`DavidROliverBA/commonplace-trial`, with an OAuth token): copy in `docs/`, three edits, the
-diff, a PR with only those three files (code and dot-folders untouched), a second push to the
-same PR, a squash merge on GitHub, Update from `main` (ending the branch; then merging an edit
-made on GitHub cleanly beside one made here), and Cancel (branch deleted on GitHub). All as
-designed. It found that a pull request GitHub refuses after the branch is pushed left the vault
-not knowing its branch; fixed, with a test.
-
-**Still to do:** the same on the live site with a **fine-grained** token, through the UI. A
-first attempt (2026-10-12) reached nothing on GitHub and left no trace; GitHub's refusals are
-now logged (`GitHub POST /repos/…/git/refs → 403: …`, never the token) and shown in the push
-dialog until dismissed, so the next attempt will say why.
-
 ### N12 — Consolidation pass: check what's been built, not just that it passes
 
 **Size** M · **Evidence** 22 releases in three days (v0.0.1–v0.0.22); every phone test is an
@@ -154,8 +137,7 @@ line into a typed note and the tour are done).
    steps 1–2 (publish, and the builder) are done.
 2. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
 
-F19 (GitHub vaults sending on their own) is done; see the CHANGELOG. Its automatic modes should
-first be tried on the live site after N11's fine-grained-token run.
+F19 (GitHub vaults sending on their own) is done, and N11 passed on the live site; see the CHANGELOG.
 
 L8 (the iPhone and desktop apps) waits on the Apple Developer decision.
 
@@ -419,6 +401,7 @@ needed a feature the web app doesn't have.
 
 One line each. Promote to **Next** with a "done when".
 
+- The assistant's web, next: another search provider (or the provider's own search for Anthropic and OpenAI), PDFs, and a remembered globe setting per assistant
 - Three editions, as Longview has: the private repo (personal, deployed, with backups) feeds the
   public one (`commonplace-md`, a snapshot per release), which a work edition could start from in
   the employer's own repository, with its own sign-in and hosting. Nothing from the work edition

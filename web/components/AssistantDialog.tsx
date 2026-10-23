@@ -68,6 +68,7 @@ function AssistantDialog({ existing, onClose }: { existing: Assistant | null; on
   const [cap, setCap] = useState(existing ? (existing.daily_cap === null ? "" : existing.daily_cap.toFixed(2)) : "1.00");
   const [ownPrice, setOwnPrice] = useState<{ in: string; out: string } | null>(existing?.custom_price && existing.price ? { in: String(existing.price.in), out: String(existing.price.out) } : null);
   const [tested, setTested] = useState<string | null>(null);
+  const [web, setWeb] = useState(existing?.web ?? false);
   const p = PROVIDERS.find((x) => x.id === provider)!;
 
   const pick = (id: Provider) => {
@@ -96,6 +97,7 @@ function AssistantDialog({ existing, onClose }: { existing: Assistant | null; on
     apiKey,
     price: priceOf(),
     dailyCap: cap.trim() === "" ? null : Number(cap),
+    web,
   });
 
   async function test() {
@@ -194,6 +196,15 @@ function AssistantDialog({ existing, onClose }: { existing: Assistant | null; on
               : list
                 ? `${p.label === "Other" ? "The" : `${p.label}'s`} list price (checked 11 Oct 2026${p.id === "relaxai" ? "" : ", converted from $"}). Change it if it has changed.`
                 : "Enter the model's price so the cost and the daily limit can be worked out."}
+          </small>
+        </div>
+        <div className="field">
+          <span className="field-label">The web</span>
+          <label className="check">
+            <input type="checkbox" checked={web} onChange={(e) => setWeb(e.target.checked)} /> {name || "It"} may search the web and read pages
+          </label>
+          <small className="muted">
+            Off until you allow it. Then the globe in a conversation turns it on for that conversation. After its first web request, it asks before each further one and before any change. Searching needs a Brave Search key (Settings → AI assistants); reading pages doesn't.
           </small>
         </div>
         <label className="field">

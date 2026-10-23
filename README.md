@@ -116,7 +116,10 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   It can also drive the app (open a note, show the graph, hide the file panel), and it knows your
   types: it files notes into them with their properties filled in, proposes a new type when
   several notes are the same kind of thing, and merges duplicates. Keys are stored
-  encrypted (`SECRETS_KEY`) and never shown again or shared.
+  encrypted (`SECRETS_KEY`) and never shown again or shared. **The web**, if you allow an
+  assistant it and turn it on in a conversation (the globe): it reads public pages and, with
+  your own Brave Search key, searches. After its first web request in a conversation, each
+  further one and every change asks you first, showing exactly what would go out.
 - **Publish a vault as a website** (Settings → Website, owners): the whole vault or chosen
   folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
   tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are
