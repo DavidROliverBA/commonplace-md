@@ -4,6 +4,12 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-25** — You can resize the panels, as in Floe (release v0.0.51, `web/ui/PanelResizer.tsx`). Drag the
+  inner edge of the file panel or the side panel to make it wider, for example to give the graph
+  in the side panel more room. Each panel can be 200 to 720px wide, and the note always keeps at
+  least 360px. Double-click the edge to put the width back. The edge is a separator for the
+  keyboard: the arrow keys move it 16px, and Home and End go to the narrowest and widest. Each
+  browser remembers the widths. Phones have no handle. Tested in the browser.
 - **2026-10-25** — A timeline on the graph (release v0.0.50, F21; `web/components/GraphTimeline.tsx`,
   `noteWhen` in `src/graph.ts`; design in [design/F21.md](design/F21.md)). **Timeline** in the
   graph's bar opens a strip: notes per month as bars on a day scale, and a range with two handles.

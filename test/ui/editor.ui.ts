@@ -855,6 +855,32 @@ describe("commands: the / menu and ⌘K", () => {
     await p.close();
   });
 
+  test("the panels' drag handles: drag and arrow keys change the width, which is remembered, and double-click puts it back", async () => {
+    const n = await note("Wide/Panels.md", "# Panels\n");
+    const p = await openNote(n.id);
+    if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
+    if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
+    const width = (sel: string) => p.$eval(sel, (e) => Math.round(e.getBoundingClientRect().width));
+    await until(async () => (await width(".right-panel")) === 280);
+    const box = (await (await p.$(".panel-resizer.right"))!.boundingBox())!;
+    await p.mouse.move(box.x + 4, box.y + 200);
+    await p.mouse.down();
+    await p.mouse.move(box.x - 116, box.y + 200, { steps: 5 });
+    await p.mouse.up();
+    await until(async () => (await width(".right-panel")) === 400);
+    await p.focus(".panel-resizer.left");
+    await p.keyboard.press("ArrowRight");
+    await until(async () => (await width(".sidebar")) === 288);
+    expect(await p.$eval(".panel-resizer.left", (e) => e.getAttribute("aria-valuenow"))).toBe("288");
+    await p.reload();
+    await until(async () => (await width(".right-panel").catch(() => 0)) === 400);
+    expect(await width(".sidebar")).toBe(288);
+    await p.click(".panel-resizer.right", { count: 2 });
+    await p.click(".panel-resizer.left", { count: 2 });
+    await until(async () => (await width(".right-panel")) === 280 && (await width(".sidebar")) === 272);
+    await p.close();
+  });
+
   test("the graph's timeline: notes by their dates, a range by keyboard, Hide the rest, the address, and Play", async () => {
     await note("Dated/Kickoff.md", "---\ndate: 2025-01-10\n---\n# Kickoff\n");
     await note("Dated/Review.md", "---\ndate: 2025-03-20\n---\n# Review\n\nAfter [[Kickoff]].\n");

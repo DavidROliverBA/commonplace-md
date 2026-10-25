@@ -14,6 +14,7 @@ these live in `web/styles/overlays.css`.
 | `toast()` | Saying something happened | `undo` adds an Undo button: prefer doing the thing and offering Undo over asking first. |
 | `toastError()` | Anything that failed | Shows the server's plain-words message. |
 | `PanelToggle` | Showing and hiding a side panel | The ▯| button: `side` left (the file panel, ⌘\\) or right (links and outline, and the AI). On a phone the left one opens the drawer. |
+| `PanelResizer` | Dragging a side panel's width | A separator on the panel's inner edge (drag, arrows, double-click resets); `usePanelWidths()` remembers both widths in this browser and keeps 360px for the note. Not shown on a phone. |
 | `Diff` | Showing a change before or after it's made | Lines from `lineDiff()` (`web/lib/diff.ts`), + and −, unchanged runs folded. |
 | `Icon` | Every icon | One stroke set, drawn inline; add new shapes to `PATHS`. |
 

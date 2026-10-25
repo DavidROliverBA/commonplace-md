@@ -4,7 +4,7 @@
 // (web/lib/router.ts). It provide()s the app-wide actions to web/lib/commands.ts. VaultHome, at
 // the bottom, is the vault's start page.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalisePath } from "../src/markdown";
 import { AiPanel } from "./components/AiPanel";
 import { AssistantDialogHost, editAssistant } from "./components/AssistantDialog";
@@ -20,6 +20,7 @@ import { Login } from "./components/Login";
 import { NoteView } from "./components/NoteView";
 import { QuickSwitcher } from "./components/QuickSwitcher";
 import { RightPanel } from "./components/RightPanel";
+import { PanelResizer, usePanelWidths } from "./ui/PanelResizer";
 import { NewTypeDialog } from "./components/NewTypeDialog";
 import { TasksPage } from "./components/TasksPage";
 import { BranchBar, filesBadge } from "./components/BranchBar";
@@ -124,6 +125,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   }, [narrow]);
   // Panels slide only when toggled, never as the page first appears.
   const [ready, setReady] = useState(false);
+  const { widths, resize } = usePanelWidths();
   useEffect(() => {
     const t = setTimeout(() => setReady(true), 500);
     return () => clearTimeout(t);
@@ -503,7 +505,9 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   const showRight = rightOpen && (onNote || tabShown === "ai");
 
   return (
-    <div className={`app${focus && onNote ? " focus-mode" : ""}${online ? "" : " offline"}${ready ? " ready" : ""}${leftOpen ? " left-open" : ""}${showRight ? " right-open" : ""}${tabShown === "ai" ? " right-ai" : ""}${phoneChrome.hidden ? " chrome-hidden" : ""}${phoneChrome.typing ? " typing" : ""}`}>
+    <div className={`app${focus && onNote ? " focus-mode" : ""}${online ? "" : " offline"}${ready ? " ready" : ""}${leftOpen ? " left-open" : ""}${showRight ? " right-open" : ""}${tabShown === "ai" ? " right-ai" : ""}${phoneChrome.hidden ? " chrome-hidden" : ""}${phoneChrome.typing ? " typing" : ""}`}
+      style={narrow ? undefined : ({ "--sidebar-w": `${widths.left}px`, "--right-w": `${widths.right}px` } as CSSProperties)}
+    >
       <Sidebar
         session={session}
         vaults={vaults}
@@ -527,6 +531,8 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
         onNavigate={() => narrow && setLeftOpen(false)}
         branchBar={narrow ? branchBar : null}
       />
+      {!narrow && leftOpen && !(focus && onNote) && <PanelResizer side="left" width={widths.left} other={showRight ? widths.right : 0} resize={resize} />}
+      {!narrow && showRight && !(focus && onNote) && <PanelResizer side="right" width={widths.right} other={leftOpen ? widths.left : 0} resize={resize} />}
       {narrow && (leftOpen || (showRight && rightOpen)) && <div className="scrim" onClick={() => (setLeftOpen(false), setRightOpen(false))} />}
 
       <main className="main">

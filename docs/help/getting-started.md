@@ -24,6 +24,8 @@ flowchart LR
 - **The note** (middle): its folder and title at the top, the view buttons (Live Preview, Source, side by side and Reading), the **⋯** menu for this note, and the text.
 - **The side panel** (right): the **Links** tab (outline, backlinks, outgoing links, mentions and related notes) and the **AI** tab. The button at the top right shows or hides it.
 
+To make either panel wider (handy for the graph in the side panel), drag its inner edge. Double-click the edge to put it back. With the keyboard, Tab to the edge and use the arrow keys. Each browser remembers the widths. On a phone the panels are drawers, so there's nothing to drag.
+
 On a phone the two panels slide in from the sides; see [On the iPhone](iphone.md).
 
 ![A note in Live Preview, with its properties at the top](images/live-preview.webp)
