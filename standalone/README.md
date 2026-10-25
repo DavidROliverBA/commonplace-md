@@ -47,4 +47,7 @@ that would fetch a note from the server reads it from the open folder instead.
 | `api-shim.ts` | Stands in for `web/lib/api.ts` |
 
 What needs the server stays in the full app: live collaboration, sharing, semantic search, the
-assistant, history, types, publishing and GitHub vaults.
+assistant, history, types, publishing and GitHub collections.
+
+The file includes open-source packages, each under its own licence. They're listed, with their
+licence texts, in [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md), and a comment at the top of the file links there.

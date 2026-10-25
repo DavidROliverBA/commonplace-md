@@ -22,7 +22,7 @@ Press and hold a note or folder in the file panel to drag it. The view switch at
 - Scroll down and the bar at the top tucks away; scroll up a little, or back to the top, and it returns.
 - The round find button steps aside while the bar is away and while you type, and comes back when you pause.
 - **Focus mode**, in a note's **⋯** menu, hides the top bar and the formatting bar too. Tap **Leave focus** at the top right to come back.
-- On a GitHub vault, the branch bar is at the top of the file panel; see [Import, export and GitHub](import-export.md).
+- On a GitHub collection, the branch bar is at the top of the file panel; see [Import, export and GitHub](import-export.md).
 
 ## Offline
 

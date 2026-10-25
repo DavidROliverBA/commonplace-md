@@ -17,6 +17,7 @@ import { openHelp } from "./help";
 import { openSettings } from "./settings";
 import { focusModeOn, setFocusMode } from "./focusMode";
 import { typesState } from "./types";
+import { getTheme, setTheme } from "./theme";
 
 /** Colour the selection (F10): pick a text colour, a highlight, or none. */
 async function pickColour(e: EditorHandle) {
@@ -125,7 +126,7 @@ export function provide<K extends keyof Ctx>(key: K, value: Ctx[K]): void {
 }
 export const currentCtx = (): Ctx => ctx;
 
-export type Group = "Insert" | "Note" | "Create" | "Go" | "View" | "Vault" | "Settings" | "Help";
+export type Group = "Insert" | "Note" | "Create" | "Go" | "View" | "Collection" | "Settings" | "Help";
 
 export interface Command {
   id: string;
@@ -240,7 +241,7 @@ export const COMMANDS: Command[] = [
   {
     id: "ai.add",
     title: "Add an AI assistant",
-    group: "Vault",
+    group: "Collection",
     icon: "sparkle",
     keywords: "boyai bring your own ai key claude openai model",
     slash: true,
@@ -261,8 +262,8 @@ export const COMMANDS: Command[] = [
   { id: "note.copylink", title: "Copy wikilink", group: "Note", icon: "link", keywords: "clipboard [[", noteMenu: true, when: (c) => !!c.note, run: (c) => c.note!.copyLink() },
   { id: "note.rename", title: "Rename", group: "Note", icon: "edit", keywords: "title name", noteMenu: true, when: writable, run: (c) => c.note!.rename() },
   { id: "note.move", title: "Move to…", group: "Note", icon: "folder", keywords: "file folder organise", noteMenu: true, when: writable, run: (c) => c.note!.moveTo() },
-  { id: "note.copyvault", title: "Copy to another vault…", group: "Note", icon: "copy", keywords: "duplicate vault repo github send", noteMenu: true, when: (c) => !!c.note?.canSend, run: (c) => c.note!.sendTo(false) },
-  { id: "note.movevault", title: "Move to another vault…", group: "Note", icon: "vault", keywords: "transfer vault repo github send", noteMenu: true, when: (c) => writable(c) && c.note!.canSend, run: (c) => c.note!.sendTo(true) },
+  { id: "note.copyvault", title: "Copy to another collection…", group: "Note", icon: "copy", keywords: "vault duplicate collection repo github send", noteMenu: true, when: (c) => !!c.note?.canSend, run: (c) => c.note!.sendTo(false) },
+  { id: "note.movevault", title: "Move to another collection…", group: "Note", icon: "vault", keywords: "vault transfer collection repo github send", noteMenu: true, when: (c) => writable(c) && c.note!.canSend, run: (c) => c.note!.sendTo(true) },
   { id: "note.trash", title: "Move to Trash", group: "Note", icon: "trash", keywords: "delete remove", noteMenu: true, danger: true, when: writable, run: (c) => c.note!.trash() },
 
   // ── Create, go, vault (the palette) ────────────────────────────────────────────────────
@@ -271,16 +272,16 @@ export const COMMANDS: Command[] = [
   { id: "create.typed", title: "New note of a type…", group: "Create", icon: "shapes", keywords: "type object person meeting project book thing", when: canCreate, run: (c) => c.app!.newTyped() },
   { id: "create.weblink", title: "Save a web link…", group: "Create", icon: "link", keywords: "url bookmark article page web clip read later weblink", when: canCreate, run: (c) => c.app!.saveLink() },
   { id: "create.type", title: "New type", group: "Create", icon: "shapes", keywords: "type object schema properties define kind", when: canCreate, run: (c) => c.app!.newType() },
-  { id: "create.github", title: "New vault from GitHub…", group: "Create", icon: "branch", keywords: "repo repository git clone import pull request docs", when: (c) => !!c.app, run: (c) => c.app!.newGitVault() },
-  { id: "git.review", title: "Review changes", group: "Vault", icon: "branch", keywords: "github git diff branch changed", when: (c) => !!c.app?.git, run: (c) => c.app!.git!.review() },
-  { id: "git.pr", title: "Open pull request", group: "Vault", icon: "pull-request", keywords: "github pr push commit", when: (c) => !!c.app?.canWrite && !!c.app.git && !c.app.git.hasPr && c.app.git.changes > 0, run: (c) => c.app!.git!.pullRequest() },
-  { id: "git.push", title: "Push changes to the pull request", group: "Vault", icon: "pull-request", keywords: "github pr commit", when: (c) => !!c.app?.canWrite && !!c.app.git?.hasPr && c.app.git.unpushed > 0, run: (c) => c.app!.git!.pullRequest() },
-  { id: "git.send", title: "Send to GitHub now", group: "Vault", icon: "upload", keywords: "github push publish sync automatic", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto, run: (c) => c.app!.git!.sendNow() },
-  { id: "git.pause", title: "Pause automatic pushes", group: "Vault", icon: "pause", keywords: "github stop hold sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && !c.app.git.paused, run: (c) => c.app!.git!.setPaused(true) },
-  { id: "git.resume", title: "Carry on with automatic pushes", group: "Vault", icon: "play", keywords: "github resume unpause sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && c.app.git.paused, run: (c) => c.app!.git!.setPaused(false) },
+  { id: "create.github", title: "New collection from GitHub…", group: "Create", icon: "branch", keywords: "vault repo repository git clone import pull request docs", when: (c) => !!c.app, run: (c) => c.app!.newGitVault() },
+  { id: "git.review", title: "Review changes", group: "Collection", icon: "branch", keywords: "github git diff branch changed", when: (c) => !!c.app?.git, run: (c) => c.app!.git!.review() },
+  { id: "git.pr", title: "Open pull request", group: "Collection", icon: "pull-request", keywords: "github pr push commit", when: (c) => !!c.app?.canWrite && !!c.app.git && !c.app.git.hasPr && c.app.git.changes > 0, run: (c) => c.app!.git!.pullRequest() },
+  { id: "git.push", title: "Push changes to the pull request", group: "Collection", icon: "pull-request", keywords: "github pr commit", when: (c) => !!c.app?.canWrite && !!c.app.git?.hasPr && c.app.git.unpushed > 0, run: (c) => c.app!.git!.pullRequest() },
+  { id: "git.send", title: "Send to GitHub now", group: "Collection", icon: "upload", keywords: "github push publish sync automatic", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto, run: (c) => c.app!.git!.sendNow() },
+  { id: "git.pause", title: "Pause automatic pushes", group: "Collection", icon: "pause", keywords: "github stop hold sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && !c.app.git.paused, run: (c) => c.app!.git!.setPaused(true) },
+  { id: "git.resume", title: "Carry on with automatic pushes", group: "Collection", icon: "play", keywords: "github resume unpause sync schedule", when: (c) => !!c.app?.canWrite && !!c.app.git?.auto && c.app.git.paused, run: (c) => c.app!.git!.setPaused(false) },
   { id: "git.sending", title: "How changes go to GitHub…", group: "Settings", icon: "settings", keywords: "github automatic schedule review sync publish main push", when: (c) => !!c.app?.git, run: () => openSettings("vault") },
-  { id: "git.update", title: "Update from GitHub", group: "Vault", icon: "download", keywords: "pull main merge sync fetch", when: (c) => !!c.app?.canWrite && !!c.app.git, run: (c) => c.app!.git!.update() },
-  { id: "git.cancel", title: "Cancel the branch", group: "Vault", icon: "undo", keywords: "github discard revert reset", danger: true, when: (c) => !!c.app?.canWrite && !!c.app.git && (c.app.git.changes > 0 || c.app.git.pushed), run: (c) => c.app!.git!.cancel() },
+  { id: "git.update", title: "Update from GitHub", group: "Collection", icon: "download", keywords: "pull main merge sync fetch", when: (c) => !!c.app?.canWrite && !!c.app.git, run: (c) => c.app!.git!.update() },
+  { id: "git.cancel", title: "Cancel the branch", group: "Collection", icon: "undo", keywords: "github discard revert reset", danger: true, when: (c) => !!c.app?.canWrite && !!c.app.git && (c.app.git.changes > 0 || c.app.git.pushed), run: (c) => c.app!.git!.cancel() },
   { id: "create.folder", title: "New folder", group: "Create", icon: "folder-plus", keywords: "directory", when: (c) => canCreate(c) && !!c.sidebar, run: (c) => c.sidebar!.newFolder() },
   { id: "go.today", title: "Today's note", group: "Go", icon: "calendar", keywords: "daily journal", when: (c) => !!c.app, run: (c) => c.app!.today() },
   { id: "go.find", title: "Find a note", group: "Go", icon: "search", shortcut: "⌘O", keywords: "open switcher quick", when: (c) => !!c.app, run: (c) => c.app!.findNote() },
@@ -288,21 +289,24 @@ export const COMMANDS: Command[] = [
   { id: "go.tasks", title: "Tasks", group: "Go", icon: "check", keywords: "todo to-do checklist due open done", when: (c) => !!c.app, run: (c) => c.app!.tasks() },
   { id: "go.graph", title: "Graph view", group: "Go", icon: "graph", keywords: "map links network", when: (c) => !!c.app, run: (c) => c.app!.graph() },
   { id: "go.graph.here", title: "This note in the graph", group: "Go", icon: "graph", keywords: "map links network local neighbourhood around", when: (c) => !!c.app?.graphHere, run: (c) => c.app!.graphHere!() },
-  { id: "go.home", title: "Vault home", group: "Go", icon: "vault", keywords: "start recent", when: (c) => !!c.app, run: (c) => c.app!.home() },
+  { id: "go.home", title: "Collection home", group: "Go", icon: "vault", keywords: "vault start recent", when: (c) => !!c.app, run: (c) => c.app!.home() },
   { id: "view.files", title: "Show or hide the file panel", group: "View", icon: "panel-left", shortcut: "⌘\\", keywords: "sidebar files tree left folders focus", when: (c) => !!c.app, run: (c) => c.app!.toggleLeft() },
   { id: "ai.web.on", title: "Let the AI use the web", group: "View", icon: "globe", keywords: "assistant internet search browse online brave", when: () => !!panel.conv?.assistant.web && !panel.conv.web, run: () => panel.conv!.setWeb(true) },
   { id: "ai.web.off", title: "Stop the AI using the web", group: "View", icon: "globe", keywords: "assistant internet search offline", when: () => !!panel.conv?.web, run: () => panel.conv!.setWeb(false) },
   { id: "view.ai", title: "Ask AI in the side panel", group: "View", icon: "sparkle", shortcut: "⌘J", keywords: "assistant chat claude librarian organise", when: (c) => !!c.app, run: (c) => c.app!.askAi() },
   { id: "view.focus", title: "Focus mode", group: "View", icon: "book", keywords: "zen distraction free writing typewriter hide everything", when: (c) => !!c.note && !focusModeOn(), run: () => setFocusMode(true) },
   { id: "view.unfocus", title: "Leave focus mode", group: "View", icon: "x", keywords: "zen distraction exit", when: (c) => !!c.note && focusModeOn(), run: () => setFocusMode(false) },
+  { id: "view.theme.auto", title: "Theme: Auto (follow the system)", group: "View", icon: "theme-auto", keywords: "appearance dark light mode system colour scheme", when: () => getTheme() !== "auto", run: () => setTheme("auto") },
+  { id: "view.theme.light", title: "Theme: Light", group: "View", icon: "sun", keywords: "appearance light mode day colour scheme", when: () => getTheme() !== "light", run: () => setTheme("light") },
+  { id: "view.theme.dark", title: "Theme: Dark", group: "View", icon: "moon", keywords: "appearance dark mode night colour scheme", when: () => getTheme() !== "dark", run: () => setTheme("dark") },
   { id: "view.panel", title: "Show or hide the side panel", group: "View", icon: "panel", keywords: "outline backlinks right sidebar calendar", when: (c) => !!c.note, run: (c) => c.app!.toggleRight() },
-  { id: "vault.import", title: "Import markdown", group: "Vault", icon: "upload", keywords: "markdown zip upload", when: canCreate, run: () => openSettings("vault") },
-  { id: "vault.export", title: "Export vault as .zip", group: "Vault", icon: "download", keywords: "download backup markdown", when: (c) => !!c.app, href: (c) => c.app!.exportHref, run: (c) => void (location.href = c.app!.exportHref) },
-  { id: "vault.trash", title: "Trash", group: "Vault", icon: "trash", keywords: "deleted restore", when: canCreate, run: (c) => c.app!.trash() },
+  { id: "vault.import", title: "Import markdown", group: "Collection", icon: "upload", keywords: "markdown zip upload", when: canCreate, run: () => openSettings("vault") },
+  { id: "vault.export", title: "Export collection as .zip", group: "Collection", icon: "download", keywords: "vault download backup markdown", when: (c) => !!c.app, href: (c) => c.app!.exportHref, run: (c) => void (location.href = c.app!.exportHref) },
+  { id: "vault.trash", title: "Trash", group: "Collection", icon: "trash", keywords: "deleted restore", when: canCreate, run: (c) => c.app!.trash() },
   // Settings (F17): one command per section, so ⌘K finds a setting by what it's about.
   { id: "settings.open", title: "Settings", group: "Settings", icon: "settings", keywords: "preferences options configure", when: (c) => !!c.app, run: () => openSettings() },
   { id: "settings.account", title: "Account", group: "Settings", icon: "user", keywords: "profile name password sign out log out", when: (c) => !!c.app, run: () => openSettings("account") },
-  { id: "settings.vault", title: "Vault settings", group: "Settings", icon: "vault", keywords: "this vault members share invite people role rename export leave delete", when: (c) => !!c.app, run: () => openSettings("vault") },
+  { id: "settings.vault", title: "Collection settings", group: "Settings", icon: "vault", keywords: "vault this collection members share invite people role rename export leave delete", when: (c) => !!c.app, run: () => openSettings("vault") },
   { id: "settings.site", title: "Publish as a website", group: "Settings", icon: "globe", keywords: "web site publish public page share link unlisted take down unpublish", when: (c) => !!c.app, run: () => openSettings("site") },
   { id: "settings.assistants", title: "AI assistants", group: "Settings", icon: "sparkle", keywords: "bring your own ai key model provider daily limit", when: (c) => !!c.app, run: () => openSettings("assistants") },
   { id: "settings.connections", title: "Connections", group: "Settings", icon: "link", keywords: "github token claude mcp code agent iphone share shortcut capture", when: (c) => !!c.app, run: () => openSettings("connections") },

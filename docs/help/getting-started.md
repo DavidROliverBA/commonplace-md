@@ -5,13 +5,15 @@ title: Getting started
 
 ## Signing in
 
-The first account made on a new server becomes the **admin**, and it gets a vault to start with. After that, an admin adds people in Settings → Admin. Or someone who already has a vault can invite you by email; see [Sharing and live editing](sharing.md).
+The first account made on a new server becomes the **admin**, and it gets a collection to start with. After that, an admin adds people in Settings → Admin. Or someone who already has a collection can invite you by email; see [Sharing and live editing](sharing.md).
 
-## Vaults
+## Your library and its collections
 
-A **vault** is a collection of notes and the folders they're in. You can have several vaults, such as one for home and one for work, and each one has its own members. Pick a vault from the menu at the top of the file panel, or make a new one there.
+Everything on a server is one **library**, such as *David's Library* or *Team Library*. Its name sits at the top of the file panel. At first it's named after the first admin, and an admin can rename it in Settings → Admin.
 
-![The vault home: the file panel on the left and recent notes on the right](images/vault-home.webp)
+A library holds **collections**. A collection is a set of notes and the folders they're in. You might have one for home and one for work, and each has its own members, so sharing one collection doesn't share the others. Your first collection is called *Personal*. Pick a collection from the menu under the library's name, or make a new one there. (Other Markdown editors call a collection a *vault*. It's the same thing: a folder of Markdown files.)
+
+![The collection home: the file panel on the left and recent notes on the right](images/vault-home.webp)
 
 ## The screen
 
@@ -20,9 +22,11 @@ flowchart LR
   F["File panel<br/>(left)"] --- N["The note<br/>(middle)"] --- S["Side panel<br/>(right)"]
 ```
 
-- **The file panel** (left): the vault menu, buttons for a new note, a new folder, today's note and the graph, and three tabs: **Files**, **Search** and **Tags**. Under Files are **Tasks**, your **types** and your **folders**. Your name at the bottom opens Settings, and the bin opens Trash. `⌘\` shows or hides it.
+- **The file panel** (left): the collection menu, buttons for a new note, a new folder, today's note and the graph, and three tabs: **Files**, **Search** and **Tags**. Under Files are **Tasks**, your **types** and your **folders**. Your name at the bottom opens Settings, and the bin opens Trash. `⌘\` shows or hides it.
 - **The note** (middle): its folder and title at the top, the view buttons (Live Preview, Source, side by side and Reading), the **⋯** menu for this note, and the text.
 - **The side panel** (right): the **Links** tab (outline, backlinks, outgoing links, mentions and related notes) and the **AI** tab. The button at the top right shows or hides it.
+
+**Light or dark:** the sun, moon or half-circle button at the bottom of the file panel, beside Trash, steps through **Light**, **Dark** and **Auto**. Auto follows your device's own setting. The same choice is in Settings → Account and in ⌘K ("Theme"). Each device remembers its own.
 
 To make either panel wider (handy for the graph in the side panel), drag its inner edge. Double-click the edge to put it back. With the keyboard, Tab to the edge and use the arrow keys. Each browser remembers the widths. On a phone the panels are drawers, so there's nothing to drag.
 

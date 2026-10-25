@@ -9,10 +9,22 @@
   min-height: 0;
   padding-top: env(safe-area-inset-top);
 }
+/* The library's name above the collections (Settings → Admin). */
+.library-name {
+  padding: 10px 14px 0;
+  font-size: var(--text-caption);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .vault-switch {
   display: flex;
   gap: 4px;
-  padding: 10px 10px 6px;
+  padding: 6px 10px;
 }
 .vault-switch select {
   flex: 1;

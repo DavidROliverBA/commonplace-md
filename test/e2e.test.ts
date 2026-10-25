@@ -468,7 +468,15 @@ describe("admin", () => {
     expect((await bob.req("/admin/users")).status).toBe(403);
     await alice.ok(`/admin/users/${eve.id}`, { method: "DELETE" });
     const vs = await alice.ok("/vaults");
-    expect(vs.some((v: any) => v.name.startsWith("eve"))).toBe(true);
+    expect(vs.some((v: any) => v.name === "Personal (from eve)")).toBe(true);
+  });
+
+  test("the library's name: the first admin's by default, an admin renames it, empty goes back", async () => {
+    expect((await alice.ok("/session")).library).toBe("Alice's Library");
+    expect((await bob.req("/admin/library", { method: "PUT", body: { name: "Bob's" } })).status).toBe(403);
+    expect(await alice.ok("/admin/library", { method: "PUT", body: { name: "  Team Library " } })).toEqual({ library: "Team Library" });
+    expect((await bob.ok("/session")).library).toBe("Team Library");
+    expect(await alice.ok("/admin/library", { method: "PUT", body: { name: "" } })).toEqual({ library: "Alice's Library" });
   });
 });
 

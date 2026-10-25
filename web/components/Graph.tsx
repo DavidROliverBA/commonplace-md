@@ -141,7 +141,7 @@ export function Graph(p: Props) {
         <h1 className="note-title">
           Graph
           {(scope || centreNote) && (
-            <button className="graph-scope" onClick={() => navigate(graphUrl(p.vaultId))} title="Show the whole vault" aria-label={`${title}: show the whole vault instead`}>
+            <button className="graph-scope" onClick={() => navigate(graphUrl(p.vaultId))} title="Show the whole collection" aria-label={`${title}: show the whole collection instead`}>
               {centreNote ? "around " : ""}
               {title} <Icon name="x" size={12} />
             </button>

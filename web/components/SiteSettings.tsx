@@ -116,7 +116,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
     <>
       <section className="settings-section">
         <h3>Website</h3>
-        {!s.site && <p className="muted">Publish this vault's notes as a website: each note a page, links between them working, pictures included. Publishing copies the notes as they are; your edits stay private until you publish again.</p>}
+        {!s.site && <p className="muted">Publish this collection's notes as a website: each note a page, links between them working, pictures included. Publishing copies the notes as they are; your edits stay private until you publish again.</p>}
         {s.site?.live && (
           <>
             <p className="site-live">
@@ -141,7 +141,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
             {s.site.files ? `, ${plural(s.site.files, "file")}` : ""}. Unlisted: only people with the link can find it, and search engines are asked to leave it out.
           </p>
         )}
-        {!isOwner && <p className="muted">Only an owner of this vault can publish it.</p>}
+        {!isOwner && <p className="muted">Only an owner of this collection can publish it.</p>}
       </section>
 
       <section className="settings-section">
@@ -153,7 +153,7 @@ export function SiteSettings({ vault }: { vault: Vault }) {
         )}
         <div className="site-choice" role="radiogroup" aria-label="What's published">
           <label>
-            <input type="radio" name="site-scope" checked={!chosen} disabled={!isOwner || !!busy} onChange={() => (setPicking(false), void choose([]))} /> The whole vault
+            <input type="radio" name="site-scope" checked={!chosen} disabled={!isOwner || !!busy} onChange={() => (setPicking(false), void choose([]))} /> The whole collection
           </label>
           <label>
             <input type="radio" name="site-scope" checked={chosen} disabled={!isOwner || !!busy || !s.folders.length} onChange={() => setPicking(true)} /> Chosen folders

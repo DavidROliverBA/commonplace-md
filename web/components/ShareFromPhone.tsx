@@ -161,7 +161,7 @@ export function ShareFromPhone() {
             void create();
           }}
         >
-          <select value={vaultId ?? ""} onChange={(e) => setVaultId(Number(e.target.value))} aria-label="Vault">
+          <select value={vaultId ?? ""} onChange={(e) => setVaultId(Number(e.target.value))} aria-label="Collection">
             {vaults.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}
@@ -175,7 +175,7 @@ export function ShareFromPhone() {
           </button>
         </form>
       ) : (
-        <p className="muted">You need a vault you can edit first.</p>
+        <p className="muted">You need a collection you can edit first.</p>
       )}
     </section>
   );

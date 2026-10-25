@@ -99,9 +99,9 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
 
   async function leave() {
     const ok = await confirmDialog({
-      title: "Leave this vault?",
+      title: "Leave this collection?",
       message: `You'll lose access to “${vault.name}” until an owner invites you again.`,
-      action: "Leave vault",
+      action: "Leave collection",
       danger: true,
     });
     if (!ok) return;
@@ -115,12 +115,12 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
 
   async function deleteVault() {
     const typed = await promptDialog({
-      title: "Delete this vault?",
-      message: `This deletes every note in “${vault.name}” for every member, and can't be undone. Type the vault's name to confirm.`,
-      label: "Vault name",
+      title: "Delete this collection?",
+      message: `This deletes every note in “${vault.name}” for every member, and can't be undone. Type the collection's name to confirm.`,
+      label: "Collection name",
       placeholder: vault.name,
       mustMatch: vault.name,
-      action: "Delete vault",
+      action: "Delete collection",
       danger: true,
     });
     if (typed !== vault.name) return;
@@ -152,11 +152,11 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
   return (
     <>
       <section className="settings-section">
-        <h3>Vault</h3>
+        <h3>Collection</h3>
         <div className="row">
-          <input value={name} onChange={(e) => setName(e.target.value)} disabled={!isOwner} aria-label="Vault name" />
+          <input value={name} onChange={(e) => setName(e.target.value)} disabled={!isOwner} aria-label="Collection name" />
           {isOwner && (
-            <button onClick={() => run("Saving…", () => api(`/vaults/${vault.id}`, { method: "PATCH", body: { name } }).then(onChanged), "Vault renamed")} disabled={!name.trim() || name === vault.name}>
+            <button onClick={() => run("Saving…", () => api(`/vaults/${vault.id}`, { method: "PATCH", body: { name } }).then(onChanged), "Collection renamed")} disabled={!name.trim() || name === vault.name}>
               Rename
             </button>
           )}
@@ -237,7 +237,7 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
       {canWrite && (
         <section className="settings-section">
           <h3>Import markdown</h3>
-          <p className="muted">An existing vault folder of Markdown files, a .zip of one, or individual .md files. Folder structure, frontmatter, tags, links and attachments come across; app settings folders (dot-folders) are skipped.</p>
+          <p className="muted">A folder of Markdown files from any editor, a .zip of one, or individual .md files. Folder structure, frontmatter, tags, links and attachments come across; app settings folders (dot-folders) are skipped.</p>
           <div className="row wrap">
             <label>
               If a note exists:{" "}
@@ -284,17 +284,17 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
         <h3>Export</h3>
         <p className="muted">Everything as plain markdown in a .zip — open it in any Markdown editor.</p>
         <a className="button" href={`/api/vaults/${vault.id}/export`}>
-          Download vault (.zip)
+          Download collection (.zip)
         </a>
       </section>
 
       <section className="settings-section danger-zone">
         <h3>Leave or delete</h3>
         <div className="row wrap">
-          <button onClick={() => void leave()}>Leave vault</button>
+          <button onClick={() => void leave()}>Leave collection</button>
           {isOwner && (
             <button className="danger" onClick={() => void deleteVault()}>
-              Delete vault
+              Delete collection
             </button>
           )}
         </div>

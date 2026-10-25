@@ -54,7 +54,7 @@ export interface Tool {
 const vaultArg = z
   .union([z.number().int(), z.string()])
   .optional()
-  .describe("The vault's id or name. Leave out if you have only one vault (list_vaults shows them).");
+  .describe("The collection's id or name. Leave out if you have only one collection (list_vaults shows them).");
 const noteArg = z.string().min(1).describe('The note, as a path ("Projects/Kitchen.md") or a title or [[wikilink]] target ("Kitchen").');
 
 /** The vault a call means, checked against the user's role. */
@@ -67,7 +67,7 @@ async function vaultFor(ctx: ToolCtx, v: number | string | undefined, write: boo
         ? mine[0]
         : undefined
       : mine.find((x) => x.id === Number(v)) ?? mine.find((x) => x.name.toLowerCase() === String(v).trim().toLowerCase());
-  if (!hit) throw new HttpError(404, v === undefined ? `You have ${mine.length} vaults: say which (${mine.map((x) => x.name).join(", ")})` : `No vault called “${v}”`);
+  if (!hit) throw new HttpError(404, v === undefined ? `You have ${mine.length} collections: say which (${mine.map((x) => x.name).join(", ")})` : `No collection called “${v}”`);
   if (write && !vaults.canWrite(hit.role)) throw new HttpError(403, `“${hit.name}” is read-only for you`);
   return hit;
 }
@@ -258,8 +258,8 @@ async function planMerge(ctx: ToolCtx, a: any) {
 export const TOOLS: Tool[] = [
   {
     name: "list_vaults",
-    title: "List vaults",
-    description: "The vaults (separate sets of notes) you can see, with your role in each and how many notes they hold.",
+    title: "List collections",
+    description: "The collections (separate sets of notes; the tools call them vaults) you can see, with your role in each and how many notes they hold.",
     input: z.object({}),
     writes: false,
     run: async (ctx) => ({ vaults: (await vaults.listVaults(ctx.user.id)).map((v) => ({ id: v.id, name: v.name, role: v.role, notes: v.note_count })) }),
@@ -306,7 +306,7 @@ export const TOOLS: Tool[] = [
   {
     name: "list_notes",
     title: "List notes",
-    description: "Notes in a vault, most recently edited first, optionally only those in one folder.",
+    description: "Notes in a collection, most recently edited first, optionally only those in one folder.",
     input: z.object({
       vault: vaultArg,
       folder: z.string().optional().describe('Only notes under this folder, e.g. "Projects"'),
@@ -324,7 +324,7 @@ export const TOOLS: Tool[] = [
   {
     name: "list_tags",
     title: "List tags",
-    description: "Every tag in a vault, with how many notes use it.",
+    description: "Every tag in a collection, with how many notes use it.",
     input: z.object({ vault: vaultArg }),
     writes: false,
     run: async (ctx, a) => {
@@ -487,7 +487,7 @@ export const TOOLS: Tool[] = [
     name: "list_types",
     title: "List types",
     description:
-      "The vault's types (Person, Meeting, Book…): what kinds of thing its notes are, each with its properties (and their kinds, choices and the type a link points at) and how many notes it has. Also types notes use that nobody has defined yet.",
+      "The collection's types (Person, Meeting, Book…): what kinds of thing its notes are, each with its properties (and their kinds, choices and the type a link points at) and how many notes it has. Also types notes use that nobody has defined yet.",
     input: z.object({ vault: vaultArg }),
     writes: false,
     run: async (ctx, a) => {
@@ -560,14 +560,14 @@ export const TOOLS: Tool[] = [
   },
   {
     name: "copy_to_vault",
-    title: "Copy or move notes to another vault",
+    title: "Copy or move notes to another collection",
     description:
-      "Copy a note, or a whole folder, into another of your vaults (a GitHub vault too), with the pictures and files its notes embed and any type the other vault lacks. With move, each note takes its history along and the original goes to Trash (restorable for 30 days). A name already taken there keeps both (\"Plan 1\").",
+      "Copy a note, or a whole folder, into another of your collections (a GitHub collection too), with the pictures and files its notes embed and any type the other collection lacks. With move, each note takes its history along and the original goes to Trash (restorable for 30 days). A name already taken there keeps both (\"Plan 1\").",
     input: z.object({
       note: noteArg.optional().describe("The note to send; or leave out and give folder"),
       folder: z.string().optional().describe('A folder to send with everything in it, e.g. "Projects/Kitchen"'),
-      vault: vaultArg.describe("The vault it's in now (id or name)"),
-      to_vault: z.union([z.number().int(), z.string()]).describe("The vault to send it to (id or name; list_vaults shows them)"),
+      vault: vaultArg.describe("The collection it's in now (id or name)"),
+      to_vault: z.union([z.number().int(), z.string()]).describe("The collection to send it to (id or name; list_vaults shows them)"),
       into: z.string().default("").describe('The folder there to put it in; leave out for the top level'),
       move: z.boolean().default(false).describe("Move instead of copy: the original goes to Trash"),
     }),

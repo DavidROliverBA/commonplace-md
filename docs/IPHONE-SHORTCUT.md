@@ -10,12 +10,12 @@ later (backlog L8).
 
 ## 1. Make a token
 
-In Commonplace go to **Settings → Connections → Share from iPhone**. Choose the vault and the note, name the
+In Commonplace go to **Settings → Connections → Share from iPhone**. Choose the collection and the note, name the
 phone, and press **Create token**. Keep that screen open: it shows the **address** and the
 **Authorization** line, each with a Copy button, and the token is shown only this once.
 
 A capture token can add to that one note and do nothing else. It stops working if you revoke it
-or lose edit rights to the vault. It goes in a request header, never in the address.
+or lose edit rights to the collection. It goes in a request header, never in the address.
 
 ## 2. Build the Shortcut
 

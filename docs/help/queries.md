@@ -8,7 +8,7 @@ standalone: true
 
 ## Dataview queries
 
-A `dataview` code block is a query that lists notes from their properties, tags, links and tasks. Its result stays up to date as the vault changes. Commonplace reads the same query language as the Dataview plugin for other Markdown editors.
+A `dataview` code block is a query that lists notes from their properties, tags, links and tasks. Its result stays up to date as the collection changes. Commonplace reads the same query language as the Dataview plugin for other Markdown editors.
 
 ````
 ```dataview
@@ -31,7 +31,7 @@ Inline queries show one value in the text: `` `= this.due` ``. A count works too
 
 ### dataviewjs
 
-A `dataviewjs` block runs JavaScript with Dataview's API (`dv.pages`, `dv.table`, `dv.list` and the rest). It runs in a sealed box: it can read the vault's notes and draw in its own space, but it can't reach the network, the app or your account. A script that never stops is stopped after five seconds.
+A `dataviewjs` block runs JavaScript with Dataview's API (`dv.pages`, `dv.table`, `dv.list` and the rest). It runs in a sealed box: it can read the collection's notes and draw in its own space, but it can't reach the network, the app or your account. A script that never stops is stopped after five seconds.
 
 ## Mermaid diagrams
 

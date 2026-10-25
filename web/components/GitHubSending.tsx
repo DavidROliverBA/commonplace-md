@@ -60,7 +60,7 @@ export function GitHubSending({ vault }: { vault: Vault }) {
     <section className="settings-section">
       <h3>Sending to GitHub</h3>
       <p className="muted">
-        How changes in this vault go to <code>{st.repo}</code>.{" "}
+        How changes in this collection go to <code>{st.repo}</code>.{" "}
         {st.auto.mode !== "ask" && st.auto.sendAs && (
           <>
             Sent as <b>{st.auto.sendAs.name}</b>, with their GitHub token.

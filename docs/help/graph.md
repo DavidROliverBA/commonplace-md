@@ -13,7 +13,7 @@ title: The graph
 
 The bar at the bottom has:
 
-- **Filters**: show only some types, or hide some; leave out notes with no links or daily notes; hide busy notes (more than 25 links); or a simplified drawing of coloured dots for big vaults. A number on the button shows how many filters are on. They're kept on this device.
+- **Filters**: show only some types, or hide some; leave out notes with no links or daily notes; hide busy notes (more than 25 links); or a simplified drawing of coloured dots for big collections. A number on the button shows how many filters are on. They're kept on this device.
 - **− 100% +** to zoom. Press the percentage to fit everything in.
 - **Save as a picture**, which downloads the graph as a PNG.
 - **Timeline**, to see the notes of a period (below).
@@ -47,7 +47,7 @@ The side panel's **Graph** tab shows the open note in the middle with the notes 
 
 ![The Graph tab in the side panel](images/graph-tab.webp)
 
-## Just part of the vault
+## Just part of the collection
 
 Open the graph for only some notes:
 
@@ -56,4 +56,4 @@ Open the graph for only some notes:
 - a tag: the graph button beside it in the **Tags** tab;
 - a saved search: the graph button beside it.
 
-The title shows what you're looking at. Press it to go back to the whole vault.
+The title shows what you're looking at. Press it to go back to the whole collection.

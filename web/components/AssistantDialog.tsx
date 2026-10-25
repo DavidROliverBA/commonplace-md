@@ -220,7 +220,7 @@ function AssistantDialog({ existing, onClose }: { existing: Assistant | null; on
           <small className="muted">{p.keyHelp}</small>
         </label>
         <p className="notice">
-          Your key is stored encrypted and is never shown again, or shared with anyone in your vaults. When you use {name || "it"}, the open note and whatever it reads are sent to{" "}
+          Your key is stored encrypted and is never shown again, or shared with anyone in your collections. When you use {name || "it"}, the open note and whatever it reads are sent to{" "}
           {p.label === "Other" ? "that provider" : p.id === "relaxai" ? "relaxAI, in its UK datacentre" : p.label}, under your key and their terms.
         </p>
         {tested && <p className="ok">{tested}</p>}

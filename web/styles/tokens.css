@@ -93,8 +93,10 @@
   color-scheme: light;
 }
 
+/* Dark: when the system is dark, unless someone chose Light (data-theme, web/lib/theme.ts), and
+   whenever someone chose Dark. The two blocks hold the same values (test/design.test.ts checks). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #1c1b22;
     --bg2: #232229;
     --bg3: #2c2b34;
@@ -136,6 +138,48 @@
     --shadow: 0 10px 40px #0009, 0 2px 8px #0006;
     color-scheme: dark;
   }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1b22;
+  --bg2: #232229;
+  --bg3: #2c2b34;
+  --text: #e6e4ef;
+  --muted: #a19eb3;
+  --faint: #8e8ba0;
+  --line: #34323e;
+  --accent: #9d8cf5;
+  --accent-soft: #9d8cf526;
+  --accent-text: #15141a;
+  --code: #f28fb4;
+  --code-bg: #2a2931;
+  --mark: #6b5d1e;
+  --node: #77738c;
+  --danger: #f07171;
+  --ok: #6fcf8f;
+  --warn: #e9a94b;
+  --info: #6cb4ea;
+  --scrim: #0009;
+
+  --tc-red: #ff8a80;
+  --tc-orange: #ffb067;
+  --tc-yellow: #f2cc60;
+  --tc-green: #7ee2a8;
+  --tc-blue: #8ab4f8;
+  --tc-purple: #d7aefb;
+  --tc-pink: #f48fb1;
+  --tc-cyan: #78d9ec;
+  --tc-grey: #a19eb3;
+  --hl-red: #ff558259;
+  --hl-orange: #ffb86c4d;
+  --hl-yellow: #e6d25a4d;
+  --hl-green: #6fdc6f40;
+  --hl-blue: #6f9cff4d;
+  --hl-purple: #a57cff4d;
+  --hl-pink: #ff8fd94d;
+  --hl-cyan: #5fd8d840;
+  --hl-grey: #9aa1b04d;
+  --shadow: 0 10px 40px #0009, 0 2px 8px #0006;
+  color-scheme: dark;
 }
 
 @media (prefers-reduced-motion: reduce) {

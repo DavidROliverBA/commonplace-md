@@ -3,18 +3,18 @@ title: Settings
 ---
 # Settings
 
-Every setting is in one place. Open Settings from your name at the bottom of the file panel, the gear beside the vault menu, or `⌘K` (type the setting's name, such as "members" or "website"). On a laptop the sections are listed beside the open one; on a phone the list comes first.
+Every setting is in one place. Open Settings from your name at the bottom of the file panel, the gear beside the collection menu, or `⌘K` (type the setting's name, such as "members" or "website"). On a laptop the sections are listed beside the open one; on a phone the list comes first.
 
-![Settings, open at This vault](images/settings.webp)
+![Settings, open at This collection](images/settings.webp)
 
 | Section | What's there |
 | --- | --- |
-| **Account** | Your name and password, and Sign out. |
-| **This vault** | The vault's name, its **members** and invitations, **import** and **export**, and leaving or deleting the vault. See [Sharing](sharing.md) and [Import and export](import-export.md). |
-| **Website** | Publishing the vault as a website: what's included, features, the preview, and taking it down. Owners only. See [Publish a website](website.md). |
+| **Account** | Your name, the theme (Auto, Light or Dark), your password, and Sign out. |
+| **This collection** | The collection's name, its **members** and invitations, **import** and **export**, and leaving or deleting the collection. See [Sharing](sharing.md) and [Import and export](import-export.md). |
+| **Website** | Publishing the collection as a website: what's included, features, the preview, and taking it down. Owners only. See [Publish a website](website.md). |
 | **AI assistants** | Your assistants, their keys, models and daily limits. See [AI assistants](ai.md). |
-| **Connections** | **Connect Claude** (an MCP token), **GitHub** (your token for GitHub vaults) and **Share from iPhone** (a token for the Apple Shortcut). Each token can be revoked. |
-| **Admin** | For admins: making accounts, and how full the database is. |
+| **Connections** | **Connect Claude** (an MCP token), **GitHub** (your token for GitHub collections) and **Share from iPhone** (a token for the Apple Shortcut). Each token can be revoked. |
+| **Admin** | For admins: the library's name, making accounts, and how full the database is. |
 
 ## Storage
 

@@ -14,7 +14,7 @@ import { callTool, inputSchema, type ToolCtx, toolsFor } from "./tools";
 const MAX_BATCH = 20;
 const VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 const INSTRUCTIONS =
-  "Commonplace is a markdown knowledge base (plain Markdown): notes in vaults, linked with [[wikilinks]], tagged with #tags, with YAML properties. " +
+  "Commonplace is a markdown knowledge base (plain Markdown): notes in collections, linked with [[wikilinks]], tagged with #tags, with YAML properties. " +
   "Search before creating, so you add to an existing note rather than duplicating it. Edits merge live with people typing, and the text before each edit is kept in the note's history.";
 
 type Rpc = { jsonrpc: "2.0"; id?: string | number | null; method?: string; params?: any };

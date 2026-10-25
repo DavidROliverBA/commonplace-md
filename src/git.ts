@@ -103,7 +103,7 @@ export type SendMode = "ask" | "review" | "sync" | "publish";
 
 export async function gitRow(vaultId: number): Promise<VaultGit> {
   const [g] = await sql<VaultGit[]>`select * from vault_git where vault_id = ${vaultId}`;
-  if (!g) throw new HttpError(404, "This vault isn't from GitHub");
+  if (!g) throw new HttpError(404, "This collection isn't from GitHub");
   return g;
 }
 
@@ -164,7 +164,7 @@ export async function copyIn(user: User, opts: { repo: string; branch: string; f
       if (++started % 1000 === 0) await sql`analyze notes, links, attachments, git_files`;
       const rel = e.path.slice(prefix.length);
       const vp = vaultPathFor(rel);
-      if (!vp) return void skipped.push({ path: e.path, why: "its name can't be a vault path" });
+      if (!vp) return void skipped.push({ path: e.path, why: "its name can't be a collection path" });
       const data = await blob(gh, opts.repo, e.sha);
       if (isNotePath(rel)) {
         const text = asText(data);
@@ -502,7 +502,7 @@ export async function renameBranch(vaultId: number, name: string): Promise<void>
  *  whatever stays out keeps the version an earlier push put on the branch. */
 export async function push(vaultId: number, user: User, opts: { message: string; title?: string; body?: string; branch?: string; send?: (c: Change) => boolean }): Promise<Status> {
   const g = await gitRow(vaultId);
-  if (g.send_mode === "publish") throw new HttpError(409, `This vault publishes straight to ${g.base_branch}: use Send now`);
+  if (g.send_mode === "publish") throw new HttpError(409, `This collection publishes straight to ${g.base_branch}: use Send now`);
   const [{ n: clashCount }] = (await sql`select count(*)::int as n from git_clashes where vault_id = ${vaultId}`) as any;
   if (clashCount) throw new HttpError(409, `Settle the ${clashCount === 1 ? "clash" : `${clashCount} clashes`} in Review changes first`);
   if (g.pr_state === "merged") throw new HttpError(409, `Pull request #${g.pr_number} was merged: Update from ${g.base_branch} first, then your new changes go on a new branch`);

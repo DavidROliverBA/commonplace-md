@@ -19,6 +19,7 @@ import { VaultSettings } from "./VaultSettings";
 interface Props {
   vault: Vault;
   user: User;
+  library: string;
   onVaultChanged: () => void;
   onAccountChanged: () => void;
 }
@@ -30,7 +31,7 @@ export function SettingsHost(p: Props) {
   return <Settings {...p} initial={open} seq={seq} />;
 }
 
-function Settings({ vault, user, onVaultChanged, onAccountChanged, initial, seq }: Props & { initial: SettingsSection | "list"; seq: number }) {
+function Settings({ vault, user, library, onVaultChanged, onAccountChanged, initial, seq }: Props & { initial: SettingsSection | "list"; seq: number }) {
   const narrow = useNarrow();
   const [section, setSection] = useState<SettingsSection | null>(initial === "list" ? null : initial);
   // Opened again at another section (a shortcut from inside a dialog): go there.
@@ -38,8 +39,8 @@ function Settings({ vault, user, onVaultChanged, onAccountChanged, initial, seq 
 
   const sections: { id: SettingsSection; label: string; icon: string; hint: string }[] = [
     { id: "account", label: "Account", icon: "user", hint: "Name, password, sign out" },
-    { id: "vault", label: "This vault", icon: "vault", hint: `${vault.name}: members, import, export` },
-    { id: "site", label: "Website", icon: "globe", hint: "Publish this vault as a site" },
+    { id: "vault", label: "This collection", icon: "vault", hint: `${vault.name}: members, import, export` },
+    { id: "site", label: "Website", icon: "globe", hint: "Publish this collection as a site" },
     { id: "assistants", label: "AI assistants", icon: "sparkle", hint: "Your own AI keys and limits" },
     { id: "connections", label: "Connections", icon: "link", hint: "Claude, GitHub, Share from iPhone" },
     ...(user.is_admin ? [{ id: "admin" as const, label: "Admin", icon: "users", hint: "Accounts and storage" }] : []),
@@ -87,7 +88,7 @@ function Settings({ vault, user, onVaultChanged, onAccountChanged, initial, seq 
                 <ShareFromPhone />
               </>
             )}
-            {shown === "admin" && <AdminSettings user={user} />}
+            {shown === "admin" && <AdminSettings user={user} library={library} onChanged={onAccountChanged} />}
           </div>
         )}
       </div>

@@ -13,12 +13,12 @@ it's built.
   `#tag` or `[[link]]`, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT`, `WITHOUT ID` and Dataview's
   functions), inline `` `= expression` ``, and the common `` `$= dv.pages(…).where(…).length` `` count,
   read the way the Dataview plugin reads them, over frontmatter, inline `key:: value` fields,
-  tags, links and tasks. Results show in reading view, embeds and Live Preview, follow the vault
+  tags, links and tasks. Results show in reading view, embeds and Live Preview, follow the collection
   as it changes, and a task ticked in a `TASK` result is ticked in its own note.
 - **dataviewjs:** ```` ```dataviewjs ```` blocks run Dataview's JavaScript API (`dv.pages`, `dv.table`,
   `dv.list`, `dv.taskList`, `dv.paragraph`, `dv.el`, `dv.query`, `dv.io.load`, `dv.view`, DataArray,
   Luxon dates…) in a sandboxed frame for each block: no network, no cookies, no access to the app,
-  only the vault's notes (which any member can read) and its own box to draw in. Links in it
+  only the collection's notes (which any member can read) and its own box to draw in. Links in it
   open notes and its task boxes tick tasks, through checked messages to the app. Publish runs each
   block in the same sandbox in the owner's browser, over the published notes only, and keeps what
   it drew, since published pages run no script. A script stuck in an endless loop is stopped after
@@ -36,10 +36,13 @@ it's built.
 - **Live collaboration:** Yjs CRDTs over WebSockets. Edits merge character by character, you see
   other people's cursors and selections and who is in the note, and undo only undoes your own
   changes. A phone that edits offline merges cleanly when it reconnects.
-- **Multi-user vaults:** accounts and shared vaults with owner, editor and viewer roles. Viewers
+- **A library of collections:** everything on a server is one library, named by an admin (by
+  default after the first admin: "David's Library"). It holds collections, each a separate set of
+  notes and folders with its own members. Other Markdown editors call these vaults.
+- **Multi-user collections:** accounts and shared collections with owner, editor and viewer roles. Viewers
   are read-only everywhere, including on the live socket. Owners invite people by email, and
   nobody joins until they accept: the invitation waits in their file panel (even if they sign up
-  later) with Join vault and Decline. An admin manages accounts.
+  later) with Join collection and Decline. An admin manages accounts.
 - **Types (think in things, not files):** say what a note *is* (Person, Meeting, Book) with
   `type:` in its properties. Start from a ready-made type (Person, Organisation, Meeting, Project,
   Book, Idea) or make your own; a type's note opens with a form for its properties (text, number,
@@ -55,7 +58,7 @@ it's built.
   cards off).
 - **Weblinks:** a link shared from the iPhone (or ⌘K → Save a web link) becomes a Weblink note
   with the page's title, summary, site and picture, fetched safely by the server.
-- **Tasks, bookmarks and mentions:** every `- [ ]` in the vault on one Tasks page (open or done,
+- **Tasks, bookmarks and mentions:** every `- [ ]` in the collection on one Tasks page (open or done,
   by note or by due date, ticked in place); bookmarks at the top of your sidebar; the side panel
   lists notes that mention this one without linking, with one-click Link; the file tree sorts by
   name, last changed or newest. Following a link to a missing note asks whether it's a plain note
@@ -64,10 +67,10 @@ it's built.
   outline, and renames that rewrite every `[[link]]` pointing at the note.
 - **The graph** (after Capacities): notes show their type's icon and colour, and links from
   properties carry the property's name (*attendees*). The side panel's Graph tab centres on the
-  open note, with Show more and Show less, and follows you. The page can show the whole vault, one
+  open note, with Show more and Show less, and follows you. The page can show the whole collection, one
   note's neighbourhood, or a type, folder, tag or saved search. It has filters (only or hide types,
   daily notes, busy notes, unlinked notes, simplified), zoom, find, and a PNG export. A
-  timeline under the graph shows notes by date: drag a range, or press Play to watch the vault grow
+  timeline under the graph shows notes by date: drag a range, or press Play to watch the collection grow
   month by month.
 - **Search:** Postgres full-text and fuzzy title search, plus pgvector semantic search over
   heading-sized chunks, fused with Reciprocal Rank Fusion. `tag:x` and `path:x` filters work, and
@@ -76,9 +79,9 @@ it's built.
   every member). Drag notes and folders onto a folder, or onto empty space for the
   top level (on a phone, press and hold, then drag). Rename or move a folder with everything
   inside; an empty folder can be deleted. Empty folders survive export and import.
-- **Import and export:** an existing vault folder of Markdown files, a `.zip` of one, or loose `.md` files.
+- **Import and export:** a folder of Markdown files from any editor, a `.zip` of one, or loose `.md` files.
   Dot-folders (app settings, `.trash/`) are skipped, and CRLF line endings and BOMs are cleaned. Exports are
-  per note (`.md`) or per vault (`.zip`).
+  per note (`.md`) or per collection (`.zip`).
 - **Version history:** a snapshot is taken every ten minutes of editing, and before every import
   overwrite and restore. An agent's or GitHub's burst of changes keeps the version before the
   first, and each note keeps its newest 100 versions.
@@ -87,20 +90,20 @@ it's built.
   are told; at 90% new notes, files, imports and agents' edits are refused with a message saying
   why, while typing in open notes carries on, so the disk never fills (Render suspends a full
   database). A note is at most 5 MB.
-- **Backups:** `GET /api/backup` with `Authorization: Bearer $BACKUP_TOKEN` returns every vault
+- **Backups:** `GET /api/backup` with `Authorization: Bearer $BACKUP_TOKEN` returns every collection
   as markdown plus history, members and Trash as JSON; `.github/workflows/backup.yml` (in a private repository only: anyone who can read a repository can download its artifacts) fetches it
   daily and keeps 14 days of copies as workflow artifacts. The zip is streamed, so its size
   isn't limited by the server's memory. `bun scripts/restore.ts backup.zip --owner you@example.com`
   (with `DATABASE_URL` set) restores it: notes, files, folders, history and Trash, with members
   whose accounts exist. Not in a backup, by design: passwords, AI keys and GitHub tokens, and
-  GitHub vault links (a GitHub vault restores as a plain vault).
+  GitHub collection links (a GitHub collection restores as a plain collection).
 - **Bring your own AI:** add an assistant with your own Anthropic, OpenAI, relaxAI (UK
   datacentre, billed in £) or OpenAI-compatible key (`/boyai`). Every conversation shows what it
   cost in £, and each assistant has a daily £ limit (£1 unless you change it), checked before
   every call against a ledger; list prices live in `src/prices.ts`. Type `@Claude` in a note to talk to it under that line, or press `⌘J` for the
   AI side panel. It works as a librarian (searches and answers with links to your notes), an
   author (makes pages from what it finds) and an organiser (reformats, sets properties, moves,
-  splits, copies or moves notes to another vault). Changes to the open note happen live and are kept in Version history; anything else
+  splits, copies or moves notes to another collection). Changes to the open note happen live and are kept in Version history; anything else
   (a new page, another note, a move) shows a diff to **Apply** or **Discard**, with Undo after.
   It can also drive the app (open a note, show the graph, hide the file panel), and it knows your
   types: it files notes into them with their properties filled in, proposes a new type when
@@ -109,7 +112,7 @@ it's built.
   assistant it and turn it on in a conversation (the globe): it reads public pages and, with
   your own Brave Search key, searches. After its first web request in a conversation, each
   further one and every change asks you first, showing exactly what would go out.
-- **Publish a vault as a website** (Settings → Website, owners): the whole vault or chosen
+- **Publish a collection as a website** (Settings → Website, owners): the whole collection or chosen
   folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
   tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are
   worked out at Publish from the published notes only); a note with `publish: false` stays out, and a link to a note that isn't published shows
@@ -119,15 +122,15 @@ it's built.
   dates, reading time and a light and dark switch. Unlisted (search engines are
   asked to leave it out), and taking it down has an Undo. The choice is kept in `publish.json`,
   so it goes with an export or a GitHub repo.
-- **GitHub vaults:** open a repository of markdown (or one folder of it, such as `docs/`) as a
-  vault with your own fine-grained token. Notes, pictures and canvases are copied in; code,
+- **GitHub collections:** open a repository of markdown (or one folder of it, such as `docs/`) as a
+  collection with your own fine-grained token. Notes, pictures and canvases are copied in; code,
   app settings folders (dot-folders) and everything else stay on GitHub, untouched. Your edits are a branch: a bar at
   the top says which branch and how many notes changed, **Review changes** shows each one's diff
   against GitHub with a Revert, and **Open pull request** sends them as one commit on a new
   branch with a PR (later edits are more commits on it). **Update from main** brings in newer
   work: unchanged notes update in place, notes changed on both sides merge line by line, and a
   real clash waits for you to pick a side. **Cancel the branch** puts every note back. An owner
-  can also have changes sent on their own (Settings → This vault): a pull request every hour, day
+  can also have changes sent on their own (Settings → This collection): a pull request every hour, day
   or week; each note pushed to the branch once it goes quiet; or straight onto a branch, `main`
   included, with no PR. Automatic sends merge first and pause on a clash, leave out notes held
   back in Review changes, and say in the bar what's next and whose token sends. Unless an owner

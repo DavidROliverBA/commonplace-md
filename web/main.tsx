@@ -3,6 +3,7 @@
 
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import "./lib/theme"; // the chosen theme, before the first paint of the app
 
 // iOS Safari overlays the keyboard on the page instead of resizing it, which would hide the
 // formatting bar and the cursor. Size the app to the visual viewport instead. Writing the height

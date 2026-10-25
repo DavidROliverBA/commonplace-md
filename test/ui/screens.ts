@@ -173,7 +173,7 @@ try {
       await p.waitForSelector(".cm-content");
       if (device === "laptop") {
         // Join Priya's vault, so the file panel opens on the vault rather than the invitation.
-        const join = await p.$$(".sidebar button").then(async (bs) => { for (const x of bs) if ((await x.evaluate((e) => e.textContent)) === "Join vault") return x; });
+        const join = await p.$$(".sidebar button").then(async (bs) => { for (const x of bs) if ((await x.evaluate((e) => e.textContent)) === "Join collection") return x; });
         if (join) (await join.click(), await Bun.sleep(600), await p.goto(`${BASE}/v/${vaultId}/n/${kitchen.id}`, { waitUntil: "load" }), await p.waitForSelector(".cm-content"));
         if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
         if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
@@ -512,7 +512,7 @@ try {
       await shot(p, `${tag}-7-share-setup`);
       // Settings (F17): the iPhone's list of sections, the laptop's vault section.
       if (device === "phone") await p.click(".settings-back");
-      else await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".settings-nav button")].find((b) => b.textContent?.startsWith("This vault"))!.click());
+      else await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".settings-nav button")].find((b) => b.textContent?.startsWith("This collection"))!.click());
       await Bun.sleep(300);
       await shot(p, `${tag}-7b-settings`);
       await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".settings-nav button")].find((b) => b.textContent?.startsWith("Website"))!.click());

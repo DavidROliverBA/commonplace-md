@@ -43,7 +43,7 @@ export async function createToken(
   let notePath = "Inbox.md";
   let scope = "capture";
   if (input.kind === "capture") {
-    if (!input.vaultId) throw new HttpError(400, "Choose a vault for the capture token");
+    if (!input.vaultId) throw new HttpError(400, "Choose a collection for the capture token");
     await vaults.requireRole(input.vaultId, user, "editor");
     vaultId = input.vaultId;
     notePath = normalisePath(input.notePath?.trim() || "Inbox");

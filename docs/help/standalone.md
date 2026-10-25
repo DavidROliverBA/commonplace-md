@@ -36,11 +36,11 @@ flowchart TB
     E["Editor, links, embeds, tables,<br/>queries, diagrams, tags, search"]
   end
   subgraph "Only the app"
-    A["Sharing and live editing · types and type pages<br/>tasks page and daily notes · search by meaning<br/>version history and Trash · AI assistants<br/>websites · GitHub vaults · the iPhone app"]
+    A["Sharing and live editing · types and type pages<br/>tasks page and daily notes · search by meaning<br/>version history and Trash · AI assistants<br/>websites · GitHub collections · the iPhone app"]
   end
 ```
 
 Renaming a note in the standalone file doesn't update links to it, and hidden folders (such as `.git`) and `node_modules` are skipped.
 
 > [!tip]
-> The standalone file and the app read the same Markdown. A folder you edit in one opens in the other: export a vault as a zip and open it in the standalone file, or import a folder you've been editing into a vault.
+> The standalone file and the app read the same Markdown. A folder you edit in one opens in the other: export a collection as a zip and open it in the standalone file, or import a folder you've been editing into a collection.

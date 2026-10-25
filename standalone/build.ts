@@ -73,6 +73,7 @@ const sandboxPacked = Buffer.from(gzipSync(new TextEncoder().encode((await datav
 
 const icon = await Bun.file(join(here, "..", "web", "icon.svg")).text();
 const html = `<!doctype html>
+<!-- Commonplace ${pkg.version}, MIT licence. It includes open-source packages, each under its own licence; their notices: https://github.com/DavidROliverBA/commonplace-md/blob/main/THIRD_PARTY_NOTICES.md -->
 <html lang="en-GB">
 <head>
 <meta charset="utf-8">

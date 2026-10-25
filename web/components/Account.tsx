@@ -1,9 +1,12 @@
-// Settings → Account (profile, password, sign out) and Settings → Admin (storage, accounts).
+// Settings → Account (profile, appearance, password, sign out) and Settings → Admin (the library's
+// name, storage, accounts).
 
 import { useEffect, useState } from "react";
 import { api, type User } from "../lib/api";
 import { confirmDialog, toast, toastError } from "../ui/overlays";
 import { forgetEverything } from "../lib/offline";
+import { setTheme, THEMES, useTheme } from "../lib/theme";
+import { Icon } from "../ui/Icon";
 
 interface Storage {
   database: number;
@@ -35,6 +38,7 @@ export function AccountSettings({ user, onChanged }: { user: User; onChanged: ()
   const [name, setName] = useState(user.name);
   const [cur, setCur] = useState("");
   const [next, setNext] = useState("");
+  const theme = useTheme();
   return (
     <>
       <section className="settings-section">
@@ -46,6 +50,17 @@ export function AccountSettings({ user, onChanged }: { user: User; onChanged: ()
             Save name
           </button>
         </div>
+      </section>
+      <section className="settings-section">
+        <h3>Appearance</h3>
+        <div className="segmented wide" role="radiogroup" aria-label="Theme">
+          {THEMES.map((t) => (
+            <button type="button" key={t.id} role="radio" aria-checked={theme === t.id} className={theme === t.id ? "on" : ""} onClick={() => setTheme(t.id)}>
+              <Icon name={t.icon} size={16} /> {t.label}
+            </button>
+          ))}
+        </div>
+        <p className="muted">Auto follows your device's light or dark setting. The choice is kept on this device.</p>
       </section>
       <section className="settings-section">
         <h3>Password</h3>
@@ -82,8 +97,9 @@ export function AccountSettings({ user, onChanged }: { user: User; onChanged: ()
   );
 }
 
-export function AdminSettings({ user }: { user: User }) {
+export function AdminSettings({ user, library, onChanged }: { user: User; library: string; onChanged: () => void }) {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [libName, setLibName] = useState(library);
   const [nu, setNu] = useState({ email: "", name: "", password: "", is_admin: false });
   const [storage, setStorage] = useState<Storage | null>(null);
 
@@ -96,7 +112,7 @@ export function AdminSettings({ user }: { user: User }) {
   async function deleteUser(u: AdminUser) {
     const yes = await confirmDialog({
       title: `Delete ${u.name}'s account?`,
-      message: `${u.email} won't be able to sign in. Vaults only they own pass to you. This can't be undone.`,
+      message: `${u.email} won't be able to sign in. Collections only they own pass to you. This can't be undone.`,
       action: "Delete account",
       danger: true,
     });
@@ -105,6 +121,22 @@ export function AdminSettings({ user }: { user: User }) {
 
   return (
     <>
+      <section className="settings-section">
+        <h3>Library</h3>
+        <form
+          className="row"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void attempt(() => api<{ library: string }>("/admin/library", { method: "PUT", body: { name: libName } }).then((r) => (setLibName(r.library), onChanged())), "Library renamed");
+          }}
+        >
+          <input value={libName} onChange={(e) => setLibName(e.target.value)} maxLength={80} aria-label="Library name" placeholder="David's Library" />
+          <button type="submit" disabled={libName.trim() === library}>
+            Rename
+          </button>
+        </form>
+        <p className="muted small">Everyone here sees this name above their collections. Leave it empty to go back to the first admin's name.</p>
+      </section>
       {storage && (
         <section className="settings-section">
           <h3>Storage</h3>

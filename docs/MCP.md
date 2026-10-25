@@ -2,7 +2,7 @@
 
 Commonplace runs a [Model Context Protocol](https://modelcontextprotocol.io) server at `/mcp`.
 With it, Claude Code, or any other agent that speaks MCP, can search, read and write your notes
-as you, in every vault you can see and with your role in each.
+as you, in every collection you can see and with your role in each.
 
 ## Connect
 
@@ -49,10 +49,10 @@ in the backlog's ideas.
 
 | Tool | What it does | Needs write |
 |---|---|---|
-| `list_vaults` | Your vaults, your role in each, note counts | |
+| `list_vaults` | Your collections, your role in each, note counts | |
 | `search_notes` | Hybrid search (meaning and keywords), with `tag:` and `path:` filters | |
 | `read_note` | Full markdown, tags, backlinks and outgoing links | |
-| `list_notes` | Notes in a vault or folder, most recently edited first | |
+| `list_notes` | Notes in a collection or folder, most recently edited first | |
 | `list_tags` | Tags with counts | |
 | `create_note` | A new note at a path | ✓ |
 | `append_to_note` | Add to the end of a note (optionally creating it) | ✓ |
@@ -61,18 +61,18 @@ in the backlog's ideas.
 | `set_properties` | Set or remove properties (frontmatter), leaving the rest alone | ✓ |
 | `move_note` | Move or rename a note; links to it are updated | ✓ |
 | `split_note` | Move a section into a new note, leaving an embed (`![[…]]`) | ✓ |
-| `list_types` | The vault's types (Person, Meeting…) with their properties and counts | |
+| `list_types` | The collection's types (Person, Meeting…) with their properties and counts | |
 | `set_type` | Say what a note is and fill in its properties (choices checked) | ✓ |
 | `create_type` | Make a new type: properties, icon, colour, template | ✓ |
 | `merge_notes` | Fold a duplicate into another note, relink it, and send it to Trash | ✓ |
-| `copy_to_vault` | Copy a note or folder to another vault (with its pictures and type), or move it: the original goes to Trash | ✓ |
+| `copy_to_vault` | Copy a note or folder to another collection (with its pictures and type), or move it: the original goes to Trash | ✓ |
 
 A note can be named by its path (`Projects/Kitchen.md`) or its title, as in a `[[wikilink]]`.
-A vault can be named by its id or its name, and can be left out if you have only one.
+A collection can be named by its id or its name, and can be left out if you have only one.
 
 ## Safety
 
-- **Your permissions, never more.** A tool runs as you. In a vault where you're a viewer it can
+- **Your permissions, never more.** A tool runs as you. In a collection where you're a viewer it can
   read but not write, and a read-only token doesn't even list the write tools.
 - **Nothing is lost.** Every change first saves the note's previous text as a version
   (reason *mcp*), so Version history can undo any agent's change. A move can be moved back. Edits go through the live

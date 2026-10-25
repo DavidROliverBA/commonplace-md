@@ -190,7 +190,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
       } catch (e) {
         if (shownVault.current !== vaultId || background || loadFailed.current || !navigator.onLine) return;
         loadFailed.current = true;
-        toast(`Couldn't load this vault's notes. ${e instanceof Error ? e.message : String(e)}`, { tone: "error", action: { label: "Try again", run: () => void loadNotes() } });
+        toast(`Couldn't load this collection's notes. ${e instanceof Error ? e.message : String(e)}`, { tone: "error", action: { label: "Try again", run: () => void loadNotes() } });
       }
     },
     [vaultId],
@@ -437,6 +437,11 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   const phoneChrome = usePhoneChrome();
   // On a phone the branch bar is in the Files drawer: a dot on the Files button stands in for it.
   useEffect(() => setFilesBadge(narrow && vault?.git_repo ? filesBadge(git) : null), [narrow, vault?.git_repo, git]);
+  // The tab says where you are: the note, the collection, the library.
+  const openTitle = notes.find((n) => n.id === noteId)?.title;
+  useEffect(() => {
+    document.title = [openTitle, vault?.name, session.library].filter(Boolean).join(" · ");
+  }, [openTitle, vault?.name, session.library]);
   const [prDialog, setPrDialog] = useState(false);
   const [ghDialog, setGhDialog] = useState(false);
 
@@ -492,9 +497,9 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   if (!vault)
     return (
       <div className="empty-state">
-        <p>No vault yet.</p>
-        <button className="primary" onClick={() => api<Vault>("/vaults", { body: { name: `${session.user!.name}'s vault` } }).then((v) => (loadVaults(), navigate(`/v/${v.id}`)), toastError)}>
-          Create a vault
+        <p>No collection yet.</p>
+        <button className="primary" onClick={() => api<Vault>("/vaults", { body: { name: "Personal" } }).then((v) => (loadVaults(), navigate(`/v/${v.id}`)), toastError)}>
+          Create a collection
         </button>
       </div>
     );
@@ -716,6 +721,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
       <SettingsHost
         vault={vault}
         user={session.user!}
+        library={session.library}
         onVaultChanged={() => {
           void loadVaults();
           void loadNotes();
@@ -795,7 +801,7 @@ function VaultHome({ vault, notes, folderCount, loaded, onSwitcher, onCommands, 
           <p className="muted">No notes yet. Pick a folder in the sidebar and add one with +, or start a note here.</p>
         ) : (
           <div className="vault-empty">
-            <p className="muted">This vault is empty. Start a note, or import an existing vault of Markdown files.</p>
+            <p className="muted">This collection is empty. Start a note, or import a folder of Markdown files.</p>
             {canWrite && (
               <div className="tour-offer">
                 <p>

@@ -617,7 +617,7 @@ export async function publish(vaultId: number, user: User, offset = 0, tz?: stri
 /** Take the site down (keeping the snapshot, so Undo puts the same pages back), or put it back. */
 export async function setLive(vaultId: number, live: boolean): Promise<void> {
   const r = await sql`update sites set live = ${live} where vault_id = ${vaultId} and published_at is not null returning 1`;
-  if (!r.length) throw new HttpError(404, "This vault hasn't been published");
+  if (!r.length) throw new HttpError(404, "This collection hasn't been published");
 }
 
 const LIST_MAX = 500;
@@ -691,14 +691,7 @@ async function stylesheet(): Promise<string> {
   if (css) return css;
   const part = (f: string) => Bun.file(new URL(`../web/styles/${f}`, import.meta.url)).text();
   const [tokens, ...rest] = await Promise.all(["tokens.css", "markdown.css", "site.css"].map(part));
-  return (css = [switchable(tokens!), ...rest].join("\n"));
-}
-
-/** tokens.css's dark colours, also answering to the site's light and dark switch (data-theme). */
-function switchable(tokens: string): string {
-  const m = /@media \(prefers-color-scheme: dark\) \{\s*:root \{([\s\S]*?)\n  \}\n\}/.exec(tokens);
-  if (!m) return tokens;
-  return tokens.replace(m[0], `@media (prefers-color-scheme: dark) {\n  :root:not([data-theme="light"]) {${m[1]}\n  }\n}\n:root[data-theme="dark"] {${m[1]}\n}`);
+  return (css = [tokens!, ...rest].join("\n"));
 }
 
 interface SitePage {

@@ -7,6 +7,7 @@
 // drew (freezeDataviewJs). A frame that stops answering (a script stuck in a loop the sandbox's
 // guard can't see) is closed.
 
+import { isDark, onThemeChange } from "./theme";
 import type { PageData } from "../../src/dataview";
 import { api } from "./api";
 import { type DataviewCtx, tickTask } from "./dataview";
@@ -27,6 +28,8 @@ interface Frame {
 const frames = new Map<Window, Frame>();
 /** Frames whose window isn't known yet (not in the page when made): matched on first message. */
 const pending = new Set<Frame>();
+// A new theme reaches frames already drawn.
+onThemeChange(() => frames.forEach((_, w) => w.postMessage({ dvjs: 1, type: "theme", theme: isDark() ? "dark" : "light" }, "*")));
 const MAX_HEIGHT = 20_000;
 
 /** The sandbox page: the app serves it; the standalone file carries it, gzipped. */
@@ -75,7 +78,8 @@ export function fillDataviewJs(root: ParentNode, ctx: DataviewCtx): void {
   }
 }
 
-const zone = () => ({ offset: -new Date().getTimezoneOffset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone });
+// The time zone, and the app's theme (the frame can't see the page's choice).
+const zone = () => ({ offset: -new Date().getTimezoneOffset(), tz: Intl.DateTimeFormat().resolvedOptions().timeZone, theme: isDark() ? "dark" : "light" });
 
 async function run(f: Frame) {
   if (!f.iframe.isConnected || !f.iframe.contentWindow) return;

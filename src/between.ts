@@ -97,7 +97,7 @@ async function freeFilePath(from: number, src: string, to: number, path: string,
 
 /** What a send would do, worked out without writing. Notes are read live (unsaved typing too). */
 export async function planSend(user: User, r: SendRequest): Promise<SendPlan> {
-  if (r.from === r.to) throw new HttpError(400, "That's the vault they're in already");
+  if (r.from === r.to) throw new HttpError(400, "That's the collection they're in already");
   const from = await vaultOf(user, r.from, r.move ? "editor" : "viewer");
   const to = await vaultOf(user, r.to, "editor");
   const into = r.into ? normalisePath(r.into, null) : "";

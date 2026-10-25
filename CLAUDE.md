@@ -80,6 +80,14 @@ key flows, decisions); read it before structural changes, and keep it current wh
   `cleanFrozen` (`src/publish.ts`) before it reaches a page.
 - No secrets in the repo; `.env` is gitignored and `.env.example` documents the shape.
 
+## Words
+
+People see **library** (the whole server, named in Settings → Admin; `server_info.library`) and
+**collections** (separate sets of notes with their own members). The code, database, API routes
+(`/api/vaults`), URLs, storage keys and MCP tool names (`list_vaults`) still say **vault**: never
+rename those, and don't show the word "vault" on screen or in help, except to say that other editors
+call a collection a vault.
+
 ## Principles
 
 `docs/PRINCIPLES.md` is the design bar: easy to use, one consistent design language, style and

@@ -4,6 +4,7 @@
 // (web/lib/useTreeDrag.tsx). Which folders are open, the sort and the Types fold are remembered on
 // this device (localStorage); the tab and search query live in App.
 
+import { ThemeButton } from "./ThemeButton";
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type NoteSummary, type Session, type Vault } from "../lib/api";
 import { allFolders, type DragItem } from "../lib/move";
@@ -359,8 +360,8 @@ export function Sidebar(p: Props) {
                         { label: "New folder inside", icon: "folder-plus", onSelect: () => void newFolder(f.path) },
                         { label: "Rename", icon: "edit", onSelect: () => void renameFolder(f.path) },
                         { label: "Move to…", icon: "folder", onSelect: () => void moveToPicker(p.vault.id, { kind: "folder", path: f.path }, folderList, p.onFoldersChanged) },
-                        { label: "Copy to another vault…", icon: "copy", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, false, p.onFoldersChanged) },
-                        { label: "Move to another vault…", icon: "vault", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, true, p.onFoldersChanged) },
+                        { label: "Copy to another collection…", icon: "copy", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, false, p.onFoldersChanged) },
+                        { label: "Move to another collection…", icon: "vault", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, true, p.onFoldersChanged) },
                         { label: "Show in graph", icon: "graph", onSelect: () => (navigate(graphUrl(p.vault.id, { folder: f.path })), p.onNavigate()) },
                         { label: "Delete empty folder", icon: "trash", danger: true, hidden: f.notes.length > 0 || f.folders.size > 0, onSelect: () => void deleteFolder(f.path) },
                       ]}
@@ -397,13 +398,14 @@ export function Sidebar(p: Props) {
   return (
     <nav className="sidebar">
       <Invitations onJoined={p.reloadVaults} />
+      <div className="library-name">{p.session.library}</div>
       <div className="vault-switch">
         <select
           value={p.vault.id}
           onChange={(e) => {
             if (e.target.value === "github") return p.onNewGitVault();
             if (e.target.value === "new") {
-              void promptDialog({ title: "New vault", message: "A vault is a separate set of notes with its own members.", label: "Name", action: "Create vault" }).then((name) => {
+              void promptDialog({ title: "New collection", message: "A collection is a separate set of notes with its own members.", label: "Name", action: "Create collection" }).then((name) => {
                 if (name)
                   api<Vault>("/vaults", { body: { name } })
                     .then(async (v) => {
@@ -417,7 +419,7 @@ export function Sidebar(p: Props) {
             }
             navigate(`/v/${e.target.value}`);
           }}
-          aria-label="Vault"
+          aria-label="Collection"
         >
           {p.vaults.map((v) => (
             <option key={v.id} value={v.id}>
@@ -425,10 +427,10 @@ export function Sidebar(p: Props) {
               {v.member_count > 1 ? ` (${v.member_count} members)` : ""}
             </option>
           ))}
-          <option value="new">+ New vault…</option>
-          <option value="github">+ New vault from GitHub…</option>
+          <option value="new">+ New collection…</option>
+          <option value="github">+ New collection from GitHub…</option>
         </select>
-        <button className="icon-btn" onClick={() => openSettings("vault")} title="Settings: this vault, members, import & export" aria-label="Settings">
+        <button className="icon-btn" onClick={() => openSettings("vault")} title="Settings: this collection, members, import & export" aria-label="Settings">
           <Icon name="settings" />
         </button>
       </div>
@@ -477,7 +479,7 @@ export function Sidebar(p: Props) {
           (p.notes.length || p.folders.length ? (
             <ul className="tree">{renderNode(tree, 0)}</ul>
           ) : (
-            <div className="muted pad">No notes yet. Create one, or import an existing vault of Markdown files from Settings → This vault.</div>
+            <div className="muted pad">No notes yet. Create one, or import a folder of Markdown files from Settings → This collection.</div>
           ))}
         {p.tab === "search" && <SearchPanel vaultId={p.vault.id} session={p.session} query={p.searchQuery} setQuery={p.setSearchQuery} onNavigate={p.onNavigate} />}
         {p.tab === "tags" && (
@@ -515,6 +517,7 @@ export function Sidebar(p: Props) {
         <button className="icon-btn" onClick={() => openHelp()} title="Help" aria-label="Help">
           <Icon name="help" size={16} />
         </button>
+        <ThemeButton />
         {canWrite && (
           <button className="icon-btn" onClick={p.onTrash} title="Trash" aria-label="Trash">
             <Icon name="trash" size={16} />

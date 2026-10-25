@@ -76,6 +76,8 @@ export interface Note extends NoteSummary {
 export interface Session {
   /** This database's identity, for naming offline copies (F4). */
   instance: string;
+  /** The library's name ("David's Library"), shown above the collections. */
+  library: string;
   user: User | null;
   needsSetup: boolean;
   setupTokenRequired: boolean;

@@ -49,7 +49,7 @@ export function ConnectClaude() {
     <section className="settings-section">
       <h3>Connect Claude</h3>
       <p className="muted">
-        Let Claude Code, or another AI agent that speaks MCP, search, read and write your notes as you. It sees every vault you can, with your role in each; its edits merge
+        Let Claude Code, or another AI agent that speaks MCP, search, read and write your notes as you. It sees every collection you can, with your role in each; its edits merge
         with live typing and are kept in each note's history.
       </p>
 

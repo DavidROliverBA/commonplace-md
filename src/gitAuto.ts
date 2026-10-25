@@ -78,11 +78,11 @@ async function switchBase(g: VaultGit, user: User, branch: string): Promise<void
 /** Pause automatic pushes, or carry on (from the next scheduled time, not a burst of missed ones). */
 export async function pause(vaultId: number, user: User, paused: boolean): Promise<Status> {
   const g = await gitRow(vaultId);
-  if (g.send_mode === "ask") throw new HttpError(400, "Nothing is sent automatically in this vault");
+  if (g.send_mode === "ask") throw new HttpError(400, "Nothing is sent automatically in this collection");
   if (paused) await sql`update vault_git set paused_at = now(), paused_why = null where vault_id = ${vaultId}`;
   else {
     const problem = await senderProblem(g);
-    if (problem) throw new HttpError(409, `${problem} An owner can choose again in Settings → This vault.`);
+    if (problem) throw new HttpError(409, `${problem} An owner can choose again in Settings → This collection.`);
     const next = scheduled(g) ? nextRun(g.send_every, g.send_at, g.send_day) : null;
     await sql`update vault_git set paused_at = null, paused_why = null, last_error = null, next_run_at = ${next} where vault_id = ${vaultId}`;
   }
@@ -97,7 +97,7 @@ async function senderProblem(g: VaultGit): Promise<string | null> {
                         from users u left join vault_members m on m.user_id = u.id and m.vault_id = ${g.vault_id}
                         left join user_github gh on gh.user_id = u.id where u.id = ${g.send_as}`;
   if (!u) return "The person who sends has gone.";
-  if (!u.role || u.role === "viewer") return `${u.name} can't edit this vault any more, so can't send.`;
+  if (!u.role || u.role === "viewer") return `${u.name} can't edit this collection any more, so can't send.`;
   if (!u.connected) return `${u.name} disconnected GitHub, so can't send.`;
   return null;
 }
@@ -125,7 +125,7 @@ async function runLocked(vaultId: number, by?: User): Promise<Status | null> {
   const g = await gitRow(vaultId);
   const mode = g.send_mode;
   if (mode === "ask") {
-    if (by) throw new HttpError(400, "This vault sends when you push: use Open pull request");
+    if (by) throw new HttpError(400, "This collection sends when you push: use Open pull request");
     return null;
   }
   let sender = by;

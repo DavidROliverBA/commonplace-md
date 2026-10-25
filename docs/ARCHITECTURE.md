@@ -7,6 +7,11 @@ sets the design bar for the interface; [BACKLOG.md](BACKLOG.md) and [CHANGELOG.m
 record what is planned and what shipped. Feature ids such as **F14** or **N9** refer to entries
 in those two files, and longer designs for finished features are in [design/](design/).
 
+**A word on words.** On screen, a server is a **library** and its separate sets of notes are
+**collections**. This document, the code, the database (`vaults`, `vault_members`), the API
+(`/api/vaults`) and the MCP tools (`list_vaults`) call a collection a **vault**, its name from
+before the rename. They mean the same thing.
+
 **Contents**
 
 1. [Goals and constraints](#1-goals-and-constraints)

@@ -5,39 +5,39 @@ title: Import, export and GitHub
 
 ## Import
 
-Settings → **This vault** → **Import markdown**. Pick a `.zip` of a vault, a folder, or some `.md` files. Folders, pictures and links come in as they are. App-settings folders (names starting with `.`) are skipped.
+Settings → **This collection** → **Import markdown**. Pick a `.zip` of a collection, a folder, or some `.md` files. Folders, pictures and links come in as they are. App-settings folders (names starting with `.`) are skipped.
 
 If a note already exists you choose what happens: **skip** it, **overwrite** it (the old version stays in its history), or **keep both**.
 
 ## Export
 
 - **One note**: **Download .md** in the note's ⋯ menu.
-- **The whole vault**: **Export vault as .zip** in `⌘K`, or in Settings → This vault. The zip is a plain folder of Markdown files and attachments that other Markdown editors open as they are.
+- **The whole collection**: **Export collection as .zip** in `⌘K`, or in Settings → This collection. The zip is a plain folder of Markdown files and attachments that other Markdown editors open as they are.
 
 ## Backups
 
-The server can make a backup of every vault each day; an admin sets this up. See the project's README for how.
+The server can make a backup of every collection each day; an admin sets this up. See the project's README for how.
 
-## GitHub vaults
+## GitHub collections
 
-A GitHub vault is a repository of Markdown (or one folder of it, such as `docs/`) opened as a vault, using your own GitHub token.
+A GitHub collection is a repository of Markdown (or one folder of it, such as `docs/`) opened as a collection, using your own GitHub token.
 
 ```mermaid
 flowchart TB
-  G["GitHub<br/>main"] -- "New vault from GitHub" --> V["Your vault<br/>(your branch)"]
+  G["GitHub<br/>main"] -- "New collection from GitHub" --> V["Your collection<br/>(your branch)"]
   V -- "Open pull request" --> PR["A pull request"]
   PR -- "merged on GitHub" --> G
   G -- "Update from GitHub" --> V
 ```
 
 1. Settings → **Connections** → **GitHub**: add a fine-grained token for the repository.
-2. **New vault from GitHub…** in `⌘K`: pick the repository, branch and folder.
+2. **New collection from GitHub…** in `⌘K`: pick the repository, branch and folder.
 3. Edit as usual. A bar at the top says which branch you're on and how many notes have changed.
    On an iPhone the bar is at the top of the Files panel, so the note keeps the whole screen; a
    dot on the Files button means there are changes not on GitHub yet (orange: something to settle,
    or sending is paused).
 
-![The branch bar on a GitHub vault](images/github-branch-bar.webp)
+![The branch bar on a GitHub collection](images/github-branch-bar.webp)
 
 - **Review changes** lists each changed note with its differences from GitHub, and a **Revert** for each.
 - **Open pull request** sends your changes to GitHub as a pull request. Later edits are added to it with **Push changes to the pull request**.
@@ -52,7 +52,7 @@ Unless an owner chooses to publish straight to it (below), nothing reaches `main
 
 ### Sending changes on their own
 
-An owner chooses how a GitHub vault's changes go to GitHub, in Settings → **This vault** → **Sending to GitHub** (or `⌘K` → **How changes go to GitHub…**):
+An owner chooses how a GitHub collection's changes go to GitHub, in Settings → **This collection** → **Sending to GitHub** (or `⌘K` → **How changes go to GitHub…**):
 
 - **Ask me** (the default): nothing is sent until you press **Open pull request**.
 - **Regular review:** one pull request every hour, day or week, at a time you choose (UK time). If nothing changed, nothing is sent. Changes join the open pull request until it's merged; after that, the next one opens a new pull request.

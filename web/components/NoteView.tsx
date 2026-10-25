@@ -661,7 +661,7 @@ export function NoteView(props: Props) {
               onKeep={keepInline}
               keepLabel="Keep in the note"
               onDiscard={closeInline}
-              placeholder={`Ask ${inline.conv.assistant.name} about this note, or anything in your vault…`}
+              placeholder={`Ask ${inline.conv.assistant.name} about this note, or anything in your collection…`}
               autoFocus
             />
           );

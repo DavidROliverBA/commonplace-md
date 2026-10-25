@@ -3,7 +3,7 @@ title: Publish a website
 ---
 # Publish a website
 
-An owner can publish a vault, or some of its folders, as a website: pages that anyone with the link can read, with no account.
+An owner can publish a collection, or some of its folders, as a website: pages that anyone with the link can read, with no account.
 
 ![A published page with the page list, contents and backlinks](images/published-page.webp)
 
@@ -26,7 +26,7 @@ Publishing takes a **copy**. Your edits stay private until you publish again, an
 ## Publishing
 
 1. Settings → **Website**.
-2. Choose what to publish: the whole vault, or some folders.
+2. Choose what to publish: the whole collection, or some folders.
 3. Switch on the features you want, and check the **preview**.
 4. Press **Publish**. The site's link appears, with **Copy link**. After a change, the button says **Publish changes**.
 
@@ -48,7 +48,7 @@ Publishing takes a **copy**. Your edits stay private until you publish again, an
 
 A top-level note called **Home**, **index** or **README** is the site's home page; otherwise the home page lists every page.
 
-Your choices are kept in a file called `publish.json` at the top of the vault, so they go with an export or a GitHub repository.
+Your choices are kept in a file called `publish.json` at the top of the collection, so they go with an export or a GitHub repository.
 
 ## Taking it down
 

@@ -7,6 +7,7 @@
 // its own shadow root, so the stylesheet Mermaid puts in the SVG can't restyle the app, and it runs
 // in strict mode (labels are escaped, no click scripts) with its output sanitised again.
 
+import { isDark, onThemeChange } from "./theme";
 import createDOMPurify from "dompurify";
 import { loadMermaidLib } from "./mermaidLib";
 
@@ -21,7 +22,7 @@ let seq = 0;
 // Its own instance: the renderer's colour hooks are for note HTML, not diagram labels.
 let purify: ReturnType<typeof createDOMPurify> | null = null;
 
-const dark = () => typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches;
+const dark = isDark;
 
 async function mermaid(): Promise<Mermaid> {
   lib ??= loadMermaidLib() as Promise<Mermaid>;
@@ -119,9 +120,7 @@ export function diagramHtml(source: string, esc: (s: string) => string): string 
   return `<div class="mermaid-diagram" role="img" aria-label="Diagram"><pre><code>${esc(source)}</code></pre></div>`;
 }
 
-// Light ↔ dark: draw the diagrams on screen again in the other theme.
-if (typeof matchMedia === "function") {
-  matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", () => {
-    for (const box of document.querySelectorAll<HTMLElement>(".mermaid-diagram[data-done]")) void draw(box);
-  });
-}
+// Light ↔ dark (a choice, or the system's on Auto): draw the diagrams on screen again.
+onThemeChange(() => {
+  for (const box of document.querySelectorAll<HTMLElement>(".mermaid-diagram[data-done]")) void draw(box);
+});

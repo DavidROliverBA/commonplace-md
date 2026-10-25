@@ -97,7 +97,7 @@ export async function addTour(vaultId: number, user: User): Promise<{ id: number
   const start = await findByPath(vaultId, NOTES[0]![0]);
   if (start) return { id: start.id };
   const [{ n }] = (await sql`select count(*)::int as n from notes where vault_id = ${vaultId}`) as any;
-  if (n > 50) throw new HttpError(400, "The tour is for a new vault");
+  if (n > 50) throw new HttpError(400, "The tour is for a new collection");
   if (!(await findByPath(vaultId, `${TYPES_FOLDER}/Person.md`))) await createNote(vaultId, user.id, `${TYPES_FOLDER}/Person.md`, starterNote(STARTERS.find((s) => s.name === "Person")!)).catch(() => {});
   let first = 0;
   for (const [path, content] of NOTES) {

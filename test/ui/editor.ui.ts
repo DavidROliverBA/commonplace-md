@@ -602,7 +602,7 @@ describe("folders, drag and drop, trash", () => {
     await p.waitForSelector(".tree-row");
     await p.click('button[aria-label="Settings"]');
     await p.waitForSelector(".modal");
-    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".modal button")].find((b) => b.textContent === "Leave vault")!.click());
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".modal button")].find((b) => b.textContent === "Leave collection")!.click());
     await p.waitForSelector("[data-dialog-action]");
     expect(await p.$$eval(".modal", (m) => m.length)).toBe(2);
     await p.keyboard.press("Escape");
@@ -675,7 +675,7 @@ describe("folders, drag and drop, trash", () => {
     const n = await note("Shared plan.md", "copy me");
     const p = await openNote(n.id);
     await p.click('button[aria-label="More"]');
-    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent === "Copy to another vault…")!.click());
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent === "Copy to another collection…")!.click());
     await p.waitForSelector(".choose-list li");
     await p.keyboard.type("second");
     await p.keyboard.press("Enter");
@@ -820,7 +820,7 @@ describe("commands: the / menu and ⌘K", () => {
     await p.keyboard.up("Meta");
     await p.waitForSelector(".palette li");
     const titles = await p.$$eval(".palette li .palette-title", (l) => l.map((e) => e.textContent));
-    for (const t of ["Move to Trash", "Heading 1", "Graph view", "New folder", "Vault settings"]) expect(titles).toContain(t);
+    for (const t of ["Move to Trash", "Heading 1", "Graph view", "New folder", "Collection settings"]) expect(titles).toContain(t);
     await p.keyboard.type("graph");
     await p.keyboard.press("Enter");
     await until(() => p.url().endsWith(`/v/${vaultId}/graph`));
@@ -852,6 +852,51 @@ describe("commands: the / menu and ⌘K", () => {
     await p.evaluate(() => [...document.querySelectorAll<HTMLInputElement>(".graph-filters label")].find((l) => l.textContent?.includes("Notes with no links"))!.querySelector("input")!.click());
     expect(await p.$eval(".graph-badge", (e) => e.textContent)).toBe("1");
     await p.evaluate(() => [...document.querySelectorAll<HTMLInputElement>(".graph-filters label")].find((l) => l.textContent?.includes("Notes with no links"))!.querySelector("input")!.click());
+    await p.close();
+  });
+
+  test("the library's name heads the file panel, and the tab says note · collection · library", async () => {
+    const n = await note("Wide/Library.md", "# Library\n");
+    const p = await openNote(n.id);
+    if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
+    const lib = await p.$eval(".sidebar .library-name", (e) => e.textContent);
+    expect(lib).toEndWith("'s Library");
+    await until(async () => (await p.title()) === `Library · ${await p.$eval('select[aria-label="Collection"] option:checked', (o) => o.textContent!.replace(/ \(\d+ members\)$/, ""))} · ${lib}`);
+    await p.close();
+  });
+
+  test("the theme: the button beside Trash steps Auto → Light → Dark, is remembered, and Settings offers the same", async () => {
+    const n = await note("Wide/Theme.md", "# Theme\n");
+    const p = await openNote(n.id);
+    await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
+    if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
+    const bg = () => p.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--bg").trim());
+    const attr = () => p.evaluate(() => document.documentElement.dataset.theme ?? "auto");
+    const button = '.sidebar-foot button[aria-label^="Theme"]';
+    expect(await attr()).toBe("auto");
+    expect(await bg()).toBe("#fff");
+    expect(await p.$eval(button, (b) => b.getAttribute("aria-label"))).toBe("Theme: Auto, following the system. Press for Light");
+    await p.click(button);
+    expect(await attr()).toBe("light");
+    await p.click(button);
+    expect(await attr()).toBe("dark");
+    expect(await bg()).toBe("#1c1b22");
+    await p.reload();
+    await p.waitForSelector(".cm-content");
+    expect(await attr()).toBe("dark");
+    expect(await bg()).toBe("#1c1b22");
+    // Light wins over a dark system; Auto follows it.
+    await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "dark" }]);
+    await p.click(button);
+    expect(await attr()).toBe("auto");
+    expect(await bg()).toBe("#1c1b22");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".sidebar-foot button.account")][0]!.click());
+    await p.waitForSelector('[role=radiogroup][aria-label="Theme"]');
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>('[role=radiogroup][aria-label="Theme"] button')].find((b) => b.textContent?.includes("Light"))!.click());
+    expect(await attr()).toBe("light");
+    expect(await bg()).toBe("#fff");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>('[role=radiogroup][aria-label="Theme"] button')].find((b) => b.textContent?.includes("Auto"))!.click());
+    expect(await attr()).toBe("auto");
     await p.close();
   });
 
@@ -1081,8 +1126,8 @@ describe("GitHub vaults (F14)", () => {
   test("New vault from GitHub, not connected yet: Connect opens Settings → Connections over the dialog, and connecting there carries on", async () => {
     await api("/me/github", undefined, "DELETE");
     const p = await open(`/v/${vaultId}`);
-    await p.waitForSelector('select[aria-label="Vault"]');
-    await p.select('select[aria-label="Vault"]', "github");
+    await p.waitForSelector('select[aria-label="Collection"]');
+    await p.select('select[aria-label="Collection"]', "github");
     await p.waitForFunction(() => [...document.querySelectorAll(".modal button")].some((b) => b.textContent === "Connect GitHub…"));
     await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".modal button")].find((b) => b.textContent === "Connect GitHub…")!.click());
     await p.waitForSelector('input[aria-label="GitHub token"]');
@@ -1093,15 +1138,15 @@ describe("GitHub vaults (F14)", () => {
     await p.keyboard.press("Escape");
     await until(async () => (await p.$$(".modal")).length === 1);
     await p.waitForSelector('select[aria-label="Repository"] option[value="sam/house"]');
-    expect(await p.$eval(".modal h2", (e) => e.textContent)).toBe("New vault from GitHub");
+    expect(await p.$eval(".modal h2", (e) => e.textContent)).toBe("New collection from GitHub");
     await p.close();
   });
 
   test("New vault from GitHub: pick the repo and folder; the bar shows the branch and what changed, on the laptop and the iPhone", async () => {
     await api("/me/github", { token: TOKEN }, "PUT");
     const p = await open(`/v/${vaultId}`);
-    await p.waitForSelector('select[aria-label="Vault"]');
-    await p.select('select[aria-label="Vault"]', "github");
+    await p.waitForSelector('select[aria-label="Collection"]');
+    await p.select('select[aria-label="Collection"]', "github");
     await p.waitForSelector('select[aria-label="Folder"] option[value="docs"]');
     await p.select('select[aria-label="Folder"]', "docs");
     await p.waitForFunction(() => document.querySelector(".modal button.primary")?.textContent === "Copy 3 notes in");
@@ -1243,7 +1288,7 @@ describe("Settings (F17)", () => {
     await p.waitForSelector(".tree-row");
     await p.click('button[aria-label="Settings"]');
     await p.waitForSelector(".settings-nav [aria-current=page]");
-    expect(await current(p)).toStartWith("This vault");
+    expect(await current(p)).toStartWith("This collection");
     expect(await modalText(p)).toContain("Members");
     await closeAll(p);
     await p.click("button.account");
@@ -1251,7 +1296,7 @@ describe("Settings (F17)", () => {
     expect(await current(p)).toStartWith("Account");
     expect(await modalText(p)).toContain("Change password");
     await closeAll(p);
-    for (const [words, section, shows] of [["github token", "Connections", "GitHub"], ["members", "Vault settings", "Members"], ["api key", "AI assistants", "AI assistants"]] as const) {
+    for (const [words, section, shows] of [["github token", "Connections", "GitHub"], ["members", "Collection settings", "Members"], ["api key", "AI assistants", "AI assistants"]] as const) {
       await p.keyboard.down("Meta");
       await p.keyboard.press("k");
       await p.keyboard.up("Meta");
@@ -1279,7 +1324,7 @@ describe("Settings (F17)", () => {
     await p.waitForFunction(() => !document.querySelector(".settings-pane"));
     expect(await p.$eval(".modal h2", (e) => e.textContent)).toBe("Settings");
     const rows = await p.$$eval(".settings-nav button", (b) => b.map((x) => x.querySelector(".settings-nav-text")!.firstChild!.textContent));
-    expect(rows).toEqual(["Account", "This vault", "Website", "AI assistants", "Connections", "Admin"]);
+    expect(rows).toEqual(["Account", "This collection", "Website", "AI assistants", "Connections", "Admin"]);
     await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".settings-nav button")].find((b) => b.textContent?.startsWith("Connections"))!.click());
     await p.waitForSelector(".settings-pane");
     expect(await p.$eval(".modal h2", (e) => e.textContent)).toBe("Connections");
@@ -1979,7 +2024,7 @@ describe("accessibility (axe)", () => {
       await p.waitForSelector(".tree-row");
       await p.click('[aria-label="Settings"]');
       await p.waitForSelector(".settings-nav");
-      for (const label of ["Account", "This vault", "Website", "AI assistants", "Connections", "Admin"]) {
+      for (const label of ["Account", "This collection", "Website", "AI assistants", "Connections", "Admin"]) {
         const b = await p.evaluateHandle((l) => [...document.querySelectorAll(".settings-nav button")].find((x) => x.textContent?.startsWith(l)), label);
         if (!(await (b as any).evaluate((x: unknown) => !!x))) continue;
         await (b as any).click();
@@ -2350,9 +2395,9 @@ describe("collaboration and home", () => {
     const v = await api("/vaults", { name: "Folders only" });
     await api(`/vaults/${v.id}/folders`, { path: "Ideas" });
     const p = await open(`/v/${v.id}`);
-    await p.waitForFunction(() => /No notes yet|This vault is empty/.test(document.querySelector(".vault-home")?.textContent ?? ""));
+    await p.waitForFunction(() => /No notes yet|This collection is empty/.test(document.querySelector(".vault-home")?.textContent ?? ""));
     const text = await p.$eval(".vault-home", (e) => e.textContent ?? "");
-    expect(text).not.toContain("This vault is empty");
+    expect(text).not.toContain("This collection is empty");
     expect(text).toContain("No notes yet");
     await p.close();
   });

@@ -105,6 +105,16 @@ const AssistantDraft = z.object({
   web: z.boolean().optional(),
 });
 
+/** The library's name: what an admin called it (Settings → Admin), or the first admin's first
+ *  name ("David's Library"), or Commonplace before anyone has signed up. */
+export async function libraryName(): Promise<string> {
+  const [set] = await sql`select value from server_info where key = 'library'`;
+  if (set?.value) return set.value;
+  const [first] = await sql`select name from users where is_admin order by created_at limit 1`;
+  const given = String(first?.name ?? "").trim().split(/\s+/)[0];
+  return given ? `${given}'s Library` : "Commonplace";
+}
+
 export const apiRoutes = {
   // ── session ──────────────────────────────────────────────────────────────────────────
   "/api/session": {
@@ -114,6 +124,7 @@ export const apiRoutes = {
       const [inst] = await sql`select value from server_info where key = 'instance'`;
       return {
         instance: inst?.value ?? "",
+        library: await libraryName(),
         user,
         needsSetup: n === 0,
         setupTokenRequired: n === 0 && !!settings.setupToken,
@@ -130,8 +141,8 @@ export const apiRoutes = {
       const b = await body(req, Credentials.extend({ name: z.string().max(200).default(""), setupToken: z.string().max(512).optional() }));
       const user = await auth.register(b);
       const cookie = await auth.startSession(req, user.id);
-      // A new account starts with a vault of its own so the first screen isn't empty.
-      await vaults.createVault(user, `${user.name}'s vault`);
+      // A new account starts with a collection of its own so the first screen isn't empty.
+      await vaults.createVault(user, "Personal");
       return json({ user }, { headers: { "Set-Cookie": cookie } });
     }),
   },
@@ -249,8 +260,18 @@ export const apiRoutes = {
       await requireAdmin(req);
       const b = await body(req, Credentials.extend({ name: z.string().max(200).default(""), is_admin: z.boolean().default(false) }));
       const user = await auth.createUser({ ...b, isAdmin: b.is_admin });
-      await vaults.createVault(user, `${user.name}'s vault`);
+      await vaults.createVault(user, "Personal");
       return user;
+    }),
+  },
+  "/api/admin/library": {
+    PUT: route(async ({ req }) => {
+      await requireAdmin(req);
+      const { name } = await body(req, z.object({ name: z.string().max(80) }));
+      // Empty goes back to the default.
+      if (name.trim()) await sql`insert into server_info (key, value) values ('library', ${name.trim()}) on conflict (key) do update set value = excluded.value`;
+      else await sql`delete from server_info where key = 'library'`;
+      return { library: await libraryName() };
     }),
   },
   // Off-site backups (.github/workflows/backup.yml). A bearer token, never a cookie or URL token.
@@ -283,13 +304,18 @@ export const apiRoutes = {
       const admin = await requireAdmin(req);
       const uid = id(req.params.id);
       if (uid === admin.id) throw new HttpError(400, "You can't delete your own account");
-      // Vaults where they're the only owner pass to the admin rather than becoming ownerless.
-      await sql`
+      // Vaults where they're the only owner pass to the admin rather than becoming ownerless, named
+      // for where they came from ("Personal (from Eve)"), since everyone's first is "Personal".
+      const [gone] = await sql`select name from users where id = ${uid}`;
+      const handed = await sql`
         insert into vault_members (vault_id, user_id, role)
         select m.vault_id, ${admin.id}, 'owner' from vault_members m
         where m.user_id = ${uid} and m.role = 'owner'
           and not exists (select 1 from vault_members o where o.vault_id = m.vault_id and o.role = 'owner' and o.user_id <> ${uid})
-        on conflict (vault_id, user_id) do update set role = 'owner'`;
+        on conflict (vault_id, user_id) do update set role = 'owner'
+        returning vault_id`;
+      if (gone?.name && handed.length)
+        await sql`update vaults set name = left(name || ' (from ' || ${gone.name} || ')', 200) where id in ${sql(handed.map((h) => h.vault_id))}`;
       await sql`delete from users where id = ${uid}`;
       kick({ userId: uid }, "account removed");
     }),
@@ -337,7 +363,7 @@ export const apiRoutes = {
     }),
     DELETE: route(async (ctx) => {
       const { vaultId } = await vaultCtx(ctx, "owner");
-      kick({ vaultId }, "vault deleted");
+      kick({ vaultId }, "collection deleted");
       await vaults.deleteVault(vaultId);
     }),
   },
@@ -382,7 +408,7 @@ export const apiRoutes = {
       // Owners remove anyone; anyone may leave.
       await vaults.requireRole(vaultId, user, uid === user.id ? "viewer" : "owner");
       await vaults.removeMember(vaultId, uid, user);
-      kick({ vaultId, userId: uid }, "removed from vault");
+      kick({ vaultId, userId: uid }, "removed from collection");
     }),
   },
   // Undo of Remove, for the owner who just did it (a few minutes); otherwise invite them again.

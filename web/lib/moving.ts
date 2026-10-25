@@ -37,7 +37,7 @@ export async function moveItem(vaultId: number, item: DragItem, folder: string, 
 export async function moveToPicker(vaultId: number, item: DragItem, folders: string[], onChanged: () => void): Promise<void> {
   const options = moveDestinations(item, folders).map((f) => ({
     value: f || "/",
-    label: f ? nameOf(f) : "Top level of the vault",
+    label: f ? nameOf(f) : "Top level of the collection",
     hint: f && f.includes("/") ? parentOf(f) : undefined,
     icon: f ? "folder" : "vault",
   }));
@@ -69,8 +69,8 @@ export async function sendToVault(fromId: number, item: DragItem, move: boolean,
   const vaultId = await chooseDialog({
     title: `${verb} “${name}” to…`,
     options: otherVaults(fromId).map((v) => ({ value: String(v.id), label: v.name, hint: v.git_repo ?? undefined, icon: v.git_repo ? "branch" : "vault" })),
-    placeholder: "Find a vault…",
-    empty: "No other vault you can add to",
+    placeholder: "Find a collection…",
+    empty: "No other collection you can add to",
   });
   if (vaultId === null) return;
   const to = myVaults.find((v) => v.id === Number(vaultId))!;
@@ -78,7 +78,7 @@ export async function sendToVault(fromId: number, item: DragItem, move: boolean,
     const [stored, list] = await Promise.all([api<string[]>(`/vaults/${to.id}/folders`), api<{ path: string }[]>(`/vaults/${to.id}/notes`)]);
     const folder = await chooseDialog({
       title: `Into which folder of ${to.name}?`,
-      options: ["", ...allFolders(list.map((n) => n.path), stored)].map((f) => ({ value: f || "/", label: f ? nameOf(f) : "Top level of the vault", hint: f && f.includes("/") ? parentOf(f) : undefined, icon: f ? "folder" : "vault" })),
+      options: ["", ...allFolders(list.map((n) => n.path), stored)].map((f) => ({ value: f || "/", label: f ? nameOf(f) : "Top level of the collection", hint: f && f.includes("/") ? parentOf(f) : undefined, icon: f ? "folder" : "vault" })),
       placeholder: "Find a folder…",
       empty: "No folder by that name",
     });

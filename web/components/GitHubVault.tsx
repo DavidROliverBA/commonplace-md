@@ -89,7 +89,7 @@ export function GitHubAccount() {
   return (
     <section className="settings-section">
       <h3>GitHub</h3>
-      <p className="muted">Open a repository of markdown as a vault: edit it here, then send your changes back as a pull request. Uses your own token; nothing reaches the main branch without a PR unless a vault's owner chooses to publish straight to it.</p>
+      <p className="muted">Open a repository of markdown as a collection: edit it here, then send your changes back as a pull request. Uses your own token; nothing reaches the main branch without a PR unless a collection's owner chooses to publish straight to it.</p>
       {!state.available ? (
         <p className="notice">This server can't store tokens yet: an admin needs to set SECRETS_KEY.</p>
       ) : state.connection ? (
@@ -101,7 +101,7 @@ export function GitHubAccount() {
             <button
               className="danger-link"
               onClick={async () => {
-                if (!(await confirmDialog({ title: "Disconnect GitHub?", message: "Your GitHub vaults stay, but can't push, update or open pull requests until you connect again. Revoke the token on GitHub too if you're done with it.", action: "Disconnect", danger: true }))) return;
+                if (!(await confirmDialog({ title: "Disconnect GitHub?", message: "Your GitHub collections stay, but can't push, update or open pull requests until you connect again. Revoke the token on GitHub too if you're done with it.", action: "Disconnect", danger: true }))) return;
                 await api("/me/github", { method: "DELETE" }).catch(toastError);
                 void reload();
               }}
@@ -170,7 +170,7 @@ export function GitHubVaultDialog({ onClose, onCreated }: { onClose: () => void;
   }
 
   return (
-    <Modal title="New vault from GitHub" onClose={onClose}>
+    <Modal title="New collection from GitHub" onClose={onClose}>
       {!state ? (
         <div className="loading-bar" />
       ) : !state.available ? (
@@ -235,7 +235,7 @@ export function GitHubVaultDialog({ onClose, onCreated }: { onClose: () => void;
             </label>
           </div>
           <label className="field">
-            <span className="field-label">Vault name</span>
+            <span className="field-label">Collection name</span>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder={defaultName} maxLength={200} />
           </label>
           <div className="dialog-actions">

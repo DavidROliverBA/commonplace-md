@@ -45,6 +45,15 @@ describe("design language", () => {
     expect(offenders(styles, /(transition|animation)[^;]*\b\d+(\.\d+)?m?s\b/)).toEqual([]);
   });
 
+  test("dark is the same whether the system chose it or someone did (Auto, Light, Dark)", () => {
+    const tokens = readFileSync(join(WEB, "styles/tokens.css"), "utf8");
+    const values = (block: string | undefined) => (block ?? "").split("\n").map((l) => l.trim()).filter(Boolean);
+    const system = /:root:not\(\[data-theme="light"\]\) \{([\s\S]*?)\n  \}/.exec(tokens)?.[1];
+    const chosen = /\n:root\[data-theme="dark"\] \{([\s\S]*?)\n\}/.exec(tokens)?.[1];
+    expect(values(system).length).toBeGreaterThan(20);
+    expect(values(chosen)).toEqual(values(system));
+  });
+
   test("every stylesheet is loaded by web/styles.css", () => {
     const manifest = readFileSync(join(WEB, "styles.css"), "utf8");
     for (const f of files(join(WEB, "styles"), /\.css$/)) expect(manifest).toContain(`./styles/${f.split("/").pop()}`);

@@ -61,7 +61,7 @@ export function Invitations({ onJoined }: { onJoined: () => unknown }) {
           </p>
           <div className="row">
             <button className="primary" disabled={busy === i.id} onClick={() => answer(i, true)}>
-              Join vault
+              Join collection
             </button>
             <button disabled={busy === i.id} onClick={() => answer(i, false)}>
               Decline

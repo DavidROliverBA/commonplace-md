@@ -14,13 +14,14 @@ that other Markdown editors open as they are.
 | | |
 |---|---|
 | ✍️ **Write** | Live Preview that renders as you type, `/` blocks and a drag handle on every block, a properties form for frontmatter, tables you edit cell by cell, callouts, Mermaid diagrams, embeds of notes, pictures and PDFs. |
-| 👥 **Together** | Live co-editing (Yjs CRDTs), shared vaults with owner, editor and viewer roles, invitations, and version history with a diff. Offline edits merge cleanly when you reconnect. |
+| 📚 **Your library** | Name it after yourself or your team ("David's Library"). It holds **collections**, each a separate set of notes with its own members: one for home, one for work, one shared with the team. |
+| 👥 **Together** | Live co-editing (Yjs CRDTs), shared collections with owner, editor and viewer roles, invitations, and version history with a diff. Offline edits merge cleanly when you reconnect. |
 | 🧩 **Types** | Say what a note *is* (Person, Meeting, Book), give it a form and a template, and see every note of that type as a table, cards or a list. Stored as plain properties in the Markdown. |
-| 🕸️ **Graph** | Type icons and colours, links labelled with the property they come from, filters, a graph of the open note in the side panel, and a timeline that plays your vault month by month. |
+| 🕸️ **Graph** | Type icons and colours, links labelled with the property they come from, filters, a graph of the open note in the side panel, and a timeline that plays your collection month by month. |
 | 🔎 **Find** | Full-text, fuzzy and semantic search, fused into one list; related notes; Dataview queries (`TABLE`, `LIST`, `TASK`, `CALENDAR`, and `dataviewjs` in a sandbox). |
 | 🤖 **Your own AI** | Bring an Anthropic, OpenAI, relaxAI or compatible key. It searches your notes, writes and files pages, and asks before it changes anything. Costs shown in £, with a daily limit. Or connect Claude over MCP. |
-| 🐙 **GitHub** | Open a repository of Markdown as a vault. Your edits become a branch, with Review changes, Update from main and Open pull request, sent automatically if you like. |
-| 🌍 **Publish** | Turn a vault, or chosen folders, into a website with a page list, contents, backlinks and tag pages. It's a snapshot, so later edits stay private until you publish again. |
+| 🐙 **GitHub** | Open a repository of Markdown as a collection. Your edits become a branch, with Review changes, Update from main and Open pull request, sent automatically if you like. |
+| 🌍 **Publish** | Turn a collection, or chosen folders, into a website with a page list, contents, backlinks and tag pages. It's a snapshot, so later edits stay private until you publish again. |
 | 📱 **iPhone** | Installs to the home screen, works offline, has a formatting bar above the keyboard, and has a Save to Commonplace shortcut in the share sheet. |
 | 📄 **One file** | [A standalone version](standalone/README.md): one HTML file that edits a folder of Markdown files, with no server. |
 
@@ -39,9 +40,9 @@ Or run the whole stack in Docker with `docker compose up -d --build`. It runs in
 so the first account needs a setup token: the server prints one in `docker compose logs app` (or
 set `SETUP_TOKEN` yourself).
 
-The first account you create becomes the admin and gets a vault. After that, an admin adds people
-under **Settings → Admin** (or set `ALLOW_SIGNUP=true` to let anyone register). Share a vault from
-**Settings (⚙) → This vault → Members**: invite their email, and they join when they accept.
+The first account you create becomes the admin and gets a collection. After that, an admin adds people
+under **Settings → Admin** (or set `ALLOW_SIGNUP=true` to let anyone register). Share a collection from
+**Settings (⚙) → This collection → Members**: invite their email, and they join when they accept.
 
 ### On an iPhone
 
@@ -144,9 +145,10 @@ co-editing, using the stock `y-websocket` client.
   app (the ? at the bottom of the file panel, or ⌘K → Help) and in the standalone file.
 - [Features](docs/FEATURES.md), [Architecture](docs/ARCHITECTURE.md) and [Principles](docs/PRINCIPLES.md).
 - [Backlog](docs/BACKLOG.md) and [Changelog](docs/CHANGELOG.md).
-- [Tests](test/README.md), [demo vaults](demo/README.md) and [the laptop kit](laptop/README.md).
+- [Tests](test/README.md), [demo collections](demo/README.md) and [the laptop kit](laptop/README.md).
 - [Contributing](CONTRIBUTING.md) and [Security](SECURITY.md).
 
 ## Licence
 
-[MIT](LICENSE).
+[MIT](LICENSE). Commonplace is built on open-source packages, each under its own licence:
+see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

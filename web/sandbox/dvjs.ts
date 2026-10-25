@@ -597,6 +597,7 @@ window.addEventListener("message", async (e) => {
     return;
   }
   if (m.type === "ping") return post({ type: "pong" });
+  if (m.type === "theme") return void (document.documentElement.dataset.theme = m.theme === "dark" ? "dark" : "light");
   if (m.type !== "run") return;
   const mine = ++run;
   const pages = (m.pages as PageData[]).map((p) => {
@@ -609,6 +610,7 @@ window.addEventListener("message", async (e) => {
   vault = new Vault(pages);
   offset = Number(m.offset) || 0;
   tz = typeof m.tz === "string" ? m.tz : undefined;
+  if (m.theme === "dark" || m.theme === "light") document.documentElement.dataset.theme = m.theme;
   thisPath = typeof m.thisPath === "string" ? m.thisPath : null;
   capture = m.capture === true;
   stopped = false;

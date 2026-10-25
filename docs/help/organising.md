@@ -15,15 +15,15 @@ Use folders when a note belongs in one place, tags when it belongs to several gr
 - **Rename or move a folder** and everything inside goes with it. An empty folder can be deleted.
 - **Sort** the notes by name, last changed first or newest first, with the list button beside *Folders*.
 
-## Another vault
+## Another collection
 
-**Copy to another vault…** and **Move to another vault…** are in a note's ⋯ menu and in a folder's menu, when you have another vault you can add notes to. Pick the vault, then the folder there. A GitHub vault works like any other: what arrives shows as changes to send.
+**Copy to another collection…** and **Move to another collection…** are in a note's ⋯ menu and in a folder's menu, when you have another collection you can add notes to. Pick the collection, then the folder there. A GitHub collection works like any other: what arrives shows as changes to send.
 
-- **What comes along:** pictures and files the notes embed, and everything inside a folder. If a note has a [type](types.md) the other vault hasn't got, the type comes too.
+- **What comes along:** pictures and files the notes embed, and everything inside a folder. If a note has a [type](types.md) the other collection hasn't got, the type comes too.
 - **A name already taken** keeps both: the new one becomes "Plan 1". A different picture with the same name is renamed, and the note points at the new name.
 - **A move** takes each note's version history with it, and puts the original in Trash here, where it can be restored for 30 days. Pictures and files are copied, never removed. Links to a moved note from notes that stay behind no longer find it.
-- **Undo** in the message afterwards takes the copies away (to Trash in the other vault) and, after a move, brings the originals back.
-- You need to be able to edit the other vault. To move, you need to be able to edit this one too; a viewer can still copy.
+- **Undo** in the message afterwards takes the copies away (to Trash in the other collection) and, after a move, brings the originals back.
+- You need to be able to edit the other collection. To move, you need to be able to edit this one too; a viewer can still copy.
 
 The [AI assistant](ai.md) can do this when you ask it.
 
@@ -39,7 +39,7 @@ Write `#tag` anywhere in a note, or list tags in its `tags` property. Tags can n
 
 Deleting is never final straight away.
 
-- **Move to Trash** takes a note out of the vault and shows an **Undo** button for a few seconds.
+- **Move to Trash** takes a note out of the collection and shows an **Undo** button for a few seconds.
 - **Trash** (the bin at the bottom of the file panel) keeps deleted notes, with their history, for 30 days. Restore one from there.
 
 ![The Undo button after moving a note to Trash](images/undo-toast.webp)

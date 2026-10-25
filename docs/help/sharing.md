@@ -5,21 +5,21 @@ title: Sharing and live editing
 
 ## Members and roles
 
-Each vault has its own members, and each member has a role:
+Each collection has its own members, and each member has a role:
 
 | Role | Can |
 | --- | --- |
-| **Owner** | Everything an editor can, plus invite and remove people, change roles, publish the vault as a website, rename it and delete it. |
+| **Owner** | Everything an editor can, plus invite and remove people, change roles, publish the collection as a website, rename it and delete it. |
 | **Editor** | Read, write, make, move and delete notes and folders. |
 | **Viewer** | Read only, everywhere. |
 
 ## Inviting someone
 
-1. Settings → **This vault** → **Members**.
+1. Settings → **This collection** → **Members**.
 2. Enter their email and pick a role.
-3. They see the invitation at the top of their file panel, with **Join vault** and **Decline**. If they don't have an account yet, it waits for them.
+3. They see the invitation at the top of their file panel, with **Join collection** and **Decline**. If they don't have an account yet, it waits for them.
 
-Nobody can see the vault until they accept. An owner can cancel an invitation, or remove a member (with Undo), and anyone can leave a vault they've joined with **Leave vault**.
+Nobody can see the collection until they accept. An owner can cancel an invitation, or remove a member (with Undo), and anyone can leave a collection they've joined with **Leave collection**.
 
 ```mermaid
 sequenceDiagram
@@ -28,7 +28,7 @@ sequenceDiagram
   participant P as The person invited
   O->>C: Invite by email, as editor
   C-->>P: Invitation in their file panel
-  P->>C: Join vault
+  P->>C: Join collection
   C-->>O: They're a member
 ```
 

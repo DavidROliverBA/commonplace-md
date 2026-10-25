@@ -42,7 +42,7 @@ This guide takes you from nothing to a working Commonplace, then covers backups,
 
 **Which kit?** Choose `arm64` for Apple Silicon Macs (M1 and later) and Arm Windows PCs. Choose `amd64` for Intel Macs and most Windows and Linux PCs. If you're not sure, see [the FAQ](#which-kit-do-i-need).
 
-**Just want to try it?** The standalone file (`commonplace.html`, attached to each release) opens a folder of Markdown in the browser with nothing to install. This kit is the full app: accounts, history, live editing, search, websites, GitHub vaults and AI.
+**Just want to try it?** The standalone file (`commonplace.html`, attached to each release) opens a folder of Markdown in the browser with nothing to install. This kit is the full app: accounts, history, live editing, search, websites, GitHub collections and AI.
 
 ## Step 1: Install a container engine
 
@@ -149,7 +149,7 @@ Later starts take a few seconds.
 
 1. The browser tab that opened says "Welcome. The first account you create is the admin."
 2. Enter your name, email address, a password of at least 8 characters, and the **setup token** from Step 3.
-3. Select **Create account**. You're signed in, as the admin, with your first vault.
+3. Select **Create account**. You're signed in, as the admin, with your first collection.
 
 Lost the token before using it? Run `./commonplace.sh token` to see it again. The token works once; after that, Commonplace never asks for it.
 
@@ -161,7 +161,7 @@ Lost the token before using it? Run `./commonplace.sh token` to see it again. Th
 2. Run `./commonplace.sh stop`, then `./commonplace.sh start`. Your note is still there.
 3. Run `./commonplace.sh backup`. A file appears in `laptop/backups/`.
 
-That's it. The **?** at the bottom of the file panel opens the built-in help. To bring notes in, use **Settings → This vault → Import markdown** with a zip of a Markdown folder.
+That's it. The **?** at the bottom of the file panel opens the built-in help. To bring notes in, use **Settings → This collection → Import markdown** with a zip of a Markdown folder.
 
 ## Using it day to day
 
@@ -217,7 +217,7 @@ Commonplace has an MCP server at `/mcp`, so Claude Code and other agents can sea
 
 3. Ask Claude to "search my Commonplace notes for …" to check it works.
 
-An agent has your roles: it can't see vaults you can't, and nothing it does deletes. Revoke the token in the same screen at any time.
+An agent has your roles: it can't see collections you can't, and nothing it does deletes. Revoke the token in the same screen at any time.
 
 ## Backups
 
@@ -229,7 +229,7 @@ Your notes live in a container volume called `commonplace-laptop-data`. Back it 
 ./commonplace.sh backup
 ```
 
-This writes `backups/commonplace-YYYYMMDD-HHMMSS.dump`, a complete copy of the database: every vault, note, attachment, version, account and website. Copy these files somewhere safe, such as a USB stick or a file share. The `backups` folder itself is on the same laptop.
+This writes `backups/commonplace-YYYYMMDD-HHMMSS.dump`, a complete copy of the database: every collection, note, attachment, version, account and website. Copy these files somewhere safe, such as a USB stick or a file share. The `backups` folder itself is on the same laptop.
 
 **Also keep a copy of `laptop/.env`.** It holds your `SECRETS_KEY`. Without the same key, a restored backup still has every note, but people must enter their AI keys and GitHub tokens again.
 
@@ -241,7 +241,7 @@ This writes `backups/commonplace-YYYYMMDD-HHMMSS.dump`, a complete copy of the d
 
 It asks before replacing anything. A restore puts back **everything** exactly as it was at the backup, including accounts and passwords.
 
-**Plain Markdown:** **Export vault as .zip** (in `⌘K`, or **Settings → This vault**) gives you a folder of Markdown files and attachments that any Markdown editor opens. It's the way to take your notes somewhere else, and **Import markdown** brings a zip back into any Commonplace.
+**Plain Markdown:** **Export collection as .zip** (in `⌘K`, or **Settings → This collection**) gives you a folder of Markdown files and attachments that any Markdown editor opens. It's the way to take your notes somewhere else, and **Import markdown** brings a zip back into any Commonplace.
 
 ## Updating
 
@@ -309,18 +309,18 @@ Yes, as far as Commonplace is concerned:
 
 - It accepts connections only from your own computer (`127.0.0.1`), unless you [let your iPhone in](#using-it-from-your-iphone).
 - The database isn't reachable from outside its container at all.
-- Nothing leaves your computer unless you use something that needs the internet: an AI assistant (your question and the notes it reads go to that provider), the assistant's web search (your search goes to Brave, with your own key), `relaxai` or `voyage` embeddings (note text goes to that provider), a GitHub vault, or a weblink (Commonplace fetches the page's title and picture).
+- Nothing leaves your computer unless you use something that needs the internet: an AI assistant (your question and the notes it reads go to that provider), the assistant's web search (your search goes to Brave, with your own key), `relaxai` or `voyage` embeddings (note text goes to that provider), a GitHub collection, or a weblink (Commonplace fetches the page's title and picture).
 
 Your notes are protected by your computer's own security, so use disk encryption (FileVault, BitLocker) and lock your screen. Backup files contain everything, including password hashes, so keep them somewhere equally safe.
 
 ### Does it work offline?
 
-Yes. Writing, linking, search (with the default `hash` embeddings), queries, diagrams, the graph, history, copying and moving notes between your vaults, and publishing all work without a network. The things in the list above need it.
+Yes. Writing, linking, search (with the default `hash` embeddings), queries, diagrams, the graph, history, copying and moving notes between your collections, and publishing all work without a network. The things in the list above need it.
 
 What happens to those while you're offline:
 
 - **AI assistants and web search** say they can't reach the provider. Ask again when you're back online.
-- **A GitHub vault** keeps your changes and shows them as changes to send. If it sends automatically, it tries again every five minutes and sends once you're back online; it doesn't pause or lose anything. **Update** and pull requests wait until then.
+- **A GitHub collection** keeps your changes and shows them as changes to send. If it sends automatically, it tries again every five minutes and sends once you're back online; it doesn't pause or lose anything. **Update** and pull requests wait until then.
 
 ### Can I publish a website from it?
 
@@ -330,8 +330,8 @@ Yes, **Settings → Website** works as it does on a server, but the site is at `
 
 Not directly: it only listens on your own computer, which keeps it private. To share notes:
 
-- **Export** the vault as a .zip and send it; they **Import markdown** into their own.
-- Use a **GitHub vault**: everyone's Commonplace (or any Markdown editor) works on the same repository.
+- **Export** the collection as a .zip and send it; they **Import markdown** into their own.
+- Use a **GitHub collection**: everyone's Commonplace (or any Markdown editor) works on the same repository.
 - For a team, use a shared Commonplace on a server.
 
 ### I forgot my password
