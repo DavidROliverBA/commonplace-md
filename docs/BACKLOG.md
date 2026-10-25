@@ -11,7 +11,7 @@ Sizes are rough: **S** an evening, **M** a few days, **L** a week or more.
 
 Add new ideas under **Ideas** in a line or two; promote them to **Next** once it's clear what
 done looks like. Finished items go to [CHANGELOG.md](CHANGELOG.md), and a finished item's
-design moves to [design/](design/) (F12, F14, F16, F17, F19 so far).
+design moves to [design/](design/) (F12, F14, F16, F17, F19, F21 so far).
 
 **Contents**
 
@@ -62,69 +62,6 @@ claims speed at 10,000 notes but nothing measures it; the backup has never been 
 - **Stream the backup zip (done 2026-10-13):** `/api/backup` streams; a 472 MB backup peaked at
   315 MB of server memory (148 MB at rest), against the whole zip held before.
 
-### N14 — Holding delete in the editor stops after one character on the iPhone
-
-**Size** M · **Evidence** reported 2026-10-17 on an iPhone (iOS 18.7), in every note; the
-note's title field (a plain input) repeats fine; tests below
-
-**What's known (2026-10-17):**
-- **CodeMirror alone is fine.** A test page (an artifact, CodeMirror 6.43.14 bundled from our
-  `node_modules`: a textarea, a contenteditable, bare CodeMirror, and CodeMirror with
-  `drawSelection`, `lineWrapping` and history) kept deleting in all four boxes on the iPhone,
-  with text already there and straight after typing. There, iOS sends `keydown`
-  (`repeat=true`) about every 100 ms, each followed by a native `deleteContentBackward` (later
-  `deleteWordBackward`) and CodeMirror's synthetic keydown (`pendingIOSKey` / `flushIOSKey`).
-- **In the app it comes and goes.** A readout on the screen (`?cm-off=trace`, below) caught it
-  once: a single press after typing a word gave one `keydown`, its `keyup` ~20 ms later, one
-  native `deleteContentBackward`, CodeMirror's synthetic keydown, and then nothing more from
-  iOS although the key was still held. No viewport event, write of `--vvh` or scroll happened
-  in between. Another run, holding delete on text already there, kept going: separate
-  keydown/keyup pairs every ~150–200 ms with no `beforeinput`, so CodeMirror's command did each
-  delete.
-- **The switch tests are suggestive, not proof** (one try each, while the bug is
-  intermittent): everything off but syncing worked; with Live Preview and in-note controls off,
-  keys and completion off, or markdown and display helpers off, it still stopped; with the
-  visual-viewport fit (`web/main.tsx`) off it worked; within that, with `--vvh` writes off it
-  worked and with the scroll-back off it didn't. Two fixes on that basis (write `--vvh` only
-  when it changes and not until 0.4 s, then 1 s, after the last key) didn't help, so the
-  `--vvh` result was probably chance, or it's the shrunk layout rather than the write.
-- **Not it:** the block handle (it read layout in `update()`, fixed in v0.0.42 anyway), the
-  app's key shortcuts (`App.tsx`), y-codemirror's remote cursors, nothing reproduces in Chrome
-  (also not with iOS's user agent and touch points faked). In Chrome made to take
-  CodeMirror's iOS path, each keystroke changed only the text, the cursor layer, and the
-  content's `style.height` set and cleared during the redraw (`updateInner`).
-- **A lead:** a ProseMirror report of the same thing on mobile Safari, where holding delete
-  stopped after one character when the cursor sat next to image nodes
-  (discuss.prosemirror.net, "Holding down delete results in unexpected behavior"). Live
-  Preview puts widgets in the text, but turning it off didn't clearly fix it here.
-
-- **Best lead: Grammarly** (suggested 2026-10-17, not yet tried). It fits: it works on
-  multi-line editable text but tends to leave one-line inputs like the title alone; it likely doesn't run in the
-  test page's sandboxed claude.ai frame; it changes the page around the text on its own
-  timing, which would make the bug come and go and would explain the mixed switch results.
-  Try first: holding delete with Grammarly's Safari extension off (Settings › Apps › Safari ›
-  Extensions) and with Apple's keyboard. If that's it, the fix is to mark the editor with
-  `data-gramm="false"`, `data-gramm_editor="false"` and `data-enable-grammarly="false"` (an
-  `EditorView.contentAttributes`), which turns Grammarly off in notes: ask first.
-
-**Still in the code, temporary:** `web/lib/debugOff.ts` — `?cm-off=a,b` turns parts of the
-editor off for the tab (names in `Editor.tsx`: `lp`, `handle`, `link`, `field`, `wiki`, `tag`,
-`keys`, `mdkeys`, `brackets`, `complete`, `md`, `drawsel`, `drop`, `indent`, `match`, `select`,
-`wrap`, `placeholder`, `collab`, `all`; and in `main.tsx`: `vv`, `vvh`, `vvscroll`), `trace`
-shows the readout, `?cm-off=` clears it. The `--vvh` change (only on change, 1 s after the last
-key) is live too. Take both out, or keep the `--vvh` change, when this is settled.
-
-**Next:** test each setting three times with the same steps (type a word, then hold delete; and
-hold delete on text already there), with the results saved rather than screenshotted (the
-trace writing into a note, or Safari's Web Inspector with the iPhone plugged into the Mac),
-and record DOM mutations on the content element (attributes too), selection changes and
-CodeMirror's transactions while the key is held. Try Safari and the home-screen app as well
-as the in-app browser the tests so far used.
-
-**Done when** holding delete keeps deleting in a note on a real iPhone, in Safari and the
-home-screen app, with Live Preview on; the debug switch is gone; and what caused it is written
-down here or in the CHANGELOG.
-
 ---
 
 ## Next: in this order
@@ -133,13 +70,135 @@ down here or in the CHANGELOG.
 items, chosen by what's used every day (see Ideas, such as `#Type` inline; the history diff, saved searches, focus mode, turning a
 line into a typed note and the tour are done).
 
-1. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
+**Decided 2026-10-25:** N12 (above) first, then this list in order, each kept to its first
+useful slice.
+
+1. **F20, slim** — Setup in one place, starter types, the home vault and grouping in the
+   switcher. The built-in types (presets) wait until a few vaults show what repeats.
+2. **F22, folder only** — a Mac vault whose master copy is a folder of Markdown. "Database" is
+   the laptop kit as it is; "both" (two-way sync) waits until it's missed.
+3. **F24** — the journal, only if it would replace Day One; otherwise just a Day One import and
+   On this day.
+4. **F23** — one vault list on the Mac, only if two lists prove painful after using F22.
+5. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
    steps 1–2 (publish, and the builder) are done.
-2. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
+6. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
 
-F19 (GitHub vaults sending on their own) is done, and N11 passed on the live site; see the CHANGELOG.
+F19 (GitHub vaults sending on their own) is done, and N11 passed on the live site; F21 (the
+graph's timeline) is done; see the CHANGELOG.
 
-L8 (the iPhone and desktop apps) waits on the Apple Developer decision.
+L8 (the iPhone and desktop apps) waits on the Apple Developer decision; F23 starts its desktop half.
+
+### F20 — Vault types and setup: who it's for, where it's kept, what's switched on
+
+**Size** M · **Evidence** a vault today is a name, members and an optional GitHub repo
+(`db/schema.sql` `vaults`); every vault starts the same and every feature shows everywhere.
+Decided 2026-10-25.
+
+A vault's **setup** is four choices, all in one place, Settings → This vault → **Setup**:
+
+1. **People:** just me, or invited people (owner, editor, viewer as now).
+2. **Where it's kept:** cloud (the server's database), cloud + GitHub, or a Mac vault (F22).
+3. **Features:** journal (F24), website, AI assistant, search by meaning, and the timeline's date
+   rules (F21).
+4. **Starter types:** type notes added for the vault's kind, ordinary notes that can be removed.
+
+A **vault type** is a named preset of those four. A preset, not a mode: choosing one fills in the
+setup, and every choice stays changeable. Built in:
+
+| | Personal | Household | Programme | Department | Reference |
+|---|---|---|---|---|---|
+| **For** | You alone | A few people sharing a home's notes | Work with a start and an end | A team's long-running knowledge | Material to read and publish |
+| **Starter types** | Person, Book, Idea | Person, Home, Appointment, Document | Project, Meeting, Decision, Risk, Action, Stakeholder, Milestone | Team, Person, Process, Policy, Service, Meeting | Article, Topic, Source |
+| **People** | Just me | Invited | Invited | Invited, many viewers | Invited, many viewers |
+| **Journal** | On | Off | Off | Off | Off |
+| **Website** | Off | Off | Off | Off | On |
+| **Timeline dates** | Daily notes | Appointments, documents | Milestones, meetings, decisions, within start and end dates | Meetings | When made |
+
+- **Change type** at any time: the new preset applies to the choices you haven't changed
+  yourself; missing starter types are added; nothing is removed.
+- **Save as a new type** keeps a setup as your own type (for example "Client engagement"),
+  private to you. Shown with the built-in ones when making a vault.
+- **Programme: Close the programme.** Everyone keeps read access; it drops to the bottom of the
+  switcher. Reopen puts it back.
+- **The switcher groups vaults** by where they're kept and their type, each with its icon.
+- **A home vault:** one vault marked home, where Share from iPhone, quick journal entries and
+  "copy to my notes" go unless you choose otherwise.
+- **The assistant knows the vault's type**, so it can offer what fits (a RAID summary in a
+  Programme, "reflect on this week" in Personal). Same tools as now.
+- **Stored on the vault** (additive columns: `kind`, `setup` jsonb), never in a note, so notes stay
+  plain Markdown; the export's `vault` record carries it, and import restores it.
+- People: going from invited to just me means removing the others, with a warning; a Personal
+  vault asks "this is a personal vault, invite anyway?" rather than refusing.
+
+**Done when** a vault can be made from each built-in type and from a saved one, its type changed
+and customised in Setup, the switcher groups vaults, the home vault receives shares, and it works
+on the laptop and the iPhone in both themes. Help: a new page, `vaults.md`.
+
+### F22 — Mac vaults: kept on the Mac, in a folder, its database, or both
+
+**Size** L · **Evidence** the laptop kit (`laptop/`, v0.0.45) runs Commonplace and Postgres on
+the Mac; the standalone file already edits a real folder (`standalone/vault.ts`).
+
+A Mac vault lives only on the Mac. You choose where its notes are saved:
+
+- **Folder:** a folder of `.md` files you pick is the master copy; edits made there by any
+  editor arrive at once (the server watches it). The Mac's database holds only an index (search,
+  links, graph), rebuilt from the folder whenever needed.
+- **Database:** notes in the Mac's Postgres, with history and Trash as in the cloud; a folder
+  export on request.
+- **Both:** folder and database kept in step both ways; a note changed on both sides at once
+  waits for you to choose, as GitHub clashes do (`git_clashes` is the model). Never conflict
+  markers in a note.
+
+A Mac vault is just you. It can add GitHub (F14, F19), which is how it reaches another machine
+without the cloud. The AI assistant and search by meaning are switches, off by default, and say
+that turning them on sends note text to your chosen provider. Writes still go through
+`createNote` / `overwriteContent`, and the folder watcher through `overwriteContent`, so live
+rooms see changes; renames and deletions in the folder become moves and Trash.
+
+**Done when** each of the three works in the laptop kit, a change on either side reaches the
+other, a clash waits for a choice, the folder survives a rebuild of the index, and the laptop
+guide covers it.
+
+### F23 — One vault list on the Mac: Mac vaults and cloud vaults together
+
+**Size** L · **Evidence** decided 2026-10-25 (option A over keeping the laptop kit separate);
+the first step of L8's desktop app, and a narrow first answer to L6 (federation).
+
+The Mac Commonplace holds its Mac vaults itself and signs in to the cloud with a **device token**
+(revocable, in Settings → Connections; L8 step 4) for the cloud vaults. One switcher shows both,
+grouped. **Move to Mac** and **Move to cloud** reuse copy-and-move between vaults
+(`src/between.ts`, v0.0.49) across the two servers: notes, attachments, types and history, the
+original to Trash. The iPhone sees only cloud vaults. Offline, cloud vaults behave as F4 does
+today and Mac vaults carry on as normal.
+
+**Done when** one switcher shows Mac and cloud vaults, a note and a folder move each way with
+Undo, the token can be revoked, and a cloud vault's live editing works from the Mac app as it
+does from the browser.
+
+### F24 — Journal
+
+**Size** M, in two releases · **Evidence** daily notes exist (`Daily/YYYY-MM-DD.md`, the
+calendar in the side panel); journalling happens in Day One today.
+
+Entries go in the **home vault's** daily note (F20), under `## Journal`, each with its time
+(`### 08:12`). On by default in Personal vaults.
+
+1. **Release 1:** a **New journal entry** command (⌘K, the ⋯ menu, press and hold on Today) opening
+   a short sheet that appends to today's note (a function passed to `overwriteContent`, so it
+   can't undo live typing); a **journal page** of daily notes newest first, with a calendar to
+   jump; **On this day** from earlier years; an `add_journal_entry` tool with a preview.
+2. **Release 2:** **import from Day One** (its JSON export: times, photos as files, tags), and
+   **Reflect on this week** (the assistant with the week's entries and a prepared request).
+
+Journal sections stay out of published sites unless chosen.
+
+**Open:** entries in the daily note (planned) or a note each; whether entries record mood or
+location; on the phone, a menu on Today or a Journal button.
+
+**Done when** release 1 works on the laptop and the iPhone in both themes with a browser test,
+and release 2 imports a real Day One export.
 
 ### F18 — Publish a vault to the web: a site builder with themes and features to switch on
 
@@ -408,7 +467,6 @@ One line each. Promote to **Next** with a "done when".
   comes back.
 - Folder and tag colours in the sidebar, stored per vault (other editors keep these in plugin
   settings, not in notes; see F10)
-- Graph view filters (by tag or folder) and a local graph for the current note
 - Import from Apple Notes or Notion
 - Per-vault theme or accent colour (F18's themes are tokens too; share them)
 - OAuth sign-in for the MCP server, so claude.ai's custom connectors can use it (Claude Code and

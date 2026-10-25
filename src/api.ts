@@ -11,6 +11,7 @@ import { ChatRequest, chatResponse } from "./ai";
 import * as assistants from "./assistants";
 import * as git from "./git";
 import * as gitAuto from "./gitAuto";
+import * as graph from "./graph";
 import * as web from "./web";
 import * as github from "./github";
 import * as captureTokens from "./capture";
@@ -20,6 +21,7 @@ import { flushNote, kick } from "./collab";
 import { sql } from "./db";
 import { providerName, semanticEnabled } from "./embed";
 import { subscribe } from "./events";
+import * as between from "./between";
 import * as notes from "./notes";
 import { related, search, suggest } from "./search";
 import { secretsAvailable } from "./secrets";
@@ -787,6 +789,20 @@ export const apiRoutes = {
       return { moved: await notes.renameFolder(vaultId, b.from, b.to, user.id) };
     }),
   },
+  "/api/vaults/:v/send": {
+    // Copy or move notes (or a folder) to another of your vaults; `dryRun` says what would happen.
+    POST: route(async (ctx) => {
+      const user = await requireUser(ctx.req);
+      const b = await body(
+        ctx.req,
+        z.object({ to: z.number().int().positive(), notes: z.array(z.number().int().positive()).max(2000).optional(), folder: z.string().max(512).optional(), into: z.string().max(512).default(""), move: z.boolean().default(false), dryRun: z.boolean().default(false) }),
+      );
+      const r = { from: id(ctx.req.params.v), to: b.to, notes: b.notes, folder: b.folder, into: b.into, move: b.move };
+      if (!b.dryRun) return between.send(user, r);
+      const p = await between.planSend(user, r);
+      return { summary: between.describePlan(p), notes: p.notes.length, files: p.files.length, types: p.types.length, linkedFrom: p.linkedFrom };
+    }),
+  },
   "/api/vaults/:v/resolve": {
     GET: route(async (ctx) => {
       const { vaultId } = await vaultCtx(ctx, "viewer");
@@ -808,7 +824,7 @@ export const apiRoutes = {
     GET: route(async (ctx) => notes.tagCounts((await vaultCtx(ctx, "viewer")).vaultId)),
   },
   "/api/vaults/:v/graph": {
-    GET: route(async (ctx) => notes.graph((await vaultCtx(ctx, "viewer")).vaultId)),
+    GET: route(async (ctx) => graph.graph((await vaultCtx(ctx, "viewer")).vaultId)),
   },
 
   // ── GitHub vaults (F14, src/git.ts): the branch, its changes, the pull request ─────────

@@ -10,6 +10,7 @@ import home from "../../docs/help/index.md" with { type: "text" };
 import gettingStarted from "../../docs/help/getting-started.md" with { type: "text" };
 import writing from "../../docs/help/writing.md" with { type: "text" };
 import links from "../../docs/help/links.md" with { type: "text" };
+import graph from "../../docs/help/graph.md" with { type: "text" };
 import organising from "../../docs/help/organising.md" with { type: "text" };
 import types from "../../docs/help/types.md" with { type: "text" };
 import tasks from "../../docs/help/tasks.md" with { type: "text" };
@@ -42,6 +43,7 @@ export const ALL_HELP_PAGES: HelpPage[] = (
   ["getting-started", gettingStarted],
   ["writing", writing],
   ["links", links],
+  ["graph", graph],
   ["organising", organising],
   ["types", types],
   ["tasks", tasks],

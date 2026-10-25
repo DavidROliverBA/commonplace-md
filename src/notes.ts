@@ -456,16 +456,6 @@ export async function tagCounts(vaultId: number) {
              where vault_id = ${vaultId} group by tag order by tag`;
 }
 
-export async function graph(vaultId: number) {
-  const nodes = await sql`select id, title, path, cardinality(tags) as tag_count from notes where vault_id = ${vaultId}`;
-  const edges = await sql`
-    with k as (${linkKeys(vaultId)})
-    select distinct l.source_id as source, k.id as target
-    from links l join k on k.k = l.target
-    where l.vault_id = ${vaultId} and l.source_id <> k.id`;
-  return { nodes, edges };
-}
-
 export async function revisions(noteId: number) {
   return sql`select r.id, r.created_at, r.reason, u.name as author, length(r.content) as size
              from note_revisions r left join users u on u.id = r.author_id

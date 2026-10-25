@@ -209,6 +209,16 @@
 .tag-list button:hover {
   background: var(--bg3);
 }
+/* Each tag's graph button (after Capacities: a graph scoped to the tag) beside its row. */
+.tag-list li {
+  display: flex;
+}
+.tag-list .tag-graph {
+  width: auto;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  color: var(--faint);
+}
 .count {
   font-size: var(--text-small);
   color: var(--faint);

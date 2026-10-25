@@ -51,6 +51,9 @@ const HELP_SHOTS: Record<string, string> = {
   "laptop-light-13f-sending": "github-sending",
   "laptop-light-14-site-page": "published-page",
   "laptop-light-15-graph": "graph",
+  "laptop-light-15b-graph-filters": "graph-filters",
+  "laptop-light-15d-graph-tab": "graph-tab",
+  "laptop-light-15e-graph-timeline": "graph-timeline",
   "laptop-light-16-diagram": "diagram-and-query",
   "laptop-light-17-search": "search",
   "laptop-light-18-history": "history",
@@ -106,6 +109,9 @@ try {
   await api(`/vaults/${vaultId}/notes`, { path: "Types/Meeting.md", content: "---\nicon: calendar\ncolour: amber\nproperties:\n  - name: date\n    kind: date\n  - name: attendees\n    kind: relation\n    type: Person\n    many: true\n---\n# {{title}}\n\n## Agenda\n\n## Actions\n" });
   for (const [name, role, company, phone] of [["Sam Okafor", "Builder", "Okafor & Sons", "07700 900123"], ["Priya Shah", "Designer", "Shah Interiors", "07700 900456"], ["Tom Reed", "Electrician", "Reed Electrical", ""]])
     await api(`/vaults/${vaultId}/notes`, { path: `People/${name}.md`, content: `---\ntype: Person\nrole: ${role}\ncompany: ${company}\n${phone ? `phone: ${phone}\n` : ""}---\n# ${name}\n` });
+  // Earlier meetings, for the graph's timeline.
+  await api(`/vaults/${vaultId}/notes`, { path: "Meetings/Survey visit.md", content: '---\ntype: Meeting\ndate: 2026-07-14\nattendees:\n  - "[[Sam Okafor]]"\n---\n# Survey visit\n' });
+  await api(`/vaults/${vaultId}/notes`, { path: "Meetings/Quote review.md", content: '---\ntype: Meeting\ndate: 2026-08-21\nattendees:\n  - "[[Sam Okafor]]"\n  - "[[Priya Shah]]"\n---\n# Quote review\n\nAfter the [[Survey visit]].\n' });
   const kickoff = await api(`/vaults/${vaultId}/notes`, { path: "Meetings/Kitchen kickoff.md", content: '---\ntype: Meeting\ndate: 2026-10-08\nattendees:\n  - "[[Sam Okafor]]"\n  - "[[Priya Shah]]"\n---\n# Kitchen kickoff\n\n## Agenda\n- Worktops\n- Lighting\n' });
   const timeline = await api(`/vaults/${vaultId}/notes`, {
     path: "Projects/Kitchen/Timeline.md",
@@ -151,6 +157,7 @@ try {
   const launch = () => puppeteer.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
   let browser = await launch();
   const shot = async (p: Page, name: string) => {
+    if (process.env.SHOTS_LOG) console.log("shot", name);
     await Bun.sleep(350); // let animations settle
     await p.screenshot({ path: join(OUT, `${name}.png`) });
     if (HELP && HELP_SHOTS[name]) await p.screenshot({ path: join(HELP_DIR, `${HELP_SHOTS[name]}.webp`) as `${string}.webp`, type: "webp", quality: 72 });
@@ -239,6 +246,10 @@ try {
         await p.keyboard.press("j");
         await p.keyboard.up("Meta");
       } else {
+        // Typing scrolled the note and the header tucked away: focus brings it back.
+        await p.focus('button[aria-label="Side panel"]');
+        await p.waitForSelector(".app:not(.chrome-hidden)");
+        await Bun.sleep(400);
         await p.click('button[aria-label="Side panel"]');
         await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((b) => b.textContent?.includes("AI"))?.click());
       }
@@ -283,11 +294,24 @@ try {
       await p.goto(`${BASE}/v/${vaultId}/tasks`, { waitUntil: "load" });
       await p.waitForSelector(".task-list li");
       await shot(p, `${tag}-12-tasks`);
+      // The timeline (F21): the meetings from July to September, the later ones faded.
+      await p.goto(`${BASE}/v/${vaultId}/graph?type=Meeting&from=2026-07-01&to=2026-09-30`, { waitUntil: "load" });
+      await p.waitForSelector(".graph-timeline");
+      await Bun.sleep(3500);
+      await shot(p, `${tag}-15e-graph-timeline`);
       if (device === "laptop") {
         await p.goto(`${BASE}/v/${vaultId}/graph`, { waitUntil: "load" });
         await p.waitForSelector(".graph-canvas");
-        await Bun.sleep(2500);
+        await Bun.sleep(3500);
         await shot(p, `${tag}-15-graph`);
+        // The filters panel, and the graph centred on a note with its property labels.
+        await p.click(".graph-bar button[aria-expanded]");
+        await p.waitForSelector(".graph-filters");
+        await shot(p, `${tag}-15b-graph-filters`);
+        await p.goto(`${BASE}/v/${vaultId}/graph?note=${kickoff.id}`, { waitUntil: "load" });
+        await p.waitForSelector(".graph-canvas");
+        await Bun.sleep(3500);
+        await shot(p, `${tag}-15c-graph-around`);
         await p.goto(`${BASE}/v/${vaultId}/n/${timeline.id}`, { waitUntil: "load" });
         await p.waitForFunction(() => !!document.querySelector(".mermaid-diagram")?.shadowRoot?.querySelector("svg"));
         await p.waitForSelector(".dataview-block table");
@@ -326,6 +350,14 @@ try {
       await p.waitForSelector(".branch-count");
       await Bun.sleep(400);
       await shot(p, `${tag}-13-branch-bar`);
+      if (device === "phone") {
+        // On the iPhone the bar is in the Files drawer, with a dot on the Files button.
+        await p.click(".note-header .panel-toggle");
+        await p.waitForSelector(".sidebar .branch-count");
+        await Bun.sleep(400);
+        await shot(p, `${tag}-13a-branch-drawer`);
+        await p.evaluate(() => document.querySelector<HTMLElement>(".scrim")?.click());
+      }
       await p.goto(`${BASE}/v/${ghVault}/changes`, { waitUntil: "load" });
       await p.waitForSelector(".change-edited");
       await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".change-edited button")].find((b) => b.textContent === "Diff")?.click());
@@ -343,6 +375,10 @@ try {
       await p.goto(`${BASE}/v/${ghAuto}/changes`, { waitUntil: "load" });
       await p.waitForSelector(".change-held");
       await shot(p, `${tag}-13e-held`);
+      if (device === "phone") {
+        await p.click(".panel-toggle");
+        await Bun.sleep(400);
+      }
       await p.click('.branch-bar button[aria-label="Branch"]');
       await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent?.includes("How changes are sent"))!.click());
       await p.waitForSelector(".send-modes");
@@ -364,6 +400,17 @@ try {
         await shot(p, `${tag}-10d-new-type`);
         await p.keyboard.press("Escape");
       }
+      // The side panel's Graph tab: the meeting with its attendees, labelled.
+      await p.goto(`${BASE}/v/${vaultId}/n/${kickoff.id}`, { waitUntil: "load" });
+      await p.waitForSelector(".cm-content");
+      if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
+      await p.waitForSelector(".right-tabs [role=tab]");
+      await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((b) => b.textContent?.includes("Graph"))?.click());
+      await p.waitForSelector(".local-graph .graph-canvas");
+      await Bun.sleep(3000);
+      await shot(p, `${tag}-15d-graph-tab`);
+      await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((b) => b.textContent?.includes("Links"))?.click());
+      if (device === "phone") await p.evaluate(() => document.querySelector<HTMLButtonElement>('button[aria-label="Close the side panel"]')?.click());
       await p.goto(`${BASE}/v/${vaultId}/n/${kickoff.id}`, { waitUntil: "load" });
       await p.waitForSelector(".cm-content");
       await Bun.sleep(800);

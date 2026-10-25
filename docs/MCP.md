@@ -65,6 +65,7 @@ in the backlog's ideas.
 | `set_type` | Say what a note is and fill in its properties (choices checked) | ✓ |
 | `create_type` | Make a new type: properties, icon, colour, template | ✓ |
 | `merge_notes` | Fold a duplicate into another note, relink it, and send it to Trash | ✓ |
+| `copy_to_vault` | Copy a note or folder to another vault (with its pictures and type), or move it: the original goes to Trash | ✓ |
 
 A note can be named by its path (`Projects/Kitchen.md`) or its title, as in a `[[wikilink]]`.
 A vault can be named by its id or its name, and can be left out if you have only one.
@@ -77,7 +78,7 @@ A vault can be named by its id or its name, and can be left out if you have only
   (reason *mcp*), so Version history can undo any agent's change. A move can be moved back. Edits go through the live
   room, so they merge with whatever someone is typing at that moment.
 - **No deletes.** No tool deletes a note outright: `merge_notes` sends the duplicate to Trash,
-  restorable for 30 days. Claude Code asks before each tool call unless you
+  and so does a move with `copy_to_vault`, restorable for 30 days. Claude Code asks before each tool call unless you
   allow it.
 - **Text in notes is data.** A note can contain text aimed at an AI ("ignore your
   instructions…"). The guards above are what limit the damage: write access only where you

@@ -26,6 +26,7 @@ Type `@` and the assistant's name (such as `@Claude`) on a new line, then your q
 - **Find and answer**: search your notes and answer with links to them.
 - **Write**: make new pages from what it finds.
 - **Organise**: reformat a note, fill in properties, move notes, split a long note, or file notes into your [types](types.md).
+- **Copy or move to another vault**: ask it to copy a note or a folder into another of your vaults, or to move it there ("move this to my Work vault"). It always asks first; see *Another vault* in [Organising notes](organising.md) for what comes along.
 - **Drive the app**: open a note, show the graph or hide a panel.
 
 Changes to the open note happen straight away, and stay in its version history. Anything else, such as a new page or a change to another note, shows what it would change, with **Apply** and **Discard**, and Undo afterwards.

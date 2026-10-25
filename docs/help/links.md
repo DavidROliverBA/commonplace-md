@@ -53,6 +53,4 @@ A link to a typed note on a line of its own shows as a **card**, with the note's
 
 ## The graph
 
-**Graph** (at the top of the file panel) draws every note as a dot and every link as a line. Click a dot to open that note. Drag to move around, and pinch or scroll to zoom. (App only.)
-
-![The graph view](images/graph.webp)
+The graph draws your notes and the links between them, with each type's icon and the property behind each link. See [The graph](graph.md). (App only.)

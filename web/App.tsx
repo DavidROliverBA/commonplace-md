@@ -11,8 +11,10 @@ import { AssistantDialogHost, editAssistant } from "./components/AssistantDialog
 import { CommandPalette } from "./components/CommandPalette";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { Graph } from "./components/Graph";
+import { LocalGraph } from "./components/LocalGraph";
+import { graphUrl } from "./lib/graph";
 import { Icon } from "./ui/Icon";
-import { PanelToggle } from "./ui/PanelToggle";
+import { PanelToggle, setFilesBadge } from "./ui/PanelToggle";
 import { chooseDialog, Overlays, promptDialog, toast, toastError } from "./ui/overlays";
 import { Login } from "./components/Login";
 import { NoteView } from "./components/NoteView";
@@ -20,15 +22,17 @@ import { QuickSwitcher } from "./components/QuickSwitcher";
 import { RightPanel } from "./components/RightPanel";
 import { NewTypeDialog } from "./components/NewTypeDialog";
 import { TasksPage } from "./components/TasksPage";
-import { BranchBar } from "./components/BranchBar";
+import { BranchBar, filesBadge } from "./components/BranchBar";
 import { ChangesPage } from "./components/ChangesPage";
 import { GitHubVaultDialog } from "./components/GitHubVault";
 import { PullRequestDialog } from "./components/PullRequestDialog";
 import { cancelBranch, sendNow, setPaused, updateFromBase, useGit } from "./lib/git";
+import { setVaultList } from "./lib/moving";
 import { TypePage } from "./components/TypePage";
 import { loadBookmarks } from "./lib/bookmarks";
 import { loadSavedSearches } from "./lib/savedSearches";
 import { focusModeOn, setFocusMode, useFocusMode } from "./lib/focusMode";
+import { usePhoneChrome } from "./lib/phoneChrome";
 import { Sidebar } from "./components/Sidebar";
 import { Trash } from "./components/Trash";
 import { HelpHost } from "./components/Help";
@@ -105,9 +109,12 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   const stored = (key: string) => !matchMedia(NARROW).matches && localStorage.getItem(key) !== "0";
   const [leftOpen, setLeftOpen] = useState(() => stored("cp:left"));
   const [rightOpen, setRightOpen] = useState(() => stored("cp:right"));
-  // The side panel's two tabs: the note's links and outline, and the AI assistant.
-  const [rightTab, setRightTabState] = useState<"links" | "ai">(() => (localStorage.getItem("cp:rightTab") === "ai" ? "ai" : "links"));
-  const setRightTab = (t: "links" | "ai") => {
+  // The side panel's three tabs: the note's links and outline, its graph, and the AI assistant.
+  const [rightTab, setRightTabState] = useState<"links" | "graph" | "ai">(() => {
+    const t = localStorage.getItem("cp:rightTab");
+    return t === "ai" || t === "graph" ? t : "links";
+  });
+  const setRightTab = (t: "links" | "graph" | "ai") => {
     setRightTabState(t);
     localStorage.setItem("cp:rightTab", t);
   };
@@ -133,7 +140,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
   const vault = vaults?.find((v) => v.id === vaultId) ?? null;
   const canWrite = vault ? vault.role !== "viewer" : false;
 
-  const loadVaults = useCallback(() => api<Vault[]>("/vaults").then(setVaults), []);
+  const loadVaults = useCallback(() => api<Vault[]>("/vaults").then((v) => (setVaultList(v), setVaults(v))), []);
   useEffect(() => {
     void loadVaults();
     void loadAssistants().catch(() => {}); // so @name offers them at the first keystroke
@@ -425,6 +432,9 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
 
   // A GitHub vault's branch (F14): the bar, the changes page and the PR dialog share one status.
   const git = useGit(vault?.git_repo ? vault.id : null, notes);
+  const phoneChrome = usePhoneChrome();
+  // On a phone the branch bar is in the Files drawer: a dot on the Files button stands in for it.
+  useEffect(() => setFilesBadge(narrow && vault?.git_repo ? filesBadge(git) : null), [narrow, vault?.git_repo, git]);
   const [prDialog, setPrDialog] = useState(false);
   const [ghDialog, setGhDialog] = useState(false);
 
@@ -436,6 +446,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
       findNote: () => setSwitcher(true),
       search: () => (setTab("search"), setLeft(true)),
       graph: () => (navigate(`/v/${vault.id}/graph`), onNoteViewNav()),
+      graphHere: noteId ? () => (navigate(graphUrl(vault.id, { note: noteId })), onNoteViewNav()) : null,
       tasks: () => (navigate(`/v/${vault.id}/tasks`), onNoteViewNav()),
       home: () => navigate(`/v/${vault.id}`),
       today: () => void daily(),
@@ -487,11 +498,12 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
     );
 
   const onNote = route.page === "note" && !!noteId;
+  const branchBar = vault.git_repo && <BranchBar vault={vault} status={git} onPullRequest={() => setPrDialog(true)} onNavigate={() => narrow && setLeftOpen(false)} />;
   const tabShown = onNote ? rightTab : "ai";
   const showRight = rightOpen && (onNote || tabShown === "ai");
 
   return (
-    <div className={`app${focus && onNote ? " focus-mode" : ""}${online ? "" : " offline"}${ready ? " ready" : ""}${leftOpen ? " left-open" : ""}${showRight ? " right-open" : ""}${tabShown === "ai" ? " right-ai" : ""}`}>
+    <div className={`app${focus && onNote ? " focus-mode" : ""}${online ? "" : " offline"}${ready ? " ready" : ""}${leftOpen ? " left-open" : ""}${showRight ? " right-open" : ""}${tabShown === "ai" ? " right-ai" : ""}${phoneChrome.hidden ? " chrome-hidden" : ""}${phoneChrome.typing ? " typing" : ""}`}>
       <Sidebar
         session={session}
         vaults={vaults}
@@ -513,11 +525,12 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
         onNewType={() => void newType()}
         onNewGitVault={() => setGhDialog(true)}
         onNavigate={() => narrow && setLeftOpen(false)}
+        branchBar={narrow ? branchBar : null}
       />
       {narrow && (leftOpen || (showRight && rightOpen)) && <div className="scrim" onClick={() => (setLeftOpen(false), setRightOpen(false))} />}
 
       <main className="main">
-        {vault.git_repo && <BranchBar vault={vault} status={git} onPullRequest={() => setPrDialog(true)} />}
+        {!narrow && branchBar}
         <ErrorBoundary resetKey={path}>
         {route.page === "note" && noteId && (
           <NoteView
@@ -569,7 +582,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
             onNavigate={onNoteViewNav}
           />
         )}
-        {route.page === "graph" && <Graph vaultId={vault.id} leftOpen={leftOpen} onToggleLeft={toggleLeft} rightOpen={showRight} onToggleRight={toggleRight} />}
+        {route.page === "graph" && <Graph vaultId={vault.id} vaultName={vault.name} notes={notes} leftOpen={leftOpen} onToggleLeft={toggleLeft} rightOpen={showRight} onToggleRight={toggleRight} />}
         {route.page === "vault" && (
           <VaultHome
             vault={vault}
@@ -604,6 +617,9 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
                 <button role="tab" aria-selected={tabShown === "links"} className={tabShown === "links" ? "on" : ""} onClick={() => setRightTab("links")}>
                   <Icon name="link" size={16} /> Links
                 </button>
+                <button role="tab" aria-selected={tabShown === "graph"} className={tabShown === "graph" ? "on" : ""} onClick={() => setRightTab("graph")}>
+                  <Icon name="graph" size={16} /> Graph
+                </button>
                 <button role="tab" aria-selected={tabShown === "ai"} className={tabShown === "ai" ? "on" : ""} onClick={() => setRightTab("ai")}>
                   <Icon name="sparkle" size={16} /> AI
                 </button>
@@ -634,6 +650,7 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
             onDaily={(d) => void daily(d)}
           />
         )}
+        {onNote && tabShown === "graph" && showRight && <LocalGraph vaultId={vault.id} noteId={noteId!} notes={notes} onNavigate={() => narrow && setRightOpen(false)} />}
         {tabShown === "ai" && showRight && <AiPanel vaultId={vault.id} noteId={onNote ? noteId : null} notes={notes} you={session.user!.name} onOpenLink={openLink} />}
       </aside>
 

@@ -78,8 +78,12 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   name, last changed or newest. Following a link to a missing note asks whether it's a plain note
   or one of your types.
 - **Links:** backlinks, outgoing links (with one-tap creation of notes that don't exist yet), an
-  outline, a force-directed graph view, and renames that rewrite every `[[link]]` pointing at the
-  note.
+  outline, and renames that rewrite every `[[link]]` pointing at the note.
+- **The graph** (after Capacities): notes show their type's icon and colour, and links from
+  properties carry the property's name (*attendees*). The side panel's Graph tab centres on the
+  open note, with Show more and Show less, and follows you. The page can show the whole vault, one
+  note's neighbourhood, or a type, folder, tag or saved search. It has filters (only or hide types,
+  daily notes, busy notes, unlinked notes, simplified), zoom, find, and a PNG export.
 - **Search:** Postgres full-text and fuzzy title search, plus pgvector semantic search over
   heading-sized chunks, fused with Reciprocal Rank Fusion. `tag:x` and `path:x` filters work, and
   a Related panel shows the notes nearest in meaning.
@@ -111,7 +115,7 @@ an exported zip is a plain folder of Markdown files that other Markdown editors 
   every call against a ledger; list prices live in `src/prices.ts`. Type `@Claude` in a note to talk to it under that line, or press `⌘J` for the
   AI side panel. It works as a librarian (searches and answers with links to your notes), an
   author (makes pages from what it finds) and an organiser (reformats, sets properties, moves,
-  splits). Changes to the open note happen live and are kept in Version history; anything else
+  splits, copies or moves notes to another vault). Changes to the open note happen live and are kept in Version history; anything else
   (a new page, another note, a move) shows a diff to **Apply** or **Discard**, with Undo after.
   It can also drive the app (open a note, show the graph, hide the file panel), and it knows your
   types: it files notes into them with their properties filled in, proposes a new type when

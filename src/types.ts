@@ -34,6 +34,9 @@ export interface TypeDef {
   properties: TypeProp[];
   /** A `[[link]]` to a note of this type on a line of its own shows as a card (F2). */
   cards: boolean;
+  /** The date property that places a note on the graph's timeline (`timeline: met`), if the
+   *  type names one; otherwise the timeline takes its first date property that isn't a birthday. */
+  timeline: string | null;
   /** How many notes are of this type. */
   count: number;
 }
@@ -75,7 +78,7 @@ export function readTypeDef(title: string, frontmatter: Record<string, unknown>,
     props.push(prop);
   }
   const colour = TYPE_COLOURS.includes(frontmatter.colour as any) ? String(frontmatter.colour) : "purple";
-  return { name: title, ...meta, icon: typeof frontmatter.icon === "string" && frontmatter.icon ? frontmatter.icon : "file", colour, properties: props, cards: frontmatter.cards !== false };
+  return { name: title, ...meta, icon: typeof frontmatter.icon === "string" && frontmatter.icon ? frontmatter.icon : "file", colour, properties: props, cards: frontmatter.cards !== false, timeline: typeof frontmatter.timeline === "string" && frontmatter.timeline.trim() ? frontmatter.timeline.trim() : null };
 }
 
 /** The markdown for a new, blank type's note: one property to start from, and a heading. */

@@ -239,7 +239,7 @@ describe("notes, links, tags and search", () => {
 
   test("graph has the edge", async () => {
     const g = await alice.ok(`/vaults/${vault}/graph`);
-    expect(g.edges).toContainEqual({ source: ids.alpha, target: ids.beta });
+    expect(g.edges).toContainEqual({ source: ids.alpha, target: ids.beta, label: null });
   });
 });
 
@@ -626,7 +626,7 @@ describe("aliases and ids (F9 step 1)", () => {
     const back = await alice.ok(`/vaults/${av}/notes/${sam.id}/links`);
     expect(JSON.stringify(back)).toContain("Diary");
     const graph = await alice.ok(`/vaults/${av}/graph`);
-    expect(graph.edges).toContainEqual({ source: one.id, target: sam.id });
+    expect(graph.edges).toContainEqual({ source: one.id, target: sam.id, label: null });
     expect(graph.edges.some((e: any) => e.target === solo.id)).toBe(true);
     expect((await alice.ok(`/vaults/${av}/resolve?target=Sam`)).id).toBe(sam.id);
     expect((await alice.ok(`/vaults/${av}/resolve?target=sam-okafor`)).id).toBe(sam.id);
@@ -1152,7 +1152,7 @@ describe("MCP server", () => {
     const c = await connect(rw);
     expect(c.getServerVersion()).toMatchObject({ name: "commonplace" });
     const names = (await c.listTools()).tools.map((t: any) => t.name).sort();
-    expect(names).toEqual(["append_to_note", "create_note", "create_type", "edit_note", "list_notes", "list_tags", "list_types", "list_vaults", "merge_notes", "move_note", "read_note", "rewrite_note", "search_notes", "set_properties", "set_type", "split_note"]);
+    expect(names).toEqual(["append_to_note", "copy_to_vault", "create_note", "create_type", "edit_note", "list_notes", "list_tags", "list_types", "list_vaults", "merge_notes", "move_note", "read_note", "rewrite_note", "search_notes", "set_properties", "set_type", "split_note"]);
     await c.close();
   });
 
@@ -1344,6 +1344,29 @@ describe("types (F16)", () => {
     expect(d.made.find((n: any) => n.title === "Kickoff").type).toBe("Meeting");
     expect((await alice.ok(`/vaults/${tv}/days/2001-01-01`)).made).toEqual([]);
     expect((await alice.req(`/vaults/${tv}/days/yesterday`)).status).toBe(400);
+  });
+});
+
+describe("the graph, after Capacities", () => {
+  test("notes carry their type, tags and daily-ness; links from properties carry the property's name", async () => {
+    const gv = (await alice.ok("/vaults", { body: { name: "Graphs" } })).id;
+    const make = async (path: string, content: string) => (await alice.ok(`/vaults/${gv}/notes`, { body: { path, content } })).id as number;
+    await make("Types/Person.md", "---\nicon: user\ncolour: blue\n---\n");
+    const sam = await make("People/Sam.md", "---\ntype: Person\ntags: [people]\n---\n# Sam\n");
+    const ann = await make("People/Ann.md", "---\ntype: Person\n---\n# Ann\n");
+    const kick = await make("Kickoff.md", "---\nattendees:\n  - \"[[Sam]]\"\n  - \"[[Ann]]\"\nlead: \"[[Sam]]\"\n---\nAlso see [[Garden]].\n");
+    const garden = await make("Garden.md", "# Garden\n");
+    const day = await make("Daily/2026-10-23.md", "Met [[Ann]].\n");
+    const g = await alice.ok(`/vaults/${gv}/graph`);
+    expect(g.types).toContainEqual({ name: "Person", icon: "user", colour: "blue" });
+    expect(g.nodes.find((n: any) => n.id === sam)).toMatchObject({ title: "Sam", type: "Person", tags: ["people"], daily: false });
+    expect(g.nodes.find((n: any) => n.id === day).daily).toBe(true);
+    const edge = (a: number, b: number) => g.edges.find((e: any) => e.source === a && e.target === b);
+    expect(edge(kick, sam).label).toBe("attendees, lead");
+    expect(edge(kick, ann).label).toBe("attendees");
+    expect(edge(kick, garden).label).toBeNull();
+    expect(edge(day, ann).label).toBeNull();
+    expect((await bob.req(`/vaults/${gv}/graph`)).status).toBe(404);
   });
 });
 
@@ -1706,6 +1729,20 @@ describe("bring your own AI", () => {
     script.push({ calls: [{ name: "merge_notes", input: { keep: "Priya", merge: "Acme" } }] }, { text: "Can't." });
     const bad = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "merge" }] });
     expect(bad.events.find((e) => e.type === "tool")).toMatchObject({ name: "merge_notes", ok: false });
+  });
+
+  test("copy_to_vault asks first, with what it would bring; applied, the note is in the other vault", async () => {
+    const other = (await alice.ok("/vaults", { body: { name: "AI archive" } })).id;
+    const n = (await alice.ok(`/vaults/${av}/notes`, { body: { path: "Ideas/Shed.md", content: "# Shed\n\nA potting shed.\n" } })).id;
+    script.push({ calls: [{ name: "copy_to_vault", input: { note: "Shed", to_vault: "AI archive", into: "From AI", move: true } }] });
+    const r = await chat(alice, { assistantId: claude, vaultId: av, noteId: n, messages: [{ role: "user", text: "Move this to my archive" }] });
+    expect(r.end.pending[0].preview.summary).toBe("Move “Shed” to AI archive (From AI); the original goes to Trash");
+    expect(await content(n)).toContain("A potting shed."); // nothing yet
+    script.push({ text: "Moved." });
+    const done = await chat(alice, { assistantId: claude, vaultId: av, messages: r.end.messages, resolved: [{ id: r.end.pending[0].id, approve: true }] });
+    expect(done.events.find((e) => e.type === "tool")).toMatchObject({ name: "copy_to_vault", ok: true, summary: "Moved From AI/Shed to AI archive" });
+    expect((await alice.ok(`/vaults/${other}/notes`)).map((x: any) => x.path)).toEqual(["From AI/Shed.md"]);
+    expect((await alice.req(`/vaults/${av}/notes/${n}`)).status).toBe(404);
   });
 
   // The web (src/web.ts): a fake Brave Search and two pages, on this machine.
@@ -2119,6 +2156,87 @@ describe("sending to GitHub automatically (F19)", () => {
 
 // N9: the database disk is fixed, so near it the server refuses new data rather than letting
 // Render suspend the database. A second server with a tiny disk sees this database as full.
+describe("copying and moving notes between vaults", () => {
+  let home: number;
+  let work: number;
+  const upload = async (v: number, name: string, bytes: number[]) => {
+    const form = new FormData();
+    form.append("file", new File([new Uint8Array(bytes)], name, { type: "image/png" }));
+    form.append("folder", "attachments");
+    return (await alice.ok(`/vaults/${v}/files`, { form })).path as string;
+  };
+  const byPath = async (v: number) => Object.fromEntries((await alice.ok(`/vaults/${v}/notes`)).map((n: any) => [n.path, n]));
+  const text = async (v: number, id: number) => (await alice.ok(`/vaults/${v}/notes/${id}`)).content as string;
+
+  test("copying a note brings its pictures and its type; the original stays", async () => {
+    home = (await alice.ok("/vaults", { body: { name: "Home copy" } })).id;
+    work = (await alice.ok("/vaults", { body: { name: "Work copy" } })).id;
+    await alice.ok(`/vaults/${home}/notes`, { body: { path: "Types/Meeting.md", content: "---\nicon: calendar\ncolour: blue\nproperties:\n  - name: when\n    kind: date\n---\n" } });
+    await upload(home, "plan.png", [137, 80, 78, 71, 1]);
+    const plan = (await alice.ok(`/vaults/${home}/notes`, { body: { path: "Meetings/Plan.md", content: "---\ntype: Meeting\n---\n# Plan\n\n![[plan.png]]\n" } })).id;
+    const dry = await alice.ok(`/vaults/${home}/send`, { body: { to: work, notes: [plan], into: "Inbox", dryRun: true } });
+    expect(dry).toMatchObject({ summary: "Copy “Plan” to Work copy (Inbox), with 1 file and the Meeting type", notes: 1, files: 1, types: 1 });
+    expect(await byPath(work)).toEqual({}); // a dry run writes nothing
+    const r = await alice.ok(`/vaults/${home}/send`, { body: { to: work, notes: [plan], into: "Inbox" } });
+    expect(r.created.map((c: any) => c.path)).toEqual(["Types/Meeting.md", "Inbox/Plan.md"]);
+    expect(r.files).toEqual(["attachments/plan.png"]);
+    const there = await byPath(work);
+    expect(await text(work, there["Inbox/Plan.md"].id)).toContain("![[plan.png]]");
+    expect((await alice.ok(`/vaults/${work}/types`)).types.find((t: any) => t.name === "Meeting")).toMatchObject({ icon: "calendar", colour: "blue" });
+    const pic = await alice.req(`/vaults/${work}/files?path=attachments/plan.png`);
+    expect([...(pic.data as Uint8Array)]).toEqual([137, 80, 78, 71, 1]);
+    expect((await alice.ok(`/vaults/${home}/notes/${plan}`)).path).toBe("Meetings/Plan.md");
+  });
+
+  test("a name taken there keeps both; the same picture isn't copied twice, a different one is renamed", async () => {
+    const plan = (await byPath(home))["Meetings/Plan.md"].id;
+    const again = await alice.ok(`/vaults/${home}/send`, { body: { to: work, notes: [plan], into: "Inbox" } });
+    expect(again.created.map((c: any) => c.path)).toEqual(["Inbox/Plan 1.md"]); // the type is there now
+    expect(again.files).toEqual([]);
+    // Same name, different picture: the copy gets its own name and its embed follows.
+    const other = (await alice.ok("/vaults", { body: { name: "Other copy" } })).id;
+    await upload(other, "plan.png", [9, 9, 9]);
+    const r = await alice.ok(`/vaults/${home}/send`, { body: { to: other, notes: [plan] } });
+    expect(r.files).toEqual(["attachments/plan 1.png"]);
+    expect(await text(other, r.created.find((c: any) => c.from).id)).toContain("![[attachments/plan 1.png]]");
+  });
+
+  test("moving a folder carries the notes' history, sends the originals to Trash, and Undo puts it back", async () => {
+    const a = (await alice.ok(`/vaults/${home}/notes`, { body: { path: "Garden/Roses.md", content: "# Roses\n" } })).id;
+    await alice.ok(`/vaults/${home}/notes/${a}/content`, { method: "PUT", body: { content: "# Roses\n\nPrune in March.\n" } });
+    await alice.ok(`/vaults/${home}/notes`, { body: { path: "Garden/Beds/Herbs.md", content: "# Herbs\n\nNext to [[Roses]].\n" } });
+    await alice.ok(`/vaults/${home}/notes`, { body: { path: "Diary.md", content: "Planted [[Roses]].\n" } });
+    const dry = await alice.ok(`/vaults/${home}/send`, { body: { to: work, folder: "Garden", into: "", move: true, dryRun: true } });
+    expect(dry.summary).toBe("Move 2 notes to Work copy; the originals go to Trash; 1 note left in Home copy link to them");
+    const r = await alice.ok(`/vaults/${home}/send`, { body: { to: work, folder: "Garden", into: "", move: true } });
+    expect(r.created.map((c: any) => c.path).sort()).toEqual(["Garden/Beds/Herbs.md", "Garden/Roses.md"]);
+    expect(r.trashIds).toHaveLength(2);
+    const there = await byPath(work);
+    expect(await text(work, there["Garden/Beds/Herbs.md"].id)).toContain("[[Roses]]");
+    const revs = await testDb`select content from note_revisions where note_id = ${there["Garden/Roses.md"].id}`;
+    expect(revs.map((x) => x.content)).toContain("# Roses\n"); // its history came too
+    const left = await byPath(home);
+    expect(left["Garden/Roses.md"]).toBeUndefined();
+    expect((await alice.ok(`/vaults/${home}/trash`)).items.map((t: any) => t.path).sort()).toEqual(["Garden/Beds/Herbs.md", "Garden/Roses.md"]);
+    // Undo, as the app does it: the copies to Trash there, the originals back here.
+    for (const c of r.created) await alice.ok(`/vaults/${work}/notes/${c.id}`, { method: "DELETE" });
+    for (const t of r.trashIds) await alice.ok(`/vaults/${home}/trash/${t}/restore`, { body: {} });
+    expect(Object.keys(await byPath(home))).toContain("Garden/Roses.md");
+  });
+
+  test("roles: a viewer can copy out but not move; you can only send to a vault you can edit", async () => {
+    const plan = (await byPath(home))["Meetings/Plan.md"].id;
+    await addMember(home, bob, "viewer");
+    const bobs = (await bob.ok("/vaults", { body: { name: "Bob's own" } })).id;
+    expect((await bob.req(`/vaults/${home}/send`, { body: { to: bobs, notes: [plan] } })).status).toBe(200);
+    expect((await bob.req(`/vaults/${home}/send`, { body: { to: bobs, notes: [plan], move: true } })).status).toBe(403);
+    expect((await bob.req(`/vaults/${home}/send`, { body: { to: work, notes: [plan] } })).status).toBe(404); // not his
+    await addMember(work, bob, "viewer");
+    expect((await bob.req(`/vaults/${bobs}/send`, { body: { to: work, folder: "Meetings" } })).status).toBe(403);
+    expect((await alice.req(`/vaults/${home}/send`, { body: { to: home, notes: [plan] } })).status).toBe(400);
+  });
+});
+
 describe("storage guard", () => {
   const FULL_PORT = 3198;
   const FULL = `http://localhost:${FULL_PORT}`;

@@ -64,6 +64,9 @@ const PATHS: Record<string, string> = {
   vault: "M4 4h16v16H4zM12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM12 9V6M12 18v-3",
 };
 
+/** An icon's SVG path (24×24, drawn as a 2px stroke), for drawing on a canvas (the graph). */
+export const iconPath = (name: string): string | null => PATHS[name] ?? null;
+
 export function Icon({ name, size = 18 }: { name: string; size?: number }) {
   return (
     <svg className="icon" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

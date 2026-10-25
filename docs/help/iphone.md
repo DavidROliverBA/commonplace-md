@@ -17,6 +17,13 @@ The note fills the screen. The file panel slides in from the left (the button at
 
 Press and hold a note or folder in the file panel to drag it. The view switch at the top of a note goes between editing and reading.
 
+### More room for the note
+
+- Scroll down and the bar at the top tucks away; scroll up a little, or back to the top, and it returns.
+- The round find button steps aside while the bar is away and while you type, and comes back when you pause.
+- **Focus mode**, in a note's **⋯** menu, hides the top bar and the formatting bar too. Tap **Leave focus** at the top right to come back.
+- On a GitHub vault, the branch bar is at the top of the file panel; see [Import, export and GitHub](import-export.md).
+
 ## Offline
 
 Every note you've opened is kept on the phone. With no signal, the app still opens, you can read and edit those notes, and your changes merge with everyone else's when you're back online. Signing out removes them from the phone.

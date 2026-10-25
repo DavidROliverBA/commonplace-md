@@ -24,7 +24,8 @@ flowchart TB
 | --- | --- |
 | [Getting started](getting-started.md) | Signing in, the screen, your first note |
 | [Writing notes](writing.md) | Live Preview, formatting, the `/` menu, tables, pictures |
-| [Links and embeds](links.md) | `[[Links]]`, backlinks, notes inside notes, the graph |
+| [Links and embeds](links.md) | `[[Links]]`, backlinks, notes inside notes |
+| [The graph](graph.md) | Notes and links by type, around one note, filters and parts of the vault |
 | [Organising notes](organising.md) | Folders, tags, bookmarks, Trash and version history |
 | [Properties and types](types.md) | Properties, and types such as Person, Meeting and Book |
 | [Tasks and daily notes](tasks.md) | Every to-do in one place, and a note for each day |

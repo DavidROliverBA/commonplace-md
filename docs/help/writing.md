@@ -73,7 +73,7 @@ A note in the `Templates` folder is a template. **New note from template** (in `
 
 ## Focus mode
 
-**Focus mode** (in `⌘K`) hides everything except the text. Press Escape to leave it.
+**Focus mode** (in `⌘K`, and in the **⋯** menu on the iPhone) hides everything except the text. Press Escape, or tap **Leave focus** on the iPhone, to leave it.
 
 ![Focus mode: just the text](images/focus-mode.webp)
 

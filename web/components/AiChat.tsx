@@ -231,13 +231,14 @@ function ToolLineView({ ok, summary }: { ok: boolean; summary: string }) {
 function ChangeCard({ pending, onDecide }: { pending: Pending; onDecide: (yes: boolean) => void }) {
   const pv = pending.preview!;
   const isMove = pending.name === "move_note";
+  const toVault = pending.name === "copy_to_vault";
   const isWeb = WEB_TOOLS.has(pending.name);
-  const diff = useMemo(() => (isMove || pv.after === null ? null : lineDiff(pv.before ?? "", pv.after)), [pv]);
+  const diff = useMemo(() => (isMove || toVault || pv.after === null ? null : lineDiff(pv.before ?? "", pv.after)), [pv]);
   const [open, setOpen] = useState(true);
   return (
     <div className="ai-change">
       <div className="ai-change-head">
-        <Icon name={isWeb ? "globe" : pv.noteId === null ? "plus" : isMove ? "folder" : "edit"} size={16} />
+        <Icon name={isWeb ? "globe" : toVault ? "vault" : pv.noteId === null ? "plus" : isMove ? "folder" : "edit"} size={16} />
         <b>{pv.summary}</b>
       </div>
       {isWeb && <p className="muted ai-change-note">It has read from the web in this conversation, so each further web request asks first. Check nothing private is in it.</p>}
@@ -272,6 +273,8 @@ function useUndoForApplied(conv: Conversation, vaultId: number) {
     for (const a of fresh) {
       // A merge has relinked other notes and sent one to Trash: that's put back from Trash, not here.
       if (a.tool === "merge_notes") toast(`Applied: ${a.preview.summary}. Restore it from Trash if that was wrong.`);
+      // The copies are in another vault: they go to Trash there, and a moved original comes back from Trash here.
+      else if (a.tool === "copy_to_vault") toast(`Applied: ${a.preview.summary}. To undo it, move the copies to Trash there${a.preview.summary.startsWith("Move") ? " and restore the originals from Trash here" : ""}.`);
       else toast(`Applied: ${a.preview.summary}`, { undo: () => undo(a, vaultId).catch(toastError) });
     }
   });

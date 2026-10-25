@@ -28,9 +28,10 @@ import { History } from "./History";
 import { Icon } from "../ui/Icon";
 import { PanelToggle } from "../ui/PanelToggle";
 import { setFocusMode, useFocusMode } from "../lib/focusMode";
+import { noteTyping, resetChrome, setChromeHidden } from "../lib/phoneChrome";
 import { useNarrow } from "../lib/useNarrow";
 import { navigate, noteUrl } from "../lib/router";
-import { moveToPicker } from "../lib/moving";
+import { moveToPicker, otherVaults, sendToVault } from "../lib/moving";
 import { pickTemplate } from "../lib/templateActions";
 import { addDays, dailyDate, fillTemplate, formatDate } from "../lib/templates";
 import { COMMANDS, currentCtx, type NoteActions, noteMenu, provide } from "../lib/commands";
@@ -106,6 +107,51 @@ export function NoteView(props: Props) {
   const narrow = useNarrow();
   const focusMode = useFocusMode();
   const effectiveMode: Mode = narrow && mode === "split" ? "edit" : readOnly && mode !== "read" ? "read" : mode;
+
+  // On a phone: scrolling down tucks the header away, scrolling up or reaching the top brings it
+  // back (web/lib/phoneChrome.ts). Never while something in the header has focus, and focus
+  // arriving there (the keyboard, VoiceOver) shows it at once.
+  const viewRef = useRef<HTMLDivElement>(null);
+  const headerRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const view = viewRef.current;
+    const header = headerRef.current;
+    if (!narrow || !view || !header) return;
+    const fit = new ResizeObserver(() => view.style.setProperty("--note-header-h", `${header.offsetHeight}px`));
+    fit.observe(header);
+    const last = new WeakMap<EventTarget, number>();
+    let hidden = false;
+    let settleUntil = 0;
+    const onScroll = (e: Event) => {
+      const el = e.target;
+      // the note's own scroller, not a wide table or an embed inside it
+      if (!(el instanceof HTMLElement) || !el.matches(".cm-scroller, .preview")) return;
+      const top = el.scrollTop;
+      const prev = last.get(el) ?? top;
+      last.set(el, top);
+      // The header moving resizes the scroller, which scrolls it: let that settle, or the end of
+      // a note would flicker.
+      if (performance.now() < settleUntil) return;
+      // Nor while a menu or dialog is open: the header moving scrolls the note, which closes menus.
+      if (document.querySelector(".menu, .modal-backdrop, .sheet-backdrop")) return;
+      const next = top < 40 ? false : top - prev > 6 && !header.contains(document.activeElement) ? true : prev - top > 6 ? false : hidden;
+      if (next === hidden) return;
+      hidden = next;
+      settleUntil = performance.now() + 400;
+      setChromeHidden(next);
+    };
+    const show = () => ((hidden = false), setChromeHidden(false));
+    view.addEventListener("scroll", onScroll, true);
+    view.addEventListener("beforeinput", noteTyping, true);
+    header.addEventListener("focusin", show);
+    return () => {
+      fit.disconnect();
+      view.removeEventListener("scroll", onScroll, true);
+      view.removeEventListener("beforeinput", noteTyping, true);
+      header.removeEventListener("focusin", show);
+      resetChrome();
+    };
+  }, [narrow, noteId]);
 
   // Opened from the keyboard (the quick switcher, a command), focus has nowhere to be: put it in
   // the text, so typing just works. Not on the phone, where focus raises the keyboard, and never
@@ -386,6 +432,8 @@ export function NoteView(props: Props) {
     copyLink: () => void navigator.clipboard?.writeText(`[[${note?.title}]]`).then(() => toast("Wikilink copied"), toastError),
     rename: () => setRenaming(true),
     moveTo: () => note && void moveToPicker(vaultId, { kind: "note", id: noteId, path: note.path }, props.folders, props.onMoved),
+    sendTo: (move) => note && void sendToVault(vaultId, { kind: "note", id: noteId, path: note.path }, move, props.onMoved),
+    canSend: otherVaults(vaultId).length > 0,
     trash: () => void remove(),
     pickPicture: () => picker.current?.click(),
     insertTemplate: () => void insertTemplate(),
@@ -420,8 +468,8 @@ export function NoteView(props: Props) {
   }
 
   return (
-    <div className={`note-view mode-${effectiveMode}`}>
-      <header className="note-header">
+    <div className={`note-view mode-${effectiveMode}`} ref={viewRef}>
+      <header className="note-header" ref={headerRef}>
         <PanelToggle side="left" open={props.leftOpen} onToggle={props.onToggleLeft} />
         <div className="note-title-wrap">
           <div className="breadcrumb">
@@ -516,6 +564,11 @@ export function NoteView(props: Props) {
         </div>
       </header>
 
+      {focusMode && narrow && (
+        <button className="focus-exit-float" onClick={() => setFocusMode(false)}>
+          Leave focus
+        </button>
+      )}
       {note && isTypePath(note.path) && <TypeEditor vaultId={vaultId} name={note.title} readOnly={readOnly} />}
       {/* data-synced: the live socket has synced (tests wait on it instead of sleeping). */}
       <div className="note-body" data-synced={synced || undefined}>

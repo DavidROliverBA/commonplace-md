@@ -33,6 +33,9 @@ flowchart TB
 1. Settings → **Connections** → **GitHub**: add a fine-grained token for the repository.
 2. **New vault from GitHub…** in `⌘K`: pick the repository, branch and folder.
 3. Edit as usual. A bar at the top says which branch you're on and how many notes have changed.
+   On an iPhone the bar is at the top of the Files panel, so the note keeps the whole screen; a
+   dot on the Files button means there are changes not on GitHub yet (orange: something to settle,
+   or sending is paused).
 
 ![The branch bar on a GitHub vault](images/github-branch-bar.webp)
 

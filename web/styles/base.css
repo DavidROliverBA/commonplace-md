@@ -34,7 +34,7 @@ a {
   display: none !important;
 }
 
-input:not([type="checkbox"]),
+input:not([type="checkbox"]):not([type="range"]),
 select {
   background: var(--bg);
   border: 1px solid var(--line);
@@ -139,6 +139,23 @@ button.link,
 }
 .icon-btn {
   justify-content: center;
+}
+/* a dot on the Files toggle: the drawer holds something to look at (web/ui/PanelToggle.tsx) */
+.panel-toggle {
+  position: relative;
+}
+.toggle-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+.toggle-badge.warn {
+  background: var(--warn);
 }
 /* Phones: every tap target at least --tap (principle 4). */
 @media (pointer: coarse) {

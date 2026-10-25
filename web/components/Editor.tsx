@@ -36,7 +36,6 @@ import { cachedAssistants, loadAssistants } from "../lib/ai";
 import { type ColourName, stripColour, wrapColour } from "../lib/colours";
 import { api, type NoteSummary } from "../lib/api";
 import { blockHandle } from "../lib/blockHandle";
-import { isOff, offList, unlessOff } from "../lib/debugOff";
 import { available, COMMANDS, currentCtx } from "../lib/commands";
 import { fuzzyScore, linkTextFor } from "../lib/links";
 import { livePreview, refreshLivePreview } from "../lib/livePreview";
@@ -557,53 +556,47 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
         doc: ytext.toString(),
         extensions: [
           roCompartment.current.of([EditorState.readOnly.of(props.readOnly), EditorView.editable.of(!props.readOnly)]),
-          unlessOff("keys", keymap.of([...(isOff("brackets") ? [] : closeBracketsKeymap), ...yUndoManagerKeymap, ...(isOff("complete") ? [] : completionKeymap), ...searchKeymap, ...defaultKeymap, indentWithTab])),
-          unlessOff("drawsel", drawSelection()),
-          unlessOff("drop", dropCursor()),
-          unlessOff("indent", indentOnInput()),
-          unlessOff("match", bracketMatching()),
-          unlessOff("brackets", closeBrackets()),
-          unlessOff("select", highlightSelectionMatches()),
+          keymap.of([...closeBracketsKeymap, ...yUndoManagerKeymap, ...completionKeymap, ...searchKeymap, ...defaultKeymap, indentWithTab]),
+          drawSelection(),
+          dropCursor(),
+          indentOnInput(),
+          bracketMatching(),
+          closeBrackets(),
+          highlightSelectionMatches(),
           // Without the frontmatter wrapper, lezer reads "key: value\n---" as a setext heading.
-          unlessOff("md", yamlFrontmatter({ content: markdown({ base: markdownLanguage, addKeymap: !isOff("mdkeys") }) })),
+          yamlFrontmatter({ content: markdown({ base: markdownLanguage }) }),
           syntaxHighlighting(highlight),
-          unlessOff("wrap", EditorView.lineWrapping),
+          EditorView.lineWrapping,
           // A name for screen readers (and axe): the text box is the note.
           EditorView.contentAttributes.of({ "aria-label": "Note text" }),
-          unlessOff("placeholder", placeholder("Start writing…  / for blocks, [[ links a note, # adds a tag")),
-          unlessOff(
-            "complete",
-            autocompletion({
-              override: [wikilinkCompletions, tagCompletions, slashCompletions, mentionCompletions],
-              icons: false,
-              activateOnTyping: true,
-              // The `/` menu's options carry an icon name in `type`; draw it with the app's icons.
-              addToOptions: [{ render: (c) => (c.type ? iconElement(c.type) : null), position: 20 }],
-            }),
-          ),
-          unlessOff("wiki", wikiPlugin),
-          unlessOff("tag", tagPlugin),
-          lpCompartment.current.of(props.livePreview && !isOff("lp") ? lp : []),
+          placeholder("Start writing…  / for blocks, [[ links a note, # adds a tag"),
+          autocompletion({
+            override: [wikilinkCompletions, tagCompletions, slashCompletions, mentionCompletions],
+            icons: false,
+            activateOnTyping: true,
+            // The `/` menu's options carry an icon name in `type`; draw it with the app's icons.
+            addToOptions: [{ render: (c) => (c.type ? iconElement(c.type) : null), position: 20 }],
+          }),
+          wikiPlugin,
+          tagPlugin,
+          lpCompartment.current.of(props.livePreview ? lp : []),
           twCompartment.current.of(props.typewriter ? typewriterScroll : []),
-          unlessOff("link", linkTooltip),
-          unlessOff("field", inlineField),
-          unlessOff(
-            "handle",
-            blockHandle({
-              ytext,
-              awareness,
-              title: () => {
-                const notes = propsRef.current.notes();
-                const n = notes.find((x) => x.id === propsRef.current.noteId);
-                return n ? linkTextFor(notes, n) : null;
-              },
-              makeTyped: {
-                can: () => !!COMMANDS.find((c) => c.id === "note.typed")?.when(currentCtx()),
-                run: () => COMMANDS.find((c) => c.id === "note.typed")?.run(currentCtx()),
-              },
-            }),
-          ),
-          unlessOff("collab", yCollab(ytext, awareness, { undoManager })),
+          linkTooltip,
+          inlineField,
+          blockHandle({
+            ytext,
+            awareness,
+            title: () => {
+              const notes = propsRef.current.notes();
+              const n = notes.find((x) => x.id === propsRef.current.noteId);
+              return n ? linkTextFor(notes, n) : null;
+            },
+            makeTyped: {
+              can: () => !!COMMANDS.find((c) => c.id === "note.typed")?.when(currentCtx()),
+              run: () => COMMANDS.find((c) => c.id === "note.typed")?.run(currentCtx()),
+            },
+          }),
+          yCollab(ytext, awareness, { undoManager }),
           EditorView.domEventHandlers({
             mousedown(e, view) {
               if (!(e.metaKey || e.ctrlKey)) return false;
@@ -635,7 +628,6 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
       }),
     });
     viewRef.current = view;
-    if (offList().length) toast(`Editor test: ${offList().join(", ")} off`);
     lpRef.current = lp;
     return () => {
       view.destroy();
@@ -670,7 +662,7 @@ export const Editor = forwardRef<EditorHandle, Props>(function Editor(props, ref
   }, []);
 
   useEffect(() => {
-    if (lpRef.current) viewRef.current?.dispatch({ effects: lpCompartment.current.reconfigure(props.livePreview && !isOff("lp") ? lpRef.current : []) });
+    if (lpRef.current) viewRef.current?.dispatch({ effects: lpCompartment.current.reconfigure(props.livePreview ? lpRef.current : []) });
   }, [props.livePreview]);
 
   return <div className={`editor${props.livePreview ? " live-preview" : ""}`} ref={host} />;

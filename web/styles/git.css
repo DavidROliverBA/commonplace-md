@@ -66,6 +66,20 @@
 .branch-bar .primary {
   white-space: nowrap;
 }
+/* on a phone the bar is at the top of the Files drawer: the words get the first line, the
+   buttons the next one, on the right */
+.sidebar .branch-bar {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 6px 8px 6px 12px;
+}
+.sidebar .branch-what {
+  flex: 1 1 calc(100% - 32px);
+}
+.sidebar .branch-line {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
 
 /* the changes page */
 .change-list {

@@ -4,6 +4,65 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-25** — A timeline on the graph (release v0.0.50, F21; `web/components/GraphTimeline.tsx`,
+  `noteWhen` in `src/graph.ts`; design in [design/F21.md](design/F21.md)). **Timeline** in the
+  graph's bar opens a strip: notes per month as bars on a day scale, and a range with two handles.
+  Notes outside fade, or go with Hide the rest; a link shows only when both its notes are in range;
+  every note keeps its place in the layout, so nothing moves. Play grows the range a month at a
+  time (about ten seconds; pressing the graph pauses it; slower steps with Reduce Motion). The
+  handles are sliders with dates as their values (arrows a day, Page Up and Down a month), the
+  count and range are read out ("Showing 42 notes, March to June 2025"), and the range is in the
+  address. A note's date: a daily note's day, then `date:`, `created:` or `day:`, then its type's
+  (`timeline:` in the type, or its first date property that isn't a birthday), then the day it
+  was made. Tests: 3 unit, a browser test, axe on the strip. On the way: range sliders no longer
+  pick up the text box style; the graph's header says "1 link"; on the phone the header no longer
+  moves while a menu is open (moving it scrolled the note, which closed the menu).
+- **2026-10-25** — More room for the note on the iPhone (`web/lib/phoneChrome.ts`). Scrolling
+  down tucks the note's header up out of view and scrolling up, or reaching the top, brings it
+  back; it stays in the page, so focus from the keyboard or VoiceOver shows it, and it never hides
+  while something in it has focus. The find button steps aside while the header is away and for
+  a moment after each keystroke. Focus mode is in the phone's ⋯ menu: no header, no formatting
+  bar, and a Leave focus button. With Reduce Motion, nothing slides. Considered and left out:
+  drawing under the status bar in the home-screen app, which would make the clock white on the
+  light theme and gains nothing, since the header already pads for it.
+- **2026-10-25** — On an iPhone, a GitHub vault's branch bar sits at the top of the Files drawer
+  instead of above the note, so the note keeps the whole screen (`BranchBar.tsx`,
+  `PanelToggle.tsx`). A dot on the Files button stands in for it, with the reason in its label for
+  VoiceOver: accent for changes not on GitHub yet, orange for a clash to settle or paused sending.
+  Review changes and Open PR close the drawer. The laptop is unchanged.
+- **2026-10-24** — Copy or move notes to another vault (release v0.0.49; `src/between.ts`, the
+  `copy_to_vault` tool). In a note's ⋯ menu and a folder's menu: Copy to another vault… and Move
+  to another vault…, picking the vault and then the folder there, with Undo. Embedded pictures and
+  files come along, as does everything in a folder, and any type the other vault lacks (with its
+  saved views). A taken name keeps both; a different file of the same name is renamed and the
+  embed follows. A move carries each note's history and creation date and sends the original to
+  Trash; files are only copied. A viewer can copy out but not move; the other vault needs edit
+  rights. GitHub vaults are vaults like any other. The assistant (and MCP agents) can do it with
+  `copy_to_vault`, which always asks first in the app. Tests: 5 end to end and a browser test.
+  Also fixed two UI-test counts left stale by v0.0.48 (the help page list and the MCP tool list).
+- **2026-10-24** — N14 closed: holding delete in a note on the iPhone keeps deleting again,
+  checked on a real iPhone in Safari and the home-screen app with Live Preview on. It went away
+  with an iOS update after 18.7 (reported 2026-10-17), with nothing else changed on the phone, so
+  it was most likely an iOS bug. The app's own change from that hunt stays (the visual-viewport
+  height is written only when it changes, and not while keys are going down); the temporary
+  `?cm-off=` debug switch (`web/lib/debugOff.ts`) is gone.
+- **2026-10-24** — Laptop guide brought up to date (`laptop/README.md`): the kit rebuilt and
+  started from v0.0.49; offline behaviour of the assistant, web search and GitHub vaults (automatic
+  sending retries every five minutes and sends when back online), and web search added to what
+  leaves the computer.
+- **2026-10-23** — The graph, after Capacities (release v0.0.48; `src/graph.ts`,
+  `web/lib/graph.ts`, `web/components/GraphCanvas.tsx`, `LocalGraph.tsx`, help page `graph.md`).
+  Notes show their type's icon in its colour; links from properties carry the property's name
+  (worked out from frontmatter, alphabetical when there are several); links in the text are
+  fainter. A Graph tab in the side panel centres on the open note with Show more and Show less,
+  and follows you, on the iPhone too. The page shows the whole vault, one note's neighbourhood
+  (`?note=`), or a type, folder, tag or saved search (from the type page, the folder menu, the Tags
+  tab and saved searches). A bar holds filters (only or hide types, unlinked notes, daily notes,
+  busy notes over 25 links, a simplified drawing; kept per vault on the device, with a badge),
+  zoom with fit, a PNG export and Show more / Show less. Find in graph moves to a note, and ⌘K has
+  "This note in the graph". The view keeps fitting while it settles until you touch it; icons and
+  words stay readable when zoomed out. Tests: 5 unit, 1 end to end, a browser test of the tab and
+  page, and axe on the graph with filters open (it caught type-coloured chip text below AA).
 - **2026-10-23** — The AI assistant can use the web (release v0.0.47; `src/web.ts`). It needs
   switching on in two places: Settings → AI assistants → Change → "may search the web and read
   pages" (off by default), then the globe in a conversation (off at the start of each one; ⌘K → Let

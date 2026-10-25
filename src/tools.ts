@@ -6,11 +6,12 @@
 //
 // Each write tool can `preview` its change (what the note is now, and what it would become)
 // without writing, so the app can show a diff and ask before anything outside the open note
-// changes. Nothing deletes outright: merge_notes moves the duplicate to Trash, where it can be
-// restored.
+// changes. Nothing deletes outright: merge_notes moves the duplicate to Trash, and so does
+// copy_to_vault's move, where it can be restored.
 
 import { z } from "zod";
 import { HttpError, type User } from "./auth";
+import * as between from "./between";
 import { flushNote, kick } from "./collab";
 import { normalisePath, parseFrontmatter, rewriteWikiLinks, sectionRange, titleFromPath } from "./markdown";
 import { withProperties } from "./props";
@@ -558,6 +559,32 @@ export const TOOLS: Tool[] = [
     },
   },
   {
+    name: "copy_to_vault",
+    title: "Copy or move notes to another vault",
+    description:
+      "Copy a note, or a whole folder, into another of your vaults (a GitHub vault too), with the pictures and files its notes embed and any type the other vault lacks. With move, each note takes its history along and the original goes to Trash (restorable for 30 days). A name already taken there keeps both (\"Plan 1\").",
+    input: z.object({
+      note: noteArg.optional().describe("The note to send; or leave out and give folder"),
+      folder: z.string().optional().describe('A folder to send with everything in it, e.g. "Projects/Kitchen"'),
+      vault: vaultArg.describe("The vault it's in now (id or name)"),
+      to_vault: z.union([z.number().int(), z.string()]).describe("The vault to send it to (id or name; list_vaults shows them)"),
+      into: z.string().default("").describe('The folder there to put it in; leave out for the top level'),
+      move: z.boolean().default(false).describe("Move instead of copy: the original goes to Trash"),
+    }),
+    writes: true,
+    run: async (ctx, a) => {
+      const r = await planCopy(ctx, a);
+      const out = await between.send(ctx.user, r);
+      return { vault: r.toName, copied: out.created.filter((c) => c.from).map((c) => c.path), moved: a.move, files: out.files.length };
+    },
+    preview: async (ctx, a) => {
+      const r = await planCopy(ctx, a);
+      const p = await between.planSend(ctx.user, r);
+      const one = p.notes.length === 1 ? p.notes[0]! : null;
+      return { summary: between.describePlan(p), noteId: null, path: one?.to ?? r.into, before: one ? `${p.from.name}: ${one.path}` : null, after: one ? `${p.to.name}: ${one.to}` : p.notes.map((n) => n.to).join("\n") };
+    },
+  },
+  {
     name: "merge_notes",
     title: "Merge duplicate notes",
     description:
@@ -594,6 +621,15 @@ export const TOOLS: Tool[] = [
     },
   },
 ];
+
+/** copy_to_vault's arguments as a send between vaults (src/between.ts). */
+async function planCopy(ctx: ToolCtx, a: any) {
+  if (!a.note === !a.folder) throw new HttpError(400, "Give either a note or a folder");
+  const from = await vaultFor(ctx, a.vault, a.move);
+  const to = await vaultFor(ctx, a.to_vault, true);
+  const n = a.note ? await noteFor(from.id, a.note) : null;
+  return { from: from.id, to: to.id, toName: to.name, notes: n ? [n.id] : undefined, folder: a.folder, into: a.into ?? "", move: !!a.move };
+}
 
 /** The tools this caller may see. */
 export const toolsFor = (ctx: ToolCtx) => TOOLS.filter((t) => ctx.canWrite || !t.writes);

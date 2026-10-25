@@ -81,16 +81,20 @@
   display: flex;
   align-items: center;
 }
-.saved-search-x {
+.saved-search-x,
+.saved-search-graph {
   opacity: 0;
   flex: none;
 }
 .saved-search:hover .saved-search-x,
-.saved-search-x:focus-visible {
+.saved-search:hover .saved-search-graph,
+.saved-search-x:focus-visible,
+.saved-search-graph:focus-visible {
   opacity: 1;
 }
 @media (pointer: coarse) {
-  .saved-search-x {
+  .saved-search-x,
+  .saved-search-graph {
     opacity: 1;
   }
 }

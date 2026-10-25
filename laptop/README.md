@@ -309,13 +309,18 @@ Yes, as far as Commonplace is concerned:
 
 - It accepts connections only from your own computer (`127.0.0.1`), unless you [let your iPhone in](#using-it-from-your-iphone).
 - The database isn't reachable from outside its container at all.
-- Nothing leaves your computer unless you use something that needs the internet: an AI assistant (your question and the notes it reads go to that provider), `relaxai` or `voyage` embeddings (note text goes to that provider), a GitHub vault, or a weblink (Commonplace fetches the page's title and picture).
+- Nothing leaves your computer unless you use something that needs the internet: an AI assistant (your question and the notes it reads go to that provider), the assistant's web search (your search goes to Brave, with your own key), `relaxai` or `voyage` embeddings (note text goes to that provider), a GitHub vault, or a weblink (Commonplace fetches the page's title and picture).
 
 Your notes are protected by your computer's own security, so use disk encryption (FileVault, BitLocker) and lock your screen. Backup files contain everything, including password hashes, so keep them somewhere equally safe.
 
 ### Does it work offline?
 
-Yes. Writing, linking, search (with the default `hash` embeddings), queries, diagrams, history and publishing all work without a network. The things in the list above need it.
+Yes. Writing, linking, search (with the default `hash` embeddings), queries, diagrams, the graph, history, copying and moving notes between your vaults, and publishing all work without a network. The things in the list above need it.
+
+What happens to those while you're offline:
+
+- **AI assistants and web search** say they can't reach the provider. Ask again when you're back online.
+- **A GitHub vault** keeps your changes and shows them as changes to send. If it sends automatically, it tries again every five minutes and sends once you're back online; it doesn't pause or lose anything. **Update** and pull requests wait until then.
 
 ### Can I publish a website from it?
 

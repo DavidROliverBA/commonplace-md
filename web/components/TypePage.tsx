@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import { linkTargets, type TypeProp } from "../../src/types";
 import { api, type NoteSummary, type Vault } from "../lib/api";
 import { fromBase, type Section, toBase, type View, type ViewKind } from "../lib/bases";
+import { graphUrl } from "../lib/graph";
 import { navigate, noteUrl } from "../lib/router";
 import { relativeTime, resolveLocal } from "../lib/links";
 import { createType, createTypedNote, setProperties, typeNamed, useTypes } from "../lib/types";
@@ -169,6 +170,9 @@ export function TypePage(p: Props) {
           <Icon name={type?.icon ?? "shapes"} /> {p.name} <span className="count">{rows?.length ?? ""}</span>
         </h1>
         <div className="note-actions">
+          <button className={narrow ? "icon-btn" : "quiet"} onClick={() => navigate(graphUrl(p.vault.id, { type: p.name }))} title={`The graph of every ${p.name}`} aria-label={`Graph of ${p.name}`}>
+            <Icon name="graph" size={16} /> {!narrow && "Graph"}
+          </button>
           {type && (
             <button className={narrow ? "icon-btn" : "quiet"} onClick={() => open(type.noteId)} title="Edit the type: its properties, icon, colour and template" aria-label="Edit the type">
               <Icon name="settings" size={16} /> {!narrow && "Edit type"}

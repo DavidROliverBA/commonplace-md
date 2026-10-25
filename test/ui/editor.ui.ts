@@ -669,6 +669,27 @@ describe("folders, drag and drop, trash", () => {
     await p.close();
   });
 
+  test("Copy to another vault… picks the vault and its folder, and Undo takes the copy away", async () => {
+    const other = await api("/vaults", { name: "Second vault" });
+    await api(`/vaults/${other.id}/notes`, { path: "Kept/Here.md", content: "" });
+    const n = await note("Shared plan.md", "copy me");
+    const p = await openNote(n.id);
+    await p.click('button[aria-label="More"]');
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent === "Copy to another vault…")!.click());
+    await p.waitForSelector(".choose-list li");
+    await p.keyboard.type("second");
+    await p.keyboard.press("Enter");
+    await until(async () => (await p.$eval(".modal h2", (e) => e.textContent).catch(() => "")) === "Into which folder of Second vault?");
+    await p.keyboard.type("kept");
+    await p.keyboard.press("Enter");
+    const there = async () => ((await api(`/vaults/${other.id}/notes`)) as { path: string }[]).map((x) => x.path).sort();
+    await until(async () => (await there()).includes("Kept/Shared plan.md"));
+    expect(await paths()).toContain("Shared plan.md"); // a copy: the original stays
+    await clickToast(p, "Undo");
+    await until(async () => !(await there()).includes("Kept/Shared plan.md"));
+    await p.close();
+  });
+
   test("Move to Trash, then restore from the Trash screen", async () => {
     const n = await note("Doomed.md", "keep me");
     const p = await openNote(n.id);
@@ -706,6 +727,42 @@ describe("folders, drag and drop, trash", () => {
     expect(height).toBeGreaterThanOrEqual(44); // a finger-sized target
     await p.click(".menu-cancel");
     await p.waitForSelector(".menu.sheet", { hidden: true });
+    await p.close();
+  });
+
+  test("on a phone scrolling down tucks the header and find button away, and up brings them back; focus mode from the menu", async () => {
+    const n = await note("Long read.md", Array.from({ length: 120 }, (_, i) => `Line ${i + 1} of a long note.`).join("\n\n"));
+    const p = await openNote(n.id, true);
+    const scrollBy = (y: number) => p.evaluate((y) => document.querySelector(".cm-scroller")!.scrollBy(0, y), y);
+    await scrollBy(300);
+    await Bun.sleep(100);
+    await scrollBy(300);
+    await p.waitForSelector(".app.chrome-hidden");
+    await Bun.sleep(400);
+    const head = (await (await p.$(".note-header"))!.boundingBox())!;
+    expect(head.y + head.height).toBeLessThanOrEqual(1);
+    expect(await p.$eval(".fab", (e) => getComputedStyle(e).visibility)).toBe("hidden");
+    // Focus arriving in the header (the keyboard, VoiceOver) shows it.
+    await p.focus(".note-header .panel-toggle");
+    await p.waitForSelector(".app:not(.chrome-hidden)");
+    await p.evaluate(() => (document.activeElement as HTMLElement).blur());
+    await scrollBy(400);
+    await Bun.sleep(100);
+    await scrollBy(400);
+    await p.waitForSelector(".app.chrome-hidden");
+    await Bun.sleep(450);
+    await scrollBy(-200);
+    await p.waitForSelector(".app:not(.chrome-hidden)");
+    await Bun.sleep(400); // the header sliding back
+    // Focus mode: no header or formatting bar, and a way out.
+    await p.click('button[aria-label="More"]');
+    await p.waitForSelector(".menu.sheet");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".menu-item")].find((b) => b.textContent?.includes("Focus mode"))!.click());
+    await p.waitForSelector(".focus-exit-float");
+    expect(await p.$eval(".note-header", (e) => getComputedStyle(e).display)).toBe("none");
+    await p.click(".focus-exit-float");
+    await p.waitForSelector(".focus-exit-float", { hidden: true });
+    expect(await p.$eval(".note-header", (e) => getComputedStyle(e).display)).not.toBe("none");
     await p.close();
   });
 });
@@ -769,6 +826,75 @@ describe("commands: the / menu and ⌘K", () => {
     await until(() => p.url().endsWith(`/v/${vaultId}/graph`));
     await p.close();
   });
+
+  test("the graph after Capacities: the side panel's tab around the note, Show more, and the page with filters and a scope", async () => {
+    await note("Graphs/Far.md", "# Far\n");
+    await note("Graphs/Near.md", "# Near\n\nSee [[Far]].\n");
+    const n = await note("Graphs/Middle.md", "# Middle\n\nNext to [[Near]].\n");
+    const p = await openNote(n.id);
+    if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
+    await p.waitForSelector(".right-tabs [role=tab]");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((b) => b.textContent?.includes("Graph"))!.click());
+    await p.waitForSelector(".local-graph .graph-canvas");
+    const label = () => p.$eval(".local-graph .graph-canvas", (c) => c.getAttribute("aria-label"));
+    await until(async () => (await label()) === "Notes linked with Middle: 1");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".local-graph button")].find((b) => b.textContent === "Show more")!.click());
+    await until(async () => (await label()) === "Notes linked with Middle: 2");
+    // The page around the note, then scoped to a folder, with the filters panel.
+    await p.click('.local-graph button[aria-label="Open the full graph around this note"]');
+    await until(() => p.url().endsWith(`/graph?note=${n.id}`));
+    await p.waitForSelector(".graph-scope");
+    expect(await p.$eval(".graph-scope", (e) => e.textContent)).toContain("around Middle");
+    await p.goto(`${BASE}/v/${vaultId}/graph?folder=Graphs`);
+    await until(async () => ((await p.$eval(".graph-view .graph-canvas", (c) => c.getAttribute("aria-label")).catch(() => "")) ?? "").startsWith("Graph of Graphs/: 3 notes and 2 links"));
+    await p.click(".graph-bar button[aria-expanded]");
+    await p.waitForSelector(".graph-filters");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLInputElement>(".graph-filters label")].find((l) => l.textContent?.includes("Notes with no links"))!.querySelector("input")!.click());
+    expect(await p.$eval(".graph-badge", (e) => e.textContent)).toBe("1");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLInputElement>(".graph-filters label")].find((l) => l.textContent?.includes("Notes with no links"))!.querySelector("input")!.click());
+    await p.close();
+  });
+
+  test("the graph's timeline: notes by their dates, a range by keyboard, Hide the rest, the address, and Play", async () => {
+    await note("Dated/Kickoff.md", "---\ndate: 2025-01-10\n---\n# Kickoff\n");
+    await note("Dated/Review.md", "---\ndate: 2025-03-20\n---\n# Review\n\nAfter [[Kickoff]].\n");
+    await note("Dated/Launch.md", "---\ncreated: 2025-06-02\n---\n# Launch\n\nAfter [[Review]].\n");
+    const p = await open(`/v/${vaultId}/graph?folder=Dated`);
+    await p.waitForSelector(".graph-view .graph-canvas");
+    const timelineButton = () => p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".graph-bar button")].find((b) => b.textContent?.includes("Timeline"))!.click());
+    await timelineButton();
+    await p.waitForSelector(".graph-timeline");
+    const words = () => p.$eval(".timeline-words", (e) => e.textContent ?? "");
+    expect(await words()).toBe("Showing 3 notes, 10 January to 2 June 2025");
+    expect(await p.$$eval(".timeline-bar", (l) => l.length)).toBe(6); // January to June, empty months too
+    // The end handle back a month (Page Down), then the start on a day (arrow): two notes, then one.
+    await p.focus(".timeline-to");
+    await p.keyboard.press("PageDown");
+    await until(async () => (await words()) === "Showing 2 notes, 10 January to 2 May 2025");
+    expect(await p.$eval(".timeline-to", (e) => e.getAttribute("aria-valuetext"))).toBe("2 May 2025");
+    await p.focus(".timeline-from");
+    await p.keyboard.press("ArrowRight");
+    await until(async () => (await words()) === "Showing 1 note, 11 January to 2 May 2025");
+    expect(new URL(p.url()).searchParams.get("from")).toBe("2025-01-11");
+    expect(new URL(p.url()).searchParams.get("to")).toBe("2025-05-02");
+    await p.evaluate(() => [...document.querySelectorAll<HTMLLabelElement>(".graph-timeline label")].find((l) => l.textContent?.includes("Hide the rest"))!.querySelector("input")!.click());
+    // The address opens the same range.
+    const q = new URL(p.url()).search;
+    const again = await open(`/v/${vaultId}/graph${q}`);
+    await again.waitForSelector(".graph-timeline");
+    expect(await again.$eval(".timeline-words", (e) => e.textContent)).toBe("Showing 1 note, 11 January to 2 May 2025");
+    await again.close();
+    // Play runs from the first month to the last, then stops.
+    await p.click('.graph-timeline button[aria-label^="Play"]');
+    await p.waitForSelector('.graph-timeline button[aria-label="Pause"]');
+    await until(async () => (await words()) === "Showing 3 notes, 10 January to 2 June 2025", 15000);
+    await p.waitForSelector('.graph-timeline button[aria-label^="Play"]');
+    // All dates, and closing the timeline takes the range out of the address.
+    await p.click('.graph-timeline button[aria-label="Close the timeline"]');
+    await p.waitForSelector(".graph-timeline", { hidden: true });
+    expect(new URL(p.url()).searchParams.get("from")).toBeNull();
+    await p.close();
+  });
 });
 
 describe("help", () => {
@@ -781,7 +907,7 @@ describe("help", () => {
     await p.click('.sidebar-foot [aria-label="Help"]');
     await p.waitForSelector(".help-page h1");
     expect(await heading(p)).toBe("Help");
-    expect(await p.$$eval(".help-nav button", (b) => b.length)).toBe(17);
+    expect(await p.$$eval(".help-nav button", (b) => b.length)).toBe(18);
     await p.waitForFunction(() => !!document.querySelector(".help-page .mermaid-diagram")?.shadowRoot?.querySelector("svg"));
     await p.evaluate(() => [...document.querySelectorAll<HTMLAnchorElement>(".help-page a.internal-link")].find((a) => a.textContent === "Links and embeds")!.click());
     await p.waitForFunction(() => document.querySelector(".help-page h1")?.textContent === "Links and embeds");
@@ -967,11 +1093,19 @@ describe("GitHub vaults (F14)", () => {
     await p.keyboard.type("Checked the flue.");
     await p.waitForFunction(() => document.querySelector(".branch-bar")?.textContent?.includes("1 note changed"), { timeout: 8000 });
     expect(await barText(p)).toContain("On commonplace/boiler");
-    // The iPhone shows the same bar.
+    // The iPhone keeps the bar in the Files drawer, leaving the note the screen, with a dot on Files.
     const phone = await open(`/v/${gv}/n/${boiler.id}`, true);
-    await phone.waitForFunction(() => document.querySelector(".branch-bar")?.textContent?.includes("1 note changed"));
-    const bar = (await (await phone.$(".branch-bar"))!.boundingBox())!;
-    expect(bar.width).toBeLessThanOrEqual(390);
+    await phone.waitForSelector('.note-header .panel-toggle[aria-label="Files, changes not on GitHub yet"] .toggle-badge');
+    expect(await phone.$(".main .branch-bar")).toBeNull();
+    await phone.click(".note-header .panel-toggle");
+    await phone.waitForFunction(() => document.querySelector(".sidebar .branch-bar")?.textContent?.includes("1 note changed"));
+    await Bun.sleep(400); // the drawer slides in
+    const bar = (await (await phone.$(".sidebar .branch-bar"))!.boundingBox())!;
+    expect(bar.x).toBeGreaterThanOrEqual(0);
+    expect(bar.x + bar.width).toBeLessThanOrEqual(390);
+    await phone.click(".sidebar .branch-count");
+    await phone.waitForSelector(".change-edited");
+    expect(await phone.$(".app.left-open")).toBeNull();
     await phone.close();
     await p.close();
   });
@@ -1166,7 +1300,7 @@ describe("connect Claude (MCP)", () => {
     expect(cmd).toContain(`${BASE}/mcp`);
     const list = () =>
       fetch(`${BASE}/mcp`, { method: "POST", headers: { authorization: `Bearer ${token}`, "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/list" }) });
-    expect((await (await list()).json()).result.tools.length).toBe(16);
+    expect((await (await list()).json()).result.tools.length).toBe(17);
     await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".capture-setup button")].find((b) => b.textContent === "Done")!.click());
     await p.waitForFunction(() => [...document.querySelectorAll(".members li")].some((li) => li.textContent?.includes("read and write")));
     await p.evaluate(() =>
@@ -1792,6 +1926,14 @@ describe("accessibility (axe)", () => {
         await p.goto(`${BASE}/v/${vaultId}/tasks`);
         await p.waitForFunction(() => document.body.innerText.includes("Choose tiles"));
         problems.push(...(await audit(p, `${tag} tasks`)));
+        await p.goto(`${BASE}/v/${vaultId}/graph?type=Gadget`);
+        await p.waitForSelector(".graph-bar");
+        await p.click(".graph-bar button[aria-expanded]");
+        await p.waitForSelector(".graph-filters");
+        problems.push(...(await audit(p, `${tag} graph with filters`)));
+        await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".graph-bar button")].find((b) => b.textContent?.includes("Timeline"))!.click());
+        await p.waitForSelector(".graph-timeline");
+        problems.push(...(await audit(p, `${tag} graph with the timeline`)));
         if (!phone) {
           await p.keyboard.down("Meta");
           await p.keyboard.press("k");

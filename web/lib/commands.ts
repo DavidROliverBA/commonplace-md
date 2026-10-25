@@ -40,6 +40,8 @@ export interface AppActions {
   findNote(): void;
   search(): void;
   graph(): void;
+  /** The graph page centred on the open note (null when no note is open). */
+  graphHere: (() => void) | null;
   /** Every task in the vault. */
   tasks(): void;
   home(): void;
@@ -96,6 +98,9 @@ export interface NoteActions {
   copyLink(): void;
   rename(): void;
   moveTo(): void;
+  /** Copy or move it to another of your vaults; `canSend` when there's one you can add to. */
+  sendTo(move: boolean): void;
+  canSend: boolean;
   trash(): void;
   pickPicture(): void;
   insertTemplate(): void;
@@ -256,6 +261,8 @@ export const COMMANDS: Command[] = [
   { id: "note.copylink", title: "Copy wikilink", group: "Note", icon: "link", keywords: "clipboard [[", noteMenu: true, when: (c) => !!c.note, run: (c) => c.note!.copyLink() },
   { id: "note.rename", title: "Rename", group: "Note", icon: "edit", keywords: "title name", noteMenu: true, when: writable, run: (c) => c.note!.rename() },
   { id: "note.move", title: "Move to…", group: "Note", icon: "folder", keywords: "file folder organise", noteMenu: true, when: writable, run: (c) => c.note!.moveTo() },
+  { id: "note.copyvault", title: "Copy to another vault…", group: "Note", icon: "copy", keywords: "duplicate vault repo github send", noteMenu: true, when: (c) => !!c.note?.canSend, run: (c) => c.note!.sendTo(false) },
+  { id: "note.movevault", title: "Move to another vault…", group: "Note", icon: "vault", keywords: "transfer vault repo github send", noteMenu: true, when: (c) => writable(c) && c.note!.canSend, run: (c) => c.note!.sendTo(true) },
   { id: "note.trash", title: "Move to Trash", group: "Note", icon: "trash", keywords: "delete remove", noteMenu: true, danger: true, when: writable, run: (c) => c.note!.trash() },
 
   // ── Create, go, vault (the palette) ────────────────────────────────────────────────────
@@ -280,6 +287,7 @@ export const COMMANDS: Command[] = [
   { id: "go.search", title: "Search", group: "Go", icon: "search", shortcut: "⌘⇧F", keywords: "full text find in notes", when: (c) => !!c.app, run: (c) => c.app!.search() },
   { id: "go.tasks", title: "Tasks", group: "Go", icon: "check", keywords: "todo to-do checklist due open done", when: (c) => !!c.app, run: (c) => c.app!.tasks() },
   { id: "go.graph", title: "Graph view", group: "Go", icon: "graph", keywords: "map links network", when: (c) => !!c.app, run: (c) => c.app!.graph() },
+  { id: "go.graph.here", title: "This note in the graph", group: "Go", icon: "graph", keywords: "map links network local neighbourhood around", when: (c) => !!c.app?.graphHere, run: (c) => c.app!.graphHere!() },
   { id: "go.home", title: "Vault home", group: "Go", icon: "vault", keywords: "start recent", when: (c) => !!c.app, run: (c) => c.app!.home() },
   { id: "view.files", title: "Show or hide the file panel", group: "View", icon: "panel-left", shortcut: "⌘\\", keywords: "sidebar files tree left folders focus", when: (c) => !!c.app, run: (c) => c.app!.toggleLeft() },
   { id: "ai.web.on", title: "Let the AI use the web", group: "View", icon: "globe", keywords: "assistant internet search browse online brave", when: () => !!panel.conv?.assistant.web && !panel.conv.web, run: () => panel.conv!.setWeb(true) },
@@ -305,7 +313,7 @@ export const COMMANDS: Command[] = [
 
 /** The note's ⋯ menu, in this order. View switches are there only on a phone, where the header
  *  has one Edit/Read toggle instead of the mode buttons. */
-const NOTE_MENU = ["note.source", "note.live", "note.bookmark", "note.unbookmark", "note.history", "note.download", "note.copylink", "insert.property", "insert.picture", "insert.template", "note.rename", "note.move", "note.trash"];
+const NOTE_MENU = ["note.source", "note.live", "view.focus", "view.unfocus", "note.bookmark", "note.unbookmark", "note.history", "note.download", "note.copylink", "insert.property", "insert.picture", "insert.template", "note.rename", "note.move", "note.copyvault", "note.movevault", "note.trash"];
 export function noteMenu(): Command[] {
   return NOTE_MENU.map((id) => COMMANDS.find((c) => c.id === id)!).filter((c) => c.when(ctx) && (c.group !== "View" || !!ctx.note?.narrow));
 }

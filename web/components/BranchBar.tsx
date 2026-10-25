@@ -3,6 +3,8 @@
 // changes, open the pull request (or push more to it), and in its menu update from the base
 // branch or cancel the branch. When changes go on their own (F19), a second line says what's
 // next ("Next PR at 18:00 · 3 changes waiting · sends as Sam"), with Send now and Pause.
+// On a phone it sits at the top of the Files drawer instead, so the note gets the whole screen,
+// and `filesBadge` puts a dot on the Files button when something there wants you.
 
 import type { Vault } from "../lib/api";
 import { autoLine, cancelBranch, changedLabel, type GitStatus, sendNow, setPaused, updateFromBase } from "../lib/git";
@@ -10,17 +12,30 @@ import { navigate } from "../lib/router";
 import { openSettings } from "../lib/settings";
 import { Icon } from "../ui/Icon";
 import { Menu } from "../ui/Menu";
+import type { ToggleBadge } from "../ui/PanelToggle";
 
 interface Props {
   vault: Vault;
   status: GitStatus | null;
   onPullRequest: () => void;
+  /** After a step that leaves the bar (closes the drawer on a phone). */
+  onNavigate?: () => void;
 }
 
-export function BranchBar({ vault, status: st, onPullRequest }: Props) {
+/** What the Files button's dot says when the bar is in the drawer; null when all's quiet. */
+export function filesBadge(st: GitStatus | null): ToggleBadge | null {
+  if (!st) return null;
+  if (st.clashes.length) return { text: `${st.clashes.length} to settle on GitHub`, warn: true };
+  if (st.auto.paused) return { text: "sending to GitHub paused", warn: true };
+  if (st.unpushed || st.auto.waiting || (!st.pushed && st.changes.length)) return { text: "changes not on GitHub yet" };
+  return null;
+}
+
+export function BranchBar({ vault, status: st, onPullRequest: openPr, onNavigate = () => {} }: Props) {
   if (!st) return <div className="branch-bar" aria-busy="true" />;
   const canWrite = vault.role !== "viewer";
-  const review = () => navigate(`/v/${vault.id}/changes`);
+  const review = () => (navigate(`/v/${vault.id}/changes`), onNavigate());
+  const onPullRequest = () => (onNavigate(), openPr());
   const auto = st.auto.mode !== "ask";
   const publishing = st.auto.mode === "publish";
   const line = autoLine(st);

@@ -4,13 +4,14 @@
 // (web/lib/useTreeDrag.tsx). Which folders are open, the sort and the Types fold are remembered on
 // this device (localStorage); the tab and search query live in App.
 
-import { useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { api, type NoteSummary, type Session, type Vault } from "../lib/api";
 import { allFolders, type DragItem } from "../lib/move";
-import { moveItem, moveToPicker } from "../lib/moving";
+import { moveItem, moveToPicker, otherVaults, sendToVault } from "../lib/moving";
 import { provide } from "../lib/commands";
 import { noteUrl, navigate, usePath } from "../lib/router";
 import { typeUrl, useTypes } from "../lib/types";
+import { graphUrl } from "../lib/graph";
 import { useBookmarks } from "../lib/bookmarks";
 import { removeSearch, useSavedSearches } from "../lib/savedSearches";
 import { useTreeDrag } from "../lib/useTreeDrag";
@@ -77,6 +78,8 @@ interface Props {
   /** New vault from GitHub (F14). */
   onNewGitVault: () => void;
   onNavigate: () => void;
+  /** A GitHub vault's bar, on a phone (on a laptop it sits above the note). */
+  branchBar?: ReactNode;
 }
 
 type Sort = "name" | "changed" | "created";
@@ -130,6 +133,9 @@ function ShortcutsSection({ vaultId, notes, activeId, onNavigate, onSearch }: { 
                 <button className="type-row" onClick={() => onSearch(s.query)} title={`Search for ${s.query}`}>
                   <Icon name="search" size={16} />
                   <span className="type-row-name">{s.query}</span>
+                </button>
+                <button className="quiet icon-btn saved-search-graph" aria-label={`Graph of ${s.query}`} title="Show these notes in the graph" onClick={() => (navigate(graphUrl(vaultId, { search: s.query })), onNavigate())}>
+                  <Icon name="graph" size={14} />
                 </button>
                 <button className="quiet icon-btn saved-search-x" aria-label={`Remove the saved search ${s.query}`} title="Remove" onClick={() => removeSearch(vaultId, s)}>
                   <Icon name="x" size={14} />
@@ -353,6 +359,9 @@ export function Sidebar(p: Props) {
                         { label: "New folder inside", icon: "folder-plus", onSelect: () => void newFolder(f.path) },
                         { label: "Rename", icon: "edit", onSelect: () => void renameFolder(f.path) },
                         { label: "Move to…", icon: "folder", onSelect: () => void moveToPicker(p.vault.id, { kind: "folder", path: f.path }, folderList, p.onFoldersChanged) },
+                        { label: "Copy to another vault…", icon: "copy", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, false, p.onFoldersChanged) },
+                        { label: "Move to another vault…", icon: "vault", hidden: !otherVaults(p.vault.id).length, onSelect: () => void sendToVault(p.vault.id, { kind: "folder", path: f.path }, true, p.onFoldersChanged) },
+                        { label: "Show in graph", icon: "graph", onSelect: () => (navigate(graphUrl(p.vault.id, { folder: f.path })), p.onNavigate()) },
                         { label: "Delete empty folder", icon: "trash", danger: true, hidden: f.notes.length > 0 || f.folders.size > 0, onSelect: () => void deleteFolder(f.path) },
                       ]}
                     />
@@ -423,6 +432,7 @@ export function Sidebar(p: Props) {
           <Icon name="settings" />
         </button>
       </div>
+      {p.branchBar}
 
       <div className="sidebar-actions">
         {canWrite && (
@@ -483,6 +493,9 @@ export function Sidebar(p: Props) {
                 >
                   <span>#{t.tag}</span>
                   <span className="count">{t.count}</span>
+                </button>
+                <button className="quiet icon-btn tag-graph" aria-label={`Graph of #${t.tag}`} title={`Show #${t.tag} in the graph`} onClick={() => (navigate(graphUrl(p.vault.id, { tag: t.tag })), p.onNavigate())}>
+                  <Icon name="graph" size={14} />
                 </button>
               </li>
             ))}
