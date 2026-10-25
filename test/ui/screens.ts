@@ -1,7 +1,8 @@
 // Screenshots of the main screens on a laptop and an iPhone, in light and dark, for checking the
 // design against docs/PRINCIPLES.md. Not a test: `bun run screens [out-dir]` (default ./screens,
 // gitignored). `bun run screens --help` also writes the help's pictures (docs/help/images/, light
-// only), including one of the standalone file. Like the UI tests it needs Chrome and the docker database, on which it drops and
+// only), including one of the standalone file. `bun run readme:shot` only makes the README's
+// picture (docs/images/hero.webp): the app on a laptop in dark and an iPhone in light, framed. Like the UI tests it needs Chrome and the docker database, on which it drops and
 // recreates its own scratch database, `commonplace_screens`.
 
 import { mkdirSync } from "node:fs";
@@ -20,6 +21,7 @@ const DB = ADMIN_DB.replace(/\/[^/]+$/, "/commonplace_screens");
 const OUT = process.argv.slice(2).find((a) => !a.startsWith("--")) ?? "screens";
 const HELP = process.argv.includes("--help");
 const HELP_DIR = "docs/help/images";
+const README = process.argv.includes("--readme");
 /** The shots the help pages show (docs/help/*.md), and their names there. */
 const HELP_SHOTS: Record<string, string> = {
   "laptop-light-1-home": "vault-home",
@@ -153,6 +155,62 @@ try {
   const { slug } = await api(`/vaults/${vaultId}/site/publish`, {});
   await api(`/vaults/${vaultId}/notes`, { path: "Recipes/Flapjacks.md", content: "# Flapjacks\n\n- oats\n- golden syrup" });
 
+  /** The README's picture: the kitchen plan with the file panel and a widened Graph tab on a
+   *  laptop in dark, the same note on an iPhone in light, framed on the accent colour. */
+  async function readmeShot() {
+    await api(`/vaults/${vaultId}/notes/${kitchen.id}/content`, {
+      content: (await api(`/vaults/${vaultId}/notes/${kitchen.id}`)).content.replace("and ==new lighting==.", "and ==new lighting==. Settled at the [[Kitchen kickoff]] with [[Priya Shah]] and [[Tom Reed]]."),
+    }, "PUT");
+    const b = await launch();
+    const take = async (device: "laptop" | "phone") => {
+      const p = await b.newPage();
+      await p.setViewport(device === "phone" ? { width: 390, height: 844, isMobile: true, hasTouch: true, deviceScaleFactor: 2 } : { width: 1440, height: 900, deviceScaleFactor: 2 });
+      await p.emulateMediaFeatures([{ name: "prefers-color-scheme", value: device === "phone" ? "light" : "dark" }]);
+      await p.setCookie({ name: "cp_session", value: cookie.split("=")[1]!, url: BASE });
+      await p.goto(`${BASE}/v/${vaultId}`, { waitUntil: "load" });
+      await p.evaluate(() => localStorage.setItem("cp:right-w", "440"));
+      await p.goto(`${BASE}/v/${vaultId}/n/${kitchen.id}`, { waitUntil: "load" });
+      await p.waitForSelector(".cm-content");
+      if (device === "laptop") {
+        // Join Priya's vault, so the file panel opens on the vault rather than the invitation.
+        const join = await p.$$(".sidebar button").then(async (bs) => { for (const x of bs) if ((await x.evaluate((e) => e.textContent)) === "Join vault") return x; });
+        if (join) (await join.click(), await Bun.sleep(600), await p.goto(`${BASE}/v/${vaultId}/n/${kitchen.id}`, { waitUntil: "load" }), await p.waitForSelector(".cm-content"));
+        if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
+        if (!(await p.$(".app.right-open"))) await p.click('button[aria-label="Side panel"]');
+        await p.waitForSelector(".right-tabs [role=tab]");
+        await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".right-tabs [role=tab]")].find((t) => t.textContent?.includes("Graph"))?.click());
+        await p.waitForSelector(".local-graph .graph-canvas");
+        await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".local-graph button")].find((t) => t.textContent === "Show more")?.click());
+        await Bun.sleep(3500);
+      } else await Bun.sleep(1200);
+      const png = Buffer.from(await p.screenshot({ type: "png" })).toString("base64");
+      await p.close();
+      return `data:image/png;base64,${png}`;
+    };
+    const [laptop, phone] = [await take("laptop"), await take("phone")];
+    const p = await b.newPage();
+    await p.setViewport({ width: 1800, height: 1000, deviceScaleFactor: 1.5 });
+    await p.setContent(`<!doctype html><style>
+      body { margin: 0; width: 1800px; height: 1000px; overflow: hidden; font-family: -apple-system, system-ui, sans-serif;
+        background: radial-gradient(1300px 700px at 15% 0%, #8b7cf0 0%, transparent 60%), radial-gradient(900px 700px at 100% 100%, #2b8a8a 0%, transparent 55%), #1d1640; }
+      .win { position: absolute; left: 60px; top: 70px; width: 1320px; border-radius: 14px; overflow: hidden; background: #15131c;
+        box-shadow: 0 40px 90px rgba(0,0,0,.55), 0 0 0 1px rgba(255,255,255,.12); }
+      .bar { height: 34px; display: flex; align-items: center; gap: 8px; padding: 0 14px; background: #24212e; }
+      .bar i { width: 12px; height: 12px; border-radius: 50%; display: block; }
+      .bar span { flex: 1; text-align: center; color: #9b97a8; font-size: 13px; margin-right: 52px; }
+      .win img { display: block; width: 100%; }
+      .phone { position: absolute; right: 60px; bottom: 44px; width: 340px; padding: 12px; border-radius: 56px; background: #0b0a0f;
+        box-shadow: 0 40px 90px rgba(0,0,0,.6), 0 0 0 2px #3a3646; }
+      .phone img { display: block; width: 100%; border-radius: 44px; }
+    </style>
+    <div class="win"><div class="bar"><i style="background:#ff5f57"></i><i style="background:#febc2e"></i><i style="background:#28c840"></i><span>Commonplace</span></div><img src="${laptop}"></div>
+    <div class="phone"><img src="${phone}"></div>`, { waitUntil: "load" });
+    mkdirSync("docs/images", { recursive: true });
+    await p.screenshot({ path: "docs/images/hero.webp", type: "webp", quality: 82 });
+    await b.close();
+    console.log("README picture in docs/images/hero.webp");
+  }
+
   // A fresh browser for each device and theme: headless Chrome stalls after many pages.
   const launch = () => puppeteer.launch({ executablePath: chromePath(), headless: true, args: ["--no-sandbox"] });
   let browser = await launch();
@@ -162,7 +220,8 @@ try {
     await p.screenshot({ path: join(OUT, `${name}.png`) });
     if (HELP && HELP_SHOTS[name]) await p.screenshot({ path: join(HELP_DIR, `${HELP_SHOTS[name]}.webp`) as `${string}.webp`, type: "webp", quality: 72 });
   };
-  for (const device of ["laptop", "phone"] as const) {
+  if (README) await readmeShot();
+  for (const device of README ? [] : (["laptop", "phone"] as const)) {
     for (const scheme of HELP ? (["light"] as const) : (["light", "dark"] as const)) {
       await browser.close();
       browser = await launch();
@@ -502,7 +561,7 @@ try {
     }
   }
   // The standalone file with the allotment demo folder open, for the help's page about it.
-  if (HELP) {
+  if (HELP && !README) {
     const build = Bun.spawnSync(["bun", "standalone/build.ts"]);
     if (build.exitCode !== 0) throw new Error(build.stderr.toString());
     const html = Bun.file("standalone/dist/commonplace.html");
@@ -542,7 +601,7 @@ try {
     file.stop(true);
   }
   await browser.close();
-  console.log(`Screenshots in ${OUT}/`);
+  if (!README) console.log(`Screenshots in ${OUT}/`);
 } finally {
   fake.stop();
   fakeGh.stop();

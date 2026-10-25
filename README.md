@@ -1,157 +1,30 @@
 # Commonplace
 
-A multi-user Markdown knowledge base. Notes live in **Postgres with pgvector**,
-several people can edit the same note at once with live cursors, and the web UI works on a laptop
-and as a home-screen app on an iPhone. Everything imports from and exports to plain markdown, so
-an exported zip is a plain folder of Markdown files that other Markdown editors open as they are.
+**A Markdown knowledge base that several people can share, that works on your phone, and that you can always take with you as plain Markdown.**
 
-**Documentation:**
+![Commonplace on a laptop in dark mode, with the file panel, a note with properties, tasks and a callout, and the graph in the side panel; beside it the same note on an iPhone in light mode](docs/images/hero.webp)
 
-- [Help](docs/help/index.md): the user guide, with diagrams and screenshots. The same pages are
-  in the app (the ? at the bottom of the file panel, or ⌘K → Help) and in the standalone file.
-- [Architecture](docs/ARCHITECTURE.md): how it's built, and why.
-- [Principles](docs/PRINCIPLES.md): the design bar.
-- [Backlog](docs/BACKLOG.md) and [Changelog](docs/CHANGELOG.md).
-- [Connecting Claude over MCP](docs/MCP.md).
-- [The iPhone Shortcut](docs/IPHONE-SHORTCUT.md).
-- [Tests](test/README.md).
-- [Demo vaults](demo/README.md) to import and publish.
-- [The standalone version](standalone/README.md): one HTML file that edits a folder of Markdown files, with no server.
-- [Contributing](CONTRIBUTING.md) and [Security](SECURITY.md).
+Write in Markdown with `[[wikilinks]]`, `#tags` and properties. Edit the same note at the same time
+as other people, with live cursors. Find anything by keyword or meaning. See how your notes connect
+on a graph. Notes live in Postgres with pgvector, and an export is a plain folder of Markdown files
+that other Markdown editors open as they are.
 
-## Features
+## Highlights
 
-- **Extended Markdown:** `[[wikilinks]]` (with `|alias` and `#heading`), `![[embeds]]` for images,
-  audio, video and PDFs, `#tags` (nested, inline or in frontmatter), YAML frontmatter shown as
-  properties, `> [!callouts]`, `==highlights==` and coloured text and highlights (⌘⇧H; read from Highlightr,
-  Editing Toolbar and Hilo, written as HTML that other editors show), GFM tables, ```` ```mermaid ```` diagrams (the same
-  syntax other Markdown editors use), and task lists you can tick in reading view.
-- **Dataview queries:** ```` ```dataview ```` blocks (`TABLE`, `LIST`, `TASK` and `CALENDAR`, with `FROM` a folder,
-  `#tag` or `[[link]]`, `WHERE`, `SORT`, `GROUP BY`, `FLATTEN`, `LIMIT`, `WITHOUT ID` and Dataview's
-  functions), inline `` `= expression` ``, and the common `` `$= dv.pages(…).where(…).length` `` count,
-  read the way the Dataview plugin reads them, over frontmatter, inline `key:: value` fields,
-  tags, links and tasks. Results show in reading view, embeds and Live Preview, follow the vault
-  as it changes, and a task ticked in a `TASK` result is ticked in its own note.
-- **dataviewjs:** ```` ```dataviewjs ```` blocks run Dataview's JavaScript API (`dv.pages`, `dv.table`,
-  `dv.list`, `dv.taskList`, `dv.paragraph`, `dv.el`, `dv.query`, `dv.io.load`, `dv.view`, DataArray,
-  Luxon dates…) in a sandboxed frame for each block: no network, no cookies, no access to the app,
-  only the vault's notes (which any member can read) and its own box to draw in. Links in it
-  open notes and its task boxes tick tasks, through checked messages to the app. Publish runs each
-  block in the same sandbox in the owner's browser, over the published notes only, and keeps what
-  it drew, since published pages run no script. A script stuck in an endless loop is stopped after
-  5 seconds and says so, rather than freezing the page.
-- **Live Preview:** markdown renders in place while you type. Headings, bold,
-  links, `[[wikilinks]]`, images, task checkboxes, callouts, quotes, code and Mermaid diagrams show formatted, and a
-  line reveals its raw markdown only while the cursor is on it. Frontmatter shows as a properties
-  panel you can edit in place (text, numbers, dates, checkboxes, and lists as pills; add, rename
-  or remove properties), and GFM tables render as tables you edit cell by cell (Tab between cells, a bar for rows and columns), written back with the pipes lined up. Click a
-  link to follow it, tick a checkbox to complete a task. As in Notion, `/` opens a menu of
-  blocks, and a `+` / `⋮⋮` handle beside each block inserts below it, turns it into another kind,
-  colours, duplicates or deletes it, and drags it (a list item with its children) to a new place.
-  Source mode (`</>`) shows plain markdown; reading view is
-  read-only.
-- **Live collaboration:** Yjs CRDTs over WebSockets. Edits merge character by character, you see
-  other people's cursors and selections and who is in the note, and undo only undoes your own
-  changes. A phone that edits offline merges cleanly when it reconnects.
-- **Multi-user vaults:** accounts and shared vaults with owner, editor and viewer roles. Viewers
-  are read-only everywhere, including on the live socket. Owners invite people by email, and
-  nobody joins until they accept: the invitation waits in their file panel (even if they sign up
-  later) with Join vault and Decline. An admin manages accounts.
-- **Types (think in things, not files):** say what a note *is* (Person, Meeting, Book) with
-  `type:` in its properties. Start from a ready-made type (Person, Organisation, Meeting, Project,
-  Book, Idea) or make your own; a type's note opens with a form for its properties (text, number,
-  date, checkbox, list, a choice, or a link to another type), icon and colour, and its body is
-  the template. Renaming a type renames it in every note. Each type has a page in the sidebar: its notes as a table, cards or a list, with
-  filter, sort, group, editable cells, and views saved as a Bases (`.base`) file. A typed
-  note shows its type's properties with the right editor (a relation picks a note of the right
-  type), and the other side sees it: Sam's panel says "As attendees: Kickoff". Daily notes list
-  what was made and changed that day. All plain, portable markdown.
-- **Notes inside notes:** `![[Note]]` shows that note in place, and `![[Note#Heading]]` just that
-  section, in Live Preview and reading view, three deep, with loops cut off. A link to a typed
-  note on a line of its own shows as a card with its type and key properties (each type can turn
-  cards off).
-- **Weblinks:** a link shared from the iPhone (or ⌘K → Save a web link) becomes a Weblink note
-  with the page's title, summary, site and picture, fetched safely by the server.
-- **Tasks, bookmarks and mentions:** every `- [ ]` in the vault on one Tasks page (open or done,
-  by note or by due date, ticked in place); bookmarks at the top of your sidebar; the side panel
-  lists notes that mention this one without linking, with one-click Link; the file tree sorts by
-  name, last changed or newest. Following a link to a missing note asks whether it's a plain note
-  or one of your types.
-- **Links:** backlinks, outgoing links (with one-tap creation of notes that don't exist yet), an
-  outline, and renames that rewrite every `[[link]]` pointing at the note.
-- **The graph** (after Capacities): notes show their type's icon and colour, and links from
-  properties carry the property's name (*attendees*). The side panel's Graph tab centres on the
-  open note, with Show more and Show less, and follows you. The page can show the whole vault, one
-  note's neighbourhood, or a type, folder, tag or saved search. It has filters (only or hide types,
-  daily notes, busy notes, unlinked notes, simplified), zoom, find, and a PNG export.
-- **Search:** Postgres full-text and fuzzy title search, plus pgvector semantic search over
-  heading-sized chunks, fused with Reciprocal Rank Fusion. `tag:x` and `path:x` filters work, and
-  a Related panel shows the notes nearest in meaning.
-- **Folders:** create folders and subfolders from the sidebar, including empty ones (shared with
-  every member). Drag notes and folders onto a folder, or onto empty space for the
-  top level (on a phone, press and hold, then drag). Rename or move a folder with everything
-  inside; an empty folder can be deleted. Empty folders survive export and import.
-- **Import and export:** an existing vault folder of Markdown files, a `.zip` of one, or loose `.md` files.
-  Dot-folders (app settings, `.trash/`) are skipped, and CRLF line endings and BOMs are cleaned. Exports are
-  per note (`.md`) or per vault (`.zip`).
-- **Version history:** a snapshot is taken every ten minutes of editing, and before every import
-  overwrite and restore. An agent's or GitHub's burst of changes keeps the version before the
-  first, and each note keeps its newest 100 versions.
-- **Trash:** deleted notes keep their history and can be restored for 30 days.
-- **Storage guard:** the database disk is a fixed size (`DB_DISK_GB`, default 1). At 80% admins
-  are told; at 90% new notes, files, imports and agents' edits are refused with a message saying
-  why, while typing in open notes carries on, so the disk never fills (Render suspends a full
-  database). A note is at most 5 MB.
-- **Backups:** `GET /api/backup` with `Authorization: Bearer $BACKUP_TOKEN` returns every vault
-  as markdown plus history, members and Trash as JSON; `.github/workflows/backup.yml` (in a private repository only: anyone who can read a repository can download its artifacts) fetches it
-  daily and keeps 14 days of copies as workflow artifacts. The zip is streamed, so its size
-  isn't limited by the server's memory. `bun scripts/restore.ts backup.zip --owner you@example.com`
-  (with `DATABASE_URL` set) restores it: notes, files, folders, history and Trash, with members
-  whose accounts exist. Not in a backup, by design: passwords, AI keys and GitHub tokens, and
-  GitHub vault links (a GitHub vault restores as a plain vault).
-- **Bring your own AI:** add an assistant with your own Anthropic, OpenAI, relaxAI (UK
-  datacentre, billed in £) or OpenAI-compatible key (`/boyai`). Every conversation shows what it
-  cost in £, and each assistant has a daily £ limit (£1 unless you change it), checked before
-  every call against a ledger; list prices live in `src/prices.ts`. Type `@Claude` in a note to talk to it under that line, or press `⌘J` for the
-  AI side panel. It works as a librarian (searches and answers with links to your notes), an
-  author (makes pages from what it finds) and an organiser (reformats, sets properties, moves,
-  splits, copies or moves notes to another vault). Changes to the open note happen live and are kept in Version history; anything else
-  (a new page, another note, a move) shows a diff to **Apply** or **Discard**, with Undo after.
-  It can also drive the app (open a note, show the graph, hide the file panel), and it knows your
-  types: it files notes into them with their properties filled in, proposes a new type when
-  several notes are the same kind of thing, and merges duplicates. Keys are stored
-  encrypted (`SECRETS_KEY`) and never shown again or shared. **The web**, if you allow an
-  assistant it and turn it on in a conversation (the globe): it reads public pages and, with
-  your own Brave Search key, searches. After its first web request in a conversation, each
-  further one and every change asks you first, showing exactly what would go out.
-- **Publish a vault as a website** (Settings → Website, owners): the whole vault or chosen
-  folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
-  tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are
-  worked out at Publish from the published notes only); a note with `publish: false` stays out, and a link to a note that isn't published shows
-  as plain words. Publishing takes a copy, so your edits stay private until you publish again;
-  Settings lists what a republish would add, change or take down. Features to switch on, with a
-  preview of the pages beside them: a page list, contents, backlinks, tag pages, last-updated
-  dates, reading time and a light and dark switch. Unlisted (search engines are
-  asked to leave it out), and taking it down has an Undo. The choice is kept in `publish.json`,
-  so it goes with an export or a GitHub repo.
-- **GitHub vaults:** open a repository of markdown (or one folder of it, such as `docs/`) as a
-  vault with your own fine-grained token. Notes, pictures and canvases are copied in; code,
-  app settings folders (dot-folders) and everything else stay on GitHub, untouched. Your edits are a branch: a bar at
-  the top says which branch and how many notes changed, **Review changes** shows each one's diff
-  against GitHub with a Revert, and **Open pull request** sends them as one commit on a new
-  branch with a PR (later edits are more commits on it). **Update from main** brings in newer
-  work: unchanged notes update in place, notes changed on both sides merge line by line, and a
-  real clash waits for you to pick a side. **Cancel the branch** puts every note back. An owner
-  can also have changes sent on their own (Settings → This vault): a pull request every hour, day
-  or week; each note pushed to the branch once it goes quiet; or straight onto a branch, `main`
-  included, with no PR. Automatic sends merge first and pause on a clash, leave out notes held
-  back in Review changes, and say in the bar what's next and whose token sends. Unless an owner
-  chooses that last way, nothing reaches `main` without a pull request.
-- **Works offline:** a service worker keeps the app and what it needs to open, and every note you
-  open is kept on the device (its CRDT state in IndexedDB), so the home-screen app opens with no
-  signal, notes take edits, and they merge when it reconnects. Signing out forgets it all.
-- **Phone-ready:** drawers instead of side panels, a formatting bar above the keyboard, safe-area
-  insets, dark mode, and installable to the home screen.
+| | |
+|---|---|
+| ✍️ **Write** | Live Preview that renders as you type, `/` blocks and a drag handle on every block, a properties form for frontmatter, tables you edit cell by cell, callouts, Mermaid diagrams, embeds of notes, pictures and PDFs. |
+| 👥 **Together** | Live co-editing (Yjs CRDTs), shared vaults with owner, editor and viewer roles, invitations, and version history with a diff. Offline edits merge cleanly when you reconnect. |
+| 🧩 **Types** | Say what a note *is* (Person, Meeting, Book), give it a form and a template, and see every note of that type as a table, cards or a list. Stored as plain properties in the Markdown. |
+| 🕸️ **Graph** | Type icons and colours, links labelled with the property they come from, filters, a graph of the open note in the side panel, and a timeline that plays your vault month by month. |
+| 🔎 **Find** | Full-text, fuzzy and semantic search, fused into one list; related notes; Dataview queries (`TABLE`, `LIST`, `TASK`, `CALENDAR`, and `dataviewjs` in a sandbox). |
+| 🤖 **Your own AI** | Bring an Anthropic, OpenAI, relaxAI or compatible key. It searches your notes, writes and files pages, and asks before it changes anything. Costs shown in £, with a daily limit. Or connect Claude over MCP. |
+| 🐙 **GitHub** | Open a repository of Markdown as a vault. Your edits become a branch, with Review changes, Update from main and Open pull request, sent automatically if you like. |
+| 🌍 **Publish** | Turn a vault, or chosen folders, into a website with a page list, contents, backlinks and tag pages. It's a snapshot, so later edits stay private until you publish again. |
+| 📱 **iPhone** | Installs to the home screen, works offline, has a formatting bar above the keyboard, and has a Save to Commonplace shortcut in the share sheet. |
+| 📄 **One file** | [A standalone version](standalone/README.md): one HTML file that edits a folder of Markdown files, with no server. |
+
+The full list is in [docs/FEATURES.md](docs/FEATURES.md).
 
 ## Run it
 
@@ -211,30 +84,15 @@ switch at any time: notes re-embed in the background at the next boot.
 
 If the embedding provider fails, search falls back to keywords and saving is never affected.
 
-## Keyboard
+## Connect things
 
-| Keys | Action |
-|---|---|
-| `⌘O` | Quick switcher: find a note, or create it |
-| `⌘K` / `⌘P` | Every command (insert, this note, create, go, vault), from one list (`web/lib/commands.ts`) |
-| `⌘\` | Show or hide the file panel (the ▯\| button at the top left; the right panel has its own at the top right) |
-| `/` at the start of a line | Blocks: headings, lists, to-do, quote, callout, table, code, divider, picture, template… |
-| `@name` | Talk to one of your AI assistants under this line (✓ keeps it in the note as a folded callout, ✗ discards it) |
-| `⌘J` | The AI side panel: a conversation that follows you between notes (✓ saves it as a note in `AI/`) |
-| `⌥N` | New note |
-| `⌘⇧F` | Search |
-| `⌘`-click a `[[link]]` | Follow it (or tap the **Open ↗** chip that appears when the cursor is in a link) |
-| `[[` and `#` | Autocomplete notes and tags |
-| Paste or drop an image | Uploads it and inserts `![[attachments/…]]` |
-| Picture button (phone bar, or ⋯ → Insert picture) | Pick from Photos or take one; same upload |
-
-**Connect Claude:** Settings → Connections → Connect Claude makes an MCP token; one `claude mcp add` command
-later, Claude Code can search, read and write your notes as you (`/mcp`, tools in
-`src/tools.ts`). See [docs/MCP.md](docs/MCP.md).
-
-**Share from the iPhone:** Settings → Connections → Share from iPhone makes a capture token for an Apple
-Shortcut, so **Save to Commonplace** appears in every app's share sheet; links, text and photos
-land as to-dos in an inbox note. Set-up steps: [docs/IPHONE-SHORTCUT.md](docs/IPHONE-SHORTCUT.md).
+- **Claude (MCP):** Settings → Connections → Connect Claude makes a token. After one `claude mcp add` command,
+  Claude Code can search, read and write your notes as you. See [docs/MCP.md](docs/MCP.md).
+- **Share from the iPhone:** Settings → Connections → Share from iPhone makes a token for an Apple
+  Shortcut, so **Save to Commonplace** shows in every app's share sheet. Links, text and photos go
+  to an inbox note. See [docs/IPHONE-SHORTCUT.md](docs/IPHONE-SHORTCUT.md).
+- **Keys:** `⌘K` lists every command, `⌘O` opens a note by name and `⌘J` opens the AI. The rest are
+  in [the shortcuts page](docs/help/shortcuts.md).
 
 ## How it works
 
@@ -246,56 +104,15 @@ web/ (React + CodeMirror 6)  ──REST /api──▶  src/api.ts ─▶ notes.t
                                                   embed.ts (debounced queue) ─┘
 ```
 
-- **The markdown is the source of truth.** On every save, `notes.ts` re-derives title, tags,
-  frontmatter and links in the same transaction, so search and backlinks can never disagree with
-  the text. Links are stored as normalised targets and resolved when queried (exact path, then
-  title, then path suffix), so a link to a note that doesn't exist yet starts working the moment
-  someone creates it.
-- **CRDT continuity.** Each note keeps both its markdown and its Yjs state. Writes that come from
-  outside the editor (REST, import, restore) are applied as a minimal diff to the live room or to
-  the stored CRDT state. They never rebuild it from text, which would duplicate the text when an
-  offline client reconnected.
-- **Rooms** load from the database on first connect, buffer early socket messages until loaded,
-  persist about a second after typing stops (at most every 4 s during continuous typing), save
-  immediately when the last person leaves, and flush on shutdown.
-- **One design language.** `docs/PRINCIPLES.md` sets the bar (easy, consistent, graceful; as good
-  on the iPhone). The web client is laid out to keep it: `web/ui/` holds the shared pieces (the
-  modal frame, menus that become action sheets on a phone, the app's own confirm, prompt and
-  Undo toasts); `web/styles/tokens.css` holds every colour, type size, radius and duration, with
-  one stylesheet per area beside it; `web/components/` are the screens. `test/design.test.ts`
-  fails on browser dialogs or raw values outside the tokens.
-- **Clients other than the browser** (the iPhone Shortcut, MCP agents, native apps later,
-  PRINCIPLES.md §10) use per-person bearer tokens (`src/tokens.ts`, table `api_tokens`), stored
-  hashed and scoped: a capture token can only append to its one note (`src/capture.ts`); an MCP
-  token reaches every vault with the person's own roles (`src/mcp.ts`, `src/tools.ts`). Captured photos are converted in a
-  short-lived child process (`src/images.ts`): HEIC to JPEG, shrunk to 2048 px, upright.
-- **The in-app assistant** (`src/ai.ts`, `src/llm.ts`, `web/lib/ai.ts`) is stateless on the
-  server: the browser keeps the conversation and sends it each turn, and `POST /api/ai/chat`
-  streams the reply back as server-sent events. The model uses the same tools as MCP
-  (`src/tools.ts`), as the person. Each write tool can preview its change; changes to the open
-  note run at once, others come back as pending, with a preview, for the browser to approve.
-  Tools the browser offers (opening notes, running commands from `web/lib/commands.ts`) come
-  back the same way. Keys are sealed with AES-256-GCM (`src/secrets.ts`) and sent only in
-  headers.
-- **GitHub vaults** (`src/git.ts`, `src/github.ts`) use GitHub's REST API, never git or a
-  clone URL: the Trees and Blobs endpoints read only the files that are copied in, and a push is
-  blobs, then a tree on the base tree (so nothing that wasn't copied can change), a commit and a
-  ref. `git_files` keeps each file's base (repo path, blob SHA, an md5 and a note's text); changes
-  are worked out on request by comparing md5s with the live rows, and an added file identical to
-  a deleted one counts as a move. After an update a pushed branch gets a merge commit, so the PR
-  shows only your changes. Tokens are sealed like AI keys and sent only in the
-  `Authorization` header.
-- **Published sites** (`src/publish.ts`) are a snapshot: Publish renders the chosen notes to
-  HTML and copies the files they show into `site_pages` and `site_files`, and `/p/<slug>/` is
-  served from those tables alone, so a note that isn't published can't be reached by any URL.
-  Pages carry no script; a note's raw HTML is cut down to a few tags without attributes, and the
-  CSP allows no script and sandboxes the page. Links are relative, so the same pages can move to
-  a custom domain later. The slug is random, and the site is `noindex`.
-- **Security.** Passwords are hashed with argon2id. Sessions are stored server-side and the cookie
-  is HttpOnly and SameSite=Lax. Mutations and WebSocket upgrades must pass a same-origin check. A
-  missing vault returns 404 rather than 403, so vault existence isn't revealed. Rendered markdown
-  goes through DOMPurify, and attachments are served with `nosniff` and a sandboxing CSP, so an
-  uploaded SVG can't run script.
+- **The Markdown is the source of truth.** Every save re-derives the title, tags, properties and
+  links in the same transaction, so search and backlinks always agree with the text.
+- **Each note keeps its Markdown and its CRDT state.** Changes from outside the editor are applied
+  to the live room as a small diff, never rebuilt from the text.
+- **One design language.** [docs/PRINCIPLES.md](docs/PRINCIPLES.md) sets the bar. Shared pieces
+  live in `web/ui/` and every value in `web/styles/tokens.css`. `test/design.test.ts` keeps both in line.
+
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) covers the rest: components, the data model, the key
+flows, security, and the decisions behind them.
 
 ## Develop
 
@@ -304,6 +121,7 @@ bun run typecheck
 bun test          # unit tests + an end-to-end suite that boots the server against a scratch DB
 bun run test:ui   # headless-Chromium tests of the editor, file tree and Trash (needs Chrome)
 bun run screens   # screenshots of the main screens, laptop and iPhone, light and dark → ./screens
+bun run readme:shot      # the picture at the top of this README → docs/images/hero.webp
 bun run standalone       # the one-file version → standalone/dist/commonplace.html
 bun run test:standalone  # drives that file in Chrome (no database)
 ```
@@ -319,6 +137,15 @@ co-editing, using the stock `y-websocket` client.
 
 `scripts/make-touch-icon.ts` regenerates the iOS home-screen icon from the same shapes as
 `web/icon.svg`.
+
+## Documentation
+
+- [Help](docs/help/index.md): the user guide, with diagrams and screenshots. The same pages are in the
+  app (the ? at the bottom of the file panel, or ⌘K → Help) and in the standalone file.
+- [Features](docs/FEATURES.md), [Architecture](docs/ARCHITECTURE.md) and [Principles](docs/PRINCIPLES.md).
+- [Backlog](docs/BACKLOG.md) and [Changelog](docs/CHANGELOG.md).
+- [Tests](test/README.md), [demo vaults](demo/README.md) and [the laptop kit](laptop/README.md).
+- [Contributing](CONTRIBUTING.md) and [Security](SECURITY.md).
 
 ## Licence
 

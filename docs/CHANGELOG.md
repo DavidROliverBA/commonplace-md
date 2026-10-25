@@ -4,6 +4,11 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-25** — The README is shorter and opens with a picture: the app on a laptop in dark
+  mode beside an iPhone in light mode (`docs/images/hero.webp`, made by `bun run readme:shot`). A
+  table of highlights replaces the long feature list, which moved to
+  [FEATURES.md](FEATURES.md) unchanged apart from adding the timeline and panel resizing. "How it
+  works" now gives the overview and points to ARCHITECTURE.md for the detail.
 - **2026-10-25** — You can resize the panels, as in Floe (release v0.0.51, `web/ui/PanelResizer.tsx`). Drag the
   inner edge of the file panel or the side panel to make it wider, for example to give the graph
   in the side panel more room. Each panel can be 200 to 720px wide, and the note always keeps at

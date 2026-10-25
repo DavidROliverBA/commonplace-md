@@ -16,6 +16,7 @@
     "test:ui": "bun test --timeout 30000 ./test/ui/editor.ui.ts",
     "screens": "bun test/ui/screens.ts",
     "help:shots": "bun test/ui/screens.ts screens --help",
+    "readme:shot": "bun test/ui/screens.ts screens --readme",
     "bench": "bun scripts/bench.ts",
     "demo": "bun scripts/demo.ts",
     "standalone": "bun standalone/build.ts",
