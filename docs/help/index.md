@@ -23,6 +23,7 @@ flowchart TB
 | Topic | What it covers |
 | --- | --- |
 | [Getting started](getting-started.md) | Signing in, the screen, your first note |
+| [Your library and collections](collections.md) | Collections, Setup, starter types and your home collection |
 | [Writing notes](writing.md) | Live Preview, formatting, the `/` menu, tables, pictures |
 | [Links and embeds](links.md) | `[[Links]]`, backlinks, notes inside notes |
 | [The graph](graph.md) | Notes and links by type, around one note, filters and parts of the collection |

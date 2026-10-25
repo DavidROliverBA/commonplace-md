@@ -1,9 +1,11 @@
-// Settings → This vault: name, how a GitHub vault sends its changes (F19), members and invitations,
-// import, export, and leave or delete.
+// Settings → This collection: setup (F20: where it's kept, people, home, starter types), name, how a
+// GitHub collection sends its changes (F19), members and invitations, import, export, and leave or
+// delete.
 
 import { useEffect, useRef, useState } from "react";
 import { api, type Role, type User, type Vault } from "../lib/api";
 import { navigate } from "../lib/router";
+import { CollectionSetup } from "./CollectionSetup";
 import { GitHubSending } from "./GitHubSending";
 import { confirmDialog, promptDialog, toast, toastError } from "../ui/overlays";
 
@@ -151,6 +153,7 @@ export function VaultSettings({ vault, user, onClose, onChanged }: { vault: Vaul
 
   return (
     <>
+      <CollectionSetup vault={vault} members={members.length} onChanged={onChanged} onInvite={() => { const i = document.querySelector<HTMLInputElement>('input[aria-label="Their email"]'); i?.scrollIntoView({ block: "center" }); i?.focus(); }} />
       <section className="settings-section">
         <h3>Collection</h3>
         <div className="row">

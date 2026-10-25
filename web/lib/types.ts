@@ -4,7 +4,7 @@
 
 import { useSyncExternalStore } from "react";
 import { normalisePath } from "../../src/markdown";
-import { newTypedNote, newTypeNote, type TypeDef, TYPES_FOLDER } from "../../src/types";
+import { newTypedNote, newTypeNote, STARTERS, starterNeeds, starterNote, type TypeDef, TYPES_FOLDER } from "../../src/types";
 import { api, type Note } from "./api";
 import { fillTemplate } from "./templates";
 
@@ -55,6 +55,27 @@ export async function createType(vaultId: number, name: string): Promise<Note> {
   const n = await api<Note>(`/vaults/${vaultId}/notes`, { body: { path: normalisePath(`${TYPES_FOLDER}/${name}`), content: newTypeNote(name) } });
   await loadTypes(vaultId);
   return n;
+}
+
+/** Add starter types the collection hasn't got, with the starters their links need (a Meeting's
+ *  attendees are People). Returns the names added, in order; the types reload after. */
+export async function addStarters(vaultId: number, names: string[]): Promise<string[]> {
+  await loadTypes(vaultId);
+  const has = (n: string) => state.types.some((t) => t.name.toLowerCase() === n.toLowerCase());
+  const added: string[] = [];
+  const add = async (n: string) => {
+    const st = STARTERS.find((x) => x.name === n);
+    if (!st || has(n) || added.includes(n)) return;
+    await api<Note>(`/vaults/${vaultId}/notes`, { body: { path: normalisePath(`${TYPES_FOLDER}/${st.name}`), content: starterNote(st) } });
+    added.push(n);
+    for (const need of starterNeeds(st)) await add(need);
+  };
+  try {
+    for (const n of names) await add(n);
+  } finally {
+    await loadTypes(vaultId);
+  }
+  return added;
 }
 
 /** Set some of a note's properties (null removes one), live-safe. */

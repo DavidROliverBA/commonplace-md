@@ -539,10 +539,20 @@ export async function push(vaultId: number, user: User, opts: { message: string;
   const held = await heldPaths(vaultId);
   const changed = new Map(st.changes.map((c) => [c.path, c]));
   const keep = pushedRows.filter((r) => !shas.has(r.path) && (changed.has(r.path) || st.changes.some((c) => c.from === r.path) || held.has(r.path)));
+  // Rows from before blob shas were recorded (v0.0.45) have none: read what the branch holds now,
+  // or the note would quietly go back to the base version on the branch.
+  let onBranch: Map<string, string> | null = null;
   for (const r of keep) {
     const rp = changed.get(r.path)?.repoPath ?? (await repoPathOf(vaultId, g, r.path));
-    if (r.hash === "") entries.push({ path: rp, mode: "100644", type: "blob", sha: null });
-    else if (r.sha) entries.push({ path: rp, mode: changed.get(r.path)?.mode ?? "100644", type: "blob", sha: r.sha });
+    if (r.hash === "") {
+      entries.push({ path: rp, mode: "100644", type: "blob", sha: null });
+      continue;
+    }
+    if (!r.sha && g.head_sha) {
+      onBranch ??= new Map((await treeAt(gh, g.repo, (await branchHead(gh, g.repo, g.branch!)).tree)).map((e) => [e.path, e.sha]));
+      r.sha = onBranch.get(rp) ?? null;
+    }
+    if (r.sha) entries.push({ path: rp, mode: changed.get(r.path)?.mode ?? "100644", type: "blob", sha: r.sha });
   }
   const tree = entries.length ? (await gh.post<{ sha: string }>(`${repo}/git/trees`, { base_tree: g.base_tree, tree: entries })).sha : g.base_tree;
   const parents = g.head_sha ? [g.head_sha, ...(g.merge_sha ? [g.merge_sha] : [])] : [g.base_sha];

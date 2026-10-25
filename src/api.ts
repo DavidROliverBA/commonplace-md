@@ -124,7 +124,8 @@ export const apiRoutes = {
       const [inst] = await sql`select value from server_info where key = 'instance'`;
       return {
         instance: inst?.value ?? "",
-        library: await libraryName(),
+        // Only to people signed in: by default it carries the first admin's name.
+        library: user ? await libraryName() : "",
         user,
         needsSetup: n === 0,
         setupTokenRequired: n === 0 && !!settings.setupToken,
@@ -157,6 +158,15 @@ export const apiRoutes = {
     POST: route(async ({ req }) => {
       kick({ sessionHash: auth.sessionHash(req) }, "signed out");
       return json({ ok: true }, { headers: { "Set-Cookie": await auth.endSession(req) } });
+    }),
+  },
+  // F20: the person's home collection, where "home" capture tokens send and the app opens.
+  "/api/me/home": {
+    PUT: route(async ({ req }) => {
+      const user = await requireUser(req);
+      const { vaultId } = await body(req, z.object({ vaultId: z.number().int() }));
+      await vaults.setHome(user, vaultId);
+      return { home: vaultId };
     }),
   },
   "/api/me": {
@@ -818,12 +828,14 @@ export const apiRoutes = {
   "/api/vaults/:v/send": {
     // Copy or move notes (or a folder) to another of your vaults; `dryRun` says what would happen.
     POST: route(async (ctx) => {
-      const user = await requireUser(ctx.req);
+      // The shared check: a copy reads this vault, a move writes it (its notes go to Trash).
+      const { user, vaultId } = await vaultCtx(ctx, "viewer");
       const b = await body(
         ctx.req,
         z.object({ to: z.number().int().positive(), notes: z.array(z.number().int().positive()).max(2000).optional(), folder: z.string().max(512).optional(), into: z.string().max(512).default(""), move: z.boolean().default(false), dryRun: z.boolean().default(false) }),
       );
-      const r = { from: id(ctx.req.params.v), to: b.to, notes: b.notes, folder: b.folder, into: b.into, move: b.move };
+      if (b.move) await vaultCtx(ctx, "editor");
+      const r = { from: vaultId, to: b.to, notes: b.notes, folder: b.folder, into: b.into, move: b.move };
       if (!b.dryRun) return between.send(user, r);
       const p = await between.planSend(user, r);
       return { summary: between.describePlan(p), notes: p.notes.length, files: p.files.length, types: p.types.length, linkedFrom: p.linkedFrom };

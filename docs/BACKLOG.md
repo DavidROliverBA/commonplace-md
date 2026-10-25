@@ -70,19 +70,29 @@ claims speed at 10,000 notes but nothing measures it; the backup has never been 
 items, chosen by what's used every day (see Ideas, such as `#Type` inline; the history diff, saved searches, focus mode, turning a
 line into a typed note and the tour are done).
 
-**Decided 2026-10-25:** N12 (above) first, then this list in order, each kept to its first
-useful slice.
+**Decided 2026-10-25, revised the same evening:** N12 (above) first (N15, the review pass, is done: see the CHANGELOG), then this list in
+order, each kept to its first useful slice. The journal comes before Mac folders because it's
+used every day and builds the real collections F20's presets wait on; Mac folders wait until
+it's clear work notes belong in Commonplace on the Mac (the standalone file covers a folder
+already).
 
-1. **F20, slim** — Setup in one place, starter types, the home vault and grouping in the
-   switcher. The built-in types (presets) wait until a few vaults show what repeats.
-2. **F22, folder only** — a Mac vault whose master copy is a folder of Markdown. "Database" is
-   the laptop kit as it is; "both" (two-way sync) waits until it's missed.
-3. **F24** — the journal, only if it would replace Day One; otherwise just a Day One import and
-   On this day.
-4. **F23** — one vault list on the Mac, only if two lists prove painful after using F22.
-5. **F18** steps 3–4 or **F11** — the site builder, themes and extras, or visual boards. F18
-   steps 1–2 (publish, and the builder) are done.
-6. **F9** — AI-XF identity and bundles, now smaller because F16 built its first step.
+1. ~~**F20, slim**~~ — done in v0.0.54 (Setup, starter-type sets, home collection, grouped
+   menu; see the CHANGELOG). The built-in types (presets) wait until a few collections show what
+   repeats; the rest of F20 is below.
+2. **F24** — the journal, release 1, if it would replace Day One; otherwise just a Day One import
+   and On this day. **Open question for David:** would it replace Day One?
+3. **F25** — OAuth sign-in for the MCP server, so claude.ai and the Claude iPhone app can use
+   the notes, not only Claude Code.
+4. **F26** — `#Type` inline: typing `#Person Sam` makes the typed note as you type.
+5. **F22, folder only** — a Mac collection whose master copy is a folder of Markdown.
+   "Database" is the laptop kit as it is; "both" (two-way sync) waits until it's missed.
+6. Then take stock. Waiting until there's a reason:
+   - **F23**, one collection list on the Mac: only if two lists hurt after F22.
+   - **The rest of F20** (presets, Change type, Close the programme): once a few real
+     collections show what repeats.
+   - **F18** steps 3–4 or **F11**: the site builder, themes and extras, or visual boards. F18
+     steps 1–2 (publish, and the builder) are done.
+   - **F9**: AI-XF identity and bundles, now smaller because F16 built its first step.
 
 F19 (GitHub vaults sending on their own) is done, and N11 passed on the live site; F21 (the
 graph's timeline) is done; see the CHANGELOG.
@@ -90,6 +100,13 @@ graph's timeline) is done; see the CHANGELOG.
 L8 (the iPhone and desktop apps) waits on the Apple Developer decision; F23 starts its desktop half.
 
 ### F20 — Vault types and setup: who it's for, where it's kept, what's switched on
+
+**The slim part is done** (v0.0.54): Setup at the top of Settings → This collection (where it's
+kept, people, home, starter types), the five sets below as **starter-type sets** (15 new starter
+types), a home collection per person (Share from iPhone's "Home collection" token follows it), and
+the collection menu grouped by where each is kept. **Still to do**, when a few collections show
+what repeats: the presets themselves (`kind`, `setup` jsonb), Features switches, Change type, Save
+as a new type, Close the programme, the assistant knowing the type, and the People rules.
 
 **Size** M · **Evidence** a vault today is a name, members and an optional GitHub repo
 (`db/schema.sql` `vaults`); every vault starts the same and every feature shows everywhere.
@@ -135,6 +152,58 @@ setup, and every choice stays changeable. Built in:
 and customised in Setup, the switcher groups vaults, the home vault receives shares, and it works
 on the laptop and the iPhone in both themes. Help: a new page, `vaults.md`.
 
+### F24 — Journal
+
+**Size** M, in two releases · **Evidence** daily notes exist (`Daily/YYYY-MM-DD.md`, the
+calendar in the side panel); journalling happens in Day One today.
+
+Entries go in the **home collection's** daily note (F20, done in v0.0.54), under `## Journal`, each with its time
+(`### 08:12`). On by default in Personal vaults.
+
+1. **Release 1:** a **New journal entry** command (⌘K, the ⋯ menu, press and hold on Today) opening
+   a short sheet that appends to today's note (a function passed to `overwriteContent`, so it
+   can't undo live typing); a **journal page** of daily notes newest first, with a calendar to
+   jump; **On this day** from earlier years; an `add_journal_entry` tool with a preview.
+2. **Release 2:** **import from Day One** (its JSON export: times, photos as files, tags), and
+   **Reflect on this week** (the assistant with the week's entries and a prepared request).
+
+Journal sections stay out of published sites unless chosen.
+
+**Open:** entries in the daily note (planned) or a note each; whether entries record mood or
+location; on the phone, a menu on Today or a Journal button.
+
+**Done when** release 1 works on the laptop and the iPhone in both themes with a browser test,
+and release 2 imports a real Day One export.
+
+### F25 — OAuth sign-in for the MCP server
+
+**Size** M · **Evidence** `docs/MCP.md`: claude.ai's custom connectors (and so the Claude iPhone
+and desktop apps) need OAuth; today only Claude Code and `mcp-remote` work, with a bearer token
+from Settings → Connections (`src/tokens.ts`, `src/mcp.ts`).
+
+The MCP server offers OAuth 2.1 with PKCE, as the MCP authorization spec asks: metadata at the
+well-known addresses, dynamic client registration, and a consent page in the app ("Claude wants
+to read and write your notes as you", with read-only as a choice). Signing in issues the same
+kind of hashed, scoped, revocable token as today, listed in Settings → Connections with the
+client's name and last use. Bearer tokens keep working.
+
+**Done when** claude.ai adds Commonplace as a custom connector, searches and reads notes and
+(when allowed) writes one, the token shows in Connections and revoking it cuts Claude off at
+once, and an e2e test drives the whole flow with a fake client.
+
+### F26 — `#Type` inline
+
+**Size** S · **Evidence** "Turn into a typed note…" (v0.0.29) already makes a typed note from a
+selection; the `#` menu offers tags (`web/lib/`), and F20 added 15 starter types.
+
+In the editor, `#` followed by a type's name (`#Person`) offers "New Person…" next to the
+tags. Choosing it and typing a title (`#Person Sam Okafor`, then Enter) makes the note from the
+type's template in the type's folder, and leaves a `[[Sam Okafor]]` link where the text was.
+A tag with the same name as a type still works as a tag.
+
+**Done when** it works in Live Preview on the laptop and the iPhone, Undo puts the text back,
+and a browser test makes a note this way.
+
 ### F22 — Mac vaults: kept on the Mac, in a folder, its database, or both
 
 **Size** L · **Evidence** the laptop kit (`laptop/`, v0.0.45) runs Commonplace and Postgres on
@@ -176,29 +245,6 @@ today and Mac vaults carry on as normal.
 **Done when** one switcher shows Mac and cloud vaults, a note and a folder move each way with
 Undo, the token can be revoked, and a cloud vault's live editing works from the Mac app as it
 does from the browser.
-
-### F24 — Journal
-
-**Size** M, in two releases · **Evidence** daily notes exist (`Daily/YYYY-MM-DD.md`, the
-calendar in the side panel); journalling happens in Day One today.
-
-Entries go in the **home vault's** daily note (F20), under `## Journal`, each with its time
-(`### 08:12`). On by default in Personal vaults.
-
-1. **Release 1:** a **New journal entry** command (⌘K, the ⋯ menu, press and hold on Today) opening
-   a short sheet that appends to today's note (a function passed to `overwriteContent`, so it
-   can't undo live typing); a **journal page** of daily notes newest first, with a calendar to
-   jump; **On this day** from earlier years; an `add_journal_entry` tool with a preview.
-2. **Release 2:** **import from Day One** (its JSON export: times, photos as files, tags), and
-   **Reflect on this week** (the assistant with the week's entries and a prepared request).
-
-Journal sections stay out of published sites unless chosen.
-
-**Open:** entries in the daily note (planned) or a note each; whether entries record mood or
-location; on the phone, a menu on Today or a Journal button.
-
-**Done when** release 1 works on the laptop and the iPhone in both themes with a browser test,
-and release 2 imports a real Day One export.
 
 ### F18 — Publish a vault to the web: a site builder with themes and features to switch on
 
@@ -469,15 +515,11 @@ One line each. Promote to **Next** with a "done when".
   settings, not in notes; see F10)
 - Import from Apple Notes or Notion
 - Per-vault theme or accent colour (F18's themes are tokens too; share them)
-- OAuth sign-in for the MCP server, so claude.ai's custom connectors can use it (Claude Code and
-  `mcp-remote` already work with a bearer token)
 
 From the brainstorm of 2026-10-11 (sizes rough; each must meet [PRINCIPLES.md](PRINCIPLES.md)):
 
 - **Media as objects (M, after F16, from Capacities):** pictures and PDFs get a page of their own,
   with properties, backlinks ("used in 3 notes") and a place for notes about them
-- **`#Type` inline (S, from F16 and Capacities):** typing `#Person Sam` makes the note as you
-  type, as "Turn into a typed note…" already does for a selection or line
 - **Another name for the `type` key (S, from F16):** for an imported vault where `type:`
   already means something else; a vault option in Settings → This vault
 - **Presence (S):** who's in the vault and which note they're in, and "follow" someone's cursor

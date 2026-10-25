@@ -158,6 +158,8 @@ export function startFakeGitHub(port: number) {
     pulls,
     files,
     commitToMain: (change: Record<string, string | null>) => commitTo("main", change),
+    /** Commit to any branch; a branch that doesn't exist yet starts empty (an orphan, like gh-pages). */
+    commitTo: (branch: string, change: Record<string, string | null>) => commitTo(branch, change),
     /** Merge PR n: main takes the branch's tree (a squash merge). */
     mergePr(n: number) {
       const pr = pulls[n - 1]!;

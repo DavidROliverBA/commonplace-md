@@ -96,7 +96,7 @@ Each kind of client authenticates differently, and none of them ever puts a cred
 | Client | How it authenticates | What it can reach |
 |---|---|---|
 | Browser | Session cookie (`HttpOnly`, `SameSite=Lax`), same-origin check on writes and socket upgrades | The vaults the person belongs to, with their role in each |
-| iPhone Shortcut | `Authorization: Bearer cpc_…` capture token | Append to one inbox note in one vault, nothing else |
+| iPhone Shortcut | `Authorization: Bearer cpc_…` capture token | Append to one inbox note in one vault (or in the person's home vault, `users.home_vault_id`, when the token names none), nothing else |
 | MCP agent | `Authorization: Bearer cpm_…` MCP token, read-only or read-write | The tools in `src/tools.ts`, as the person, with their roles |
 | Backup job | `Authorization: Bearer $BACKUP_TOKEN` | `GET /api/backup` only |
 | Site reader | None | The published snapshot at `/p/<slug>/` only |

@@ -43,9 +43,11 @@ export async function createToken(
   let notePath = "Inbox.md";
   let scope = "capture";
   if (input.kind === "capture") {
-    if (!input.vaultId) throw new HttpError(400, "Choose a collection for the capture token");
-    await vaults.requireRole(input.vaultId, user, "editor");
-    vaultId = input.vaultId;
+    // No collection means the person's home collection, whichever that is when a share arrives (F20).
+    if (input.vaultId) {
+      await vaults.requireRole(input.vaultId, user, "editor");
+      vaultId = input.vaultId;
+    }
     notePath = normalisePath(input.notePath?.trim() || "Inbox");
   } else scope = input.readOnly ? "mcp:read" : "mcp";
   const token = PREFIX[input.kind] + randomBytes(32).toString("base64url");

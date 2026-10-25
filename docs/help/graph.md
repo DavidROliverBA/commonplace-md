@@ -25,7 +25,7 @@ Find in graph (at the top) moves to a note by its name.
 
 ## The timeline
 
-**Timeline** opens a strip under the graph. Its bars show how many notes there are in each month, and two handles set a range of days: notes outside it fade (or, with **Hide the rest**, disappear), and a link shows only when both its notes are in range. Nothing moves when the range changes, so you can see where each period sits.
+**Timeline** opens a strip under the graph. Its bars show how many notes there are in each month, and two handles set a range of days: notes outside it fade (or, with **Hide the rest**, disappear), and a link shows only when both its notes are in range. Nothing moves when the range changes, so you can see where each period sits. Over a long span, each bar covers several months (a quarter, a year, or more), so the strip never has more than 240 bars.
 
 - **Play** grows the graph from the first month to the last. Pressing on the graph pauses it.
 - Click a month's bar to see just that month; **All dates** goes back to everything.
@@ -38,6 +38,8 @@ A note's date is the first of these it has:
 2. a `date:`, `created:` or `day:` property;
 3. its [type](types.md)'s date: the property the type names with `timeline: met` in its own note, or else its first date property (except a birthday);
 4. the day it was made in Commonplace. Imported notes were all made on the day of the import, so give them a `date:` to place them.
+
+A date that can't be real (`2025-13-01`, `2025-02-30`) or a placeholder before the year 1000 (`0001-01-01`) is skipped, and the next rule decides.
 
 ![The timeline under the graph](images/graph-timeline.webp)
 

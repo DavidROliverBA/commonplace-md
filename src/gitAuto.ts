@@ -18,7 +18,7 @@
 import { HttpError, type User } from "./auth";
 import { sql } from "./db";
 import { emit } from "./events";
-import { branchHead, clientFor, repoPath } from "./github";
+import { branchHead, clientFor, repoPath, treeAt } from "./github";
 import { type Change, changes, gitRow, leftOut, publish, push, type SendMode, type Status, status, update, type VaultGit } from "./git";
 import { nextRun } from "./schedule";
 import { settings } from "./settings";
@@ -70,7 +70,18 @@ async function switchBase(g: VaultGit, user: User, branch: string): Promise<void
     if (!(err instanceof HttpError && err.status === 404)) throw err;
     exists = false;
   }
-  if (!exists) await gh.post(`${repoPath(g.repo)}/git/refs`, { ref: `refs/heads/${branch}`, sha: g.base_sha });
+  if (exists) {
+    // Following a branch that lacks some of this collection's files would treat them as deleted
+    // there, and Update would send those notes to Trash. Refuse before anything changes.
+    const there = new Set((await treeAt(gh, g.repo, (await branchHead(gh, g.repo, branch)).tree)).map((e) => e.path));
+    const ours = await sql<{ repo_path: string }[]>`select repo_path from git_files where vault_id = ${g.vault_id}`;
+    const missing = ours.filter((f) => !there.has(f.repo_path)).length;
+    if (missing)
+      throw new HttpError(
+        409,
+        `${branch} doesn't have ${missing === 1 ? "one of this collection's files" : `${missing} of this collection's files`}, so following it would send ${missing === 1 ? "that note" : "those notes"} to Trash. Choose a branch made from ${g.base_branch}, or a new name and Commonplace makes the branch.`,
+      );
+  } else await gh.post(`${repoPath(g.repo)}/git/refs`, { ref: `refs/heads/${branch}`, sha: g.base_sha });
   await sql`update vault_git set base_branch = ${branch} where vault_id = ${g.vault_id}`;
   if (exists) await update(g.vault_id, user); // its newer notes come in, merged as Update does
 }

@@ -110,8 +110,9 @@ it's built.
   several notes are the same kind of thing, and merges duplicates. Keys are stored
   encrypted (`SECRETS_KEY`) and never shown again or shared. **The web**, if you allow an
   assistant it and turn it on in a conversation (the globe): it reads public pages and, with
-  your own Brave Search key, searches. After its first web request in a conversation, each
-  further one and every change asks you first, showing exactly what would go out.
+  your own Brave Search key, searches. A search or page whose words you didn't type yourself
+  asks you first, showing exactly what would go out, and after any web request every change
+  asks too.
 - **Publish a collection as a website** (Settings → Website, owners): the whole collection or chosen
   folders become pages at `/p/<site>/`, with `[[links]]` between them, pictures, callouts and
   tasks (pages run no script, so a Mermaid diagram shows as its source, and Dataview results are

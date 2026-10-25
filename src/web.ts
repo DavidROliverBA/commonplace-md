@@ -87,20 +87,68 @@ export async function search(userId: number, query: string): Promise<{ query: st
 
 // ── reading a page ───────────────────────────────────────────────────────────────────────
 
+const DROP = new Set(["script", "style", "noscript", "svg", "template", "iframe", "head", "nav", "footer", "aside", "form"]);
+
+/** Cut out `<!-- … -->`; an unclosed one runs to the end. One pass, so a page full of unclosed
+ *  openings can't make it slow (each regex attempt scanning to the end was quadratic). */
+function dropComments(html: string): string {
+  let out = "";
+  let at = 0;
+  for (let i = html.indexOf("<!--"); i !== -1; i = html.indexOf("<!--", at)) {
+    out += html.slice(at, i);
+    const end = html.indexOf("-->", i + 4);
+    if (end === -1) return out;
+    at = end + 3;
+  }
+  return out + html.slice(at);
+}
+
+/** Cut out whole elements whose text isn't the page's (scripts, menus, footers…), in one pass. An
+ *  element that never closes takes the rest of the page with it. */
+function dropElements(html: string): string {
+  const lower = html.toLowerCase();
+  const open = /<([a-z]+)[\s>\/]/g;
+  let out = "";
+  let at = 0;
+  for (let m = open.exec(lower); m; m = open.exec(lower)) {
+    const name = m[1]!;
+    if (!DROP.has(name)) continue;
+    out += html.slice(at, m.index) + " ";
+    const close = lower.indexOf(`</${name}`, m.index + name.length + 1);
+    if (close === -1) return out;
+    const gt = lower.indexOf(">", close);
+    at = gt === -1 ? html.length : gt + 1;
+    open.lastIndex = at;
+  }
+  return out + html.slice(at);
+}
+
+/** The text between the first `<name …>` and the last `</name>`, or null. */
+function element(html: string, lower: string, name: string): string | null {
+  const re = new RegExp(`<${name}[\\s>]`, "g");
+  const start = re.exec(lower)?.index;
+  const end = lower.lastIndexOf(`</${name}>`);
+  return start !== undefined && end > start ? html.slice(start, end + name.length + 3) : null;
+}
+
 /** A page's readable text: its main part if it marks one, without scripts, menus and footers;
- *  headings, paragraphs, list items and table rows on lines of their own. */
+ *  headings, paragraphs, list items and table rows on lines of their own. Every step is linear
+ *  in the page's length: pages come from anywhere (F-web), and this runs on the one server. */
 export function pageText(html: string): { title: string; text: string } {
-  const title = plain(/<title[^>]*>([\s\S]*?)<\/title>/i.exec(html)?.[1] ?? "");
-  let body = html.replace(/<!--[\s\S]*?-->/g, "");
-  body = /<article[\s>][\s\S]*<\/article>/i.exec(body)?.[0] ?? /<main[\s>][\s\S]*<\/main>/i.exec(body)?.[0] ?? body;
-  body = body
-    .replace(/<(script|style|noscript|svg|template|iframe|head|nav|footer|aside|form)\b[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<h([1-6])[^>]*>/gi, (_, n) => `\n\n${"#".repeat(Number(n))} `)
-    .replace(/<li[^>]*>/gi, "\n- ")
+  const lowerAll = html.toLowerCase();
+  const t0 = /<title[\s>]/.exec(lowerAll)?.index;
+  const t1 = t0 === undefined ? -1 : lowerAll.indexOf("</title>", t0);
+  const title = t0 !== undefined && t1 !== -1 ? plain(html.slice(lowerAll.indexOf(">", t0) + 1, t1)) : "";
+  let body = dropComments(html);
+  const lower = body.toLowerCase();
+  body = element(body, lower, "article") ?? element(body, lower, "main") ?? body;
+  body = dropElements(body)
+    .replace(/<h([1-6])[^<>]*>/gi, (_, n) => `\n\n${"#".repeat(Number(n))} `)
+    .replace(/<li[^<>]*>/gi, "\n- ")
     .replace(/<(br|hr)\s*\/?>/gi, "\n")
     .replace(/<\/(p|div|section|h[1-6]|tr|blockquote|pre|table|ul|ol|dl|dd|dt|figure)>/gi, "\n")
     .replace(/<\/t[dh]>/gi, " | ")
-    .replace(/<[^>]+>/g, "");
+    .replace(/<[^<>]+>/g, "");
   const text = decodeEntities(body)
     .split("\n")
     .map((l) => l.replace(/[ \t ]+/g, " ").trim())

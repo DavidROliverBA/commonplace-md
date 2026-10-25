@@ -861,7 +861,7 @@ describe("commands: the / menu and ⌘K", () => {
     if (!(await p.$(".app.left-open"))) await p.click('button[aria-label="Files"]');
     const lib = await p.$eval(".sidebar .library-name", (e) => e.textContent);
     expect(lib).toEndWith("'s Library");
-    await until(async () => (await p.title()) === `Library · ${await p.$eval('select[aria-label="Collection"] option:checked', (o) => o.textContent!.replace(/ \(\d+ members\)$/, ""))} · ${lib}`);
+    await until(async () => (await p.title()) === `Library · ${await p.$eval('select[aria-label="Collection"] option:checked', (o) => o.textContent!.replace(/ \(\d+ members\)$/, "").replace(/ · home$/, ""))} · ${lib}`);
     await p.close();
   });
 
@@ -978,7 +978,7 @@ describe("help", () => {
     await p.click('.sidebar-foot [aria-label="Help"]');
     await p.waitForSelector(".help-page h1");
     expect(await heading(p)).toBe("Help");
-    expect(await p.$$eval(".help-nav button", (b) => b.length)).toBe(18);
+    expect(await p.$$eval(".help-nav button", (b) => b.length)).toBe(19);
     await p.waitForFunction(() => !!document.querySelector(".help-page .mermaid-diagram")?.shadowRoot?.querySelector("svg"));
     await p.evaluate(() => [...document.querySelectorAll<HTMLAnchorElement>(".help-page a.internal-link")].find((a) => a.textContent === "Links and embeds")!.click());
     await p.waitForFunction(() => document.querySelector(".help-page h1")?.textContent === "Links and embeds");
@@ -1282,6 +1282,23 @@ describe("Settings (F17)", () => {
     await p.keyboard.press("Escape");
     await until(async () => (await p.$$(".modal")).length === 0);
   };
+
+  test("Setup (F20): a set of starter types in a click, home, and the menu marks home", async () => {
+    const sv = (await api("/vaults", { name: "Setup test" })).id;
+    const p = await open(`/v/${sv}`);
+    await p.waitForSelector(".vault-home");
+    await p.click('button[aria-label="Settings"]');
+    await p.waitForSelector(".setup .starter-sets");
+    await p.click('.starter-sets button[aria-label^="Add the Reference types"]');
+    await until(async () => (await p.$$eval(".starter-sets button", (bs) => bs.map((b) => b.getAttribute("aria-label")))).includes("Reference types all added"));
+    const types = ((await api(`/vaults/${sv}/types`)).types as { name: string }[]).map((t) => t.name).sort();
+    expect(types).toEqual(["Article", "Source", "Topic"]);
+    await p.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>(".setup button")].find((b) => b.textContent === "Make this my home collection")!.click());
+    await until(async () => (await modalText(p)).includes("Your home collection"));
+    await until(async () => (await p.$eval('select[aria-label="Collection"] option:checked', (o) => o.textContent)) === "Setup test · home");
+    await api("/me/home", { vaultId }, "PUT");
+    await p.close();
+  });
 
   test("one Settings screen: the gear opens This vault, the account button Account, and ⌘K finds a section by what it's about", async () => {
     const p = await open(`/v/${vaultId}`);

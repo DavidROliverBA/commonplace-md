@@ -104,7 +104,7 @@ export function Graph(p: Props) {
 
   const view = useMemo(() => (data ? shown(data, { scope, centre: note, depth, filters }) : null), [data, scope, note, depth, filters]);
   const centreNote = note !== null ? data?.nodes.find((n) => n.id === note) : null;
-  const more = !!data && note !== null && canShowMore(data.edges, note, depth);
+  const more = useMemo(() => !!data && note !== null && canShowMore(data.edges, note, depth), [data, note, depth]);
   const away = useMemo(() => (view ? outside(view.nodes, range) : new Set<number>()), [view, range]);
   const toggleTimeline = () => {
     setPlaying(false);

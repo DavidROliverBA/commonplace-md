@@ -32,6 +32,10 @@ create table if not exists vaults (
   created_at  timestamptz not null default now()
 );
 
+-- Each person's home collection (F20): where Share from iPhone sends when its token says "home",
+-- and where the app opens when there's no last-used collection. Cleared if the vault goes.
+alter table users add column if not exists home_vault_id bigint references vaults(id) on delete set null;
+
 -- Who can open a vault, and as what: owners manage it, editors write, viewers only read.
 create table if not exists vault_members (
   vault_id  bigint not null references vaults(id) on delete cascade,

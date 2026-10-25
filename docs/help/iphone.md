@@ -30,6 +30,6 @@ Every note you've opened is kept on the phone. With no signal, the app still ope
 
 ## Share from other apps
 
-Settings → **Connections** → **Share from iPhone** sets up an Apple Shortcut, so **Save to Commonplace** appears in every app's share sheet. Links, text and photos you share land as to-dos in an inbox note. A shared web link can also become a **Weblink** note, with the page's title, summary and picture.
+Settings → **Connections** → **Share from iPhone** sets up an Apple Shortcut, so **Save to Commonplace** appears in every app's share sheet. Links, text and photos you share land as to-dos in an inbox note, in your [home collection](collections.md) unless you pick another. A shared web link can also become a **Weblink** note, with the page's title, summary and picture.
 
 ![Setting up Share from iPhone](images/phone-share-setup.webp)

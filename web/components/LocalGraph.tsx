@@ -18,7 +18,7 @@ export function LocalGraph({ vaultId, noteId, notes, onNavigate }: { vaultId: nu
   useEffect(() => setDepth(1), [noteId]);
   const filters = useMemo(() => ({ ...loadFilters(vaultId), orphans: true }), [vaultId, noteId]);
   const view = useMemo(() => (data ? shown(data, { centre: noteId, depth, filters }) : null), [data, noteId, depth, filters]);
-  const more = !!data && canShowMore(data.edges, noteId, depth);
+  const more = useMemo(() => !!data && canShowMore(data.edges, noteId, depth), [data, noteId, depth]);
   const title = data?.nodes.find((n) => n.id === noteId)?.title ?? "this note";
 
   return (

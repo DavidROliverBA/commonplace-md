@@ -48,6 +48,8 @@ export interface Vault {
   id: number;
   name: string;
   role: Role;
+  /** Your home collection (F20): where shares go and the app opens. */
+  home?: boolean;
   note_count: number;
   member_count: number;
   /** "owner/name" when it's a copy of a GitHub repo (F14). */

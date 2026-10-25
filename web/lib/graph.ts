@@ -76,13 +76,26 @@ export function inScope(n: GraphNode, scope: Scope): boolean {
   }
 }
 
+/** Each note's neighbours, built once per list of edges (a hub with thousands of links made
+ *  rebuilding it on every render slow). */
+const adjacency = new WeakMap<GraphEdge[], Map<number, number[]>>();
+function neighboursOf(edges: GraphEdge[]): Map<number, number[]> {
+  let next = adjacency.get(edges);
+  if (next) return next;
+  next = new Map();
+  const add = (a: number, b: number) => {
+    const list = next!.get(a);
+    if (list) list.push(b);
+    else next!.set(a, [b]);
+  };
+  for (const e of edges) (add(e.source, e.target), add(e.target, e.source));
+  adjacency.set(edges, next);
+  return next;
+}
+
 /** The notes within `depth` links of `centre`, either way round. */
 export function neighbourhood(edges: GraphEdge[], centre: number, depth: number): Set<number> {
-  const next = new Map<number, number[]>();
-  for (const e of edges) {
-    next.set(e.source, [...(next.get(e.source) ?? []), e.target]);
-    next.set(e.target, [...(next.get(e.target) ?? []), e.source]);
-  }
+  const next = neighboursOf(edges);
   const seen = new Set([centre]);
   let ring = [centre];
   for (let d = 0; d < depth && ring.length; d++) {
@@ -163,12 +176,28 @@ export function daySpan(nodes: { when: string }[]): DayRange | null {
   return { from, to };
 }
 
-/** Notes per month from the first month to the last, empty months included: the strip's bars. */
-export function perMonth(nodes: { when: string }[], span: DayRange): { month: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const n of nodes) counts.set(n.when.slice(0, 7), (counts.get(n.when.slice(0, 7)) ?? 0) + 1);
-  const out: { month: string; count: number }[] = [];
-  for (let m = `${span.from.slice(0, 7)}-01`; m.slice(0, 7) <= span.to.slice(0, 7); m = addMonths(m, 1)) out.push({ month: m.slice(0, 7), count: counts.get(m.slice(0, 7)) ?? 0 });
+/** The most bars the strip draws: past that, a bar covers several months (a quarter, a year…). */
+export const MAX_BARS = 240;
+
+/** Notes per month from the first month to the last, empty months included: the strip's bars. A
+ *  long span groups months, so each bar starts at `month` and covers `months` of them. */
+export function perMonth(nodes: { when: string }[], span: DayRange): { month: string; months: number; count: number }[] {
+  const index = (d: string) => Number(d.slice(0, 4)) * 12 + Number(d.slice(5, 7)) - 1;
+  const first = index(span.from);
+  const total = index(span.to) - first + 1;
+  let step = Math.ceil(total / MAX_BARS);
+  if (step > 12) step = Math.ceil(step / 12) * 12; // whole years once a bar is more than a year
+  else if (step > 6) step = 12;
+  else if (step > 3) step = 6;
+  else if (step > 1) step = 3;
+  const counts = new Map<number, number>();
+  for (const n of nodes) {
+    const b = Math.floor((index(n.when) - first) / step);
+    counts.set(b, (counts.get(b) ?? 0) + 1);
+  }
+  const out: { month: string; months: number; count: number }[] = [];
+  const start = `${span.from.slice(0, 7)}-01`;
+  for (let b = 0; b * step < total; b++) out.push({ month: addMonths(start, b * step).slice(0, 7), months: step, count: counts.get(b) ?? 0 });
   return out;
 }
 

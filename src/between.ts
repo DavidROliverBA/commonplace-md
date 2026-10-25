@@ -83,15 +83,17 @@ async function attachmentFor(vaultId: number, target: string) {
   return f ?? null;
 }
 
-/** Where a file lands: its own path if that's free or holds the same bytes, else "x 1.png". */
-async function freeFilePath(from: number, src: string, to: number, path: string, taken: Set<string>): Promise<string | null> {
+/** Where a file lands: its own path if that's free, else "x 1.png" and so on; `copy` is false when
+ *  the same bytes are already at that path (at its own name or a renamed one), so embeds point
+ *  there and nothing is copied twice. */
+async function freeFilePath(from: number, src: string, to: number, path: string, taken: Set<string>): Promise<{ at: string; copy: boolean }> {
   for (let i = 0; ; i++) {
     const p = i ? path.replace(/( \d+)?(\.[^.]+)$/, ` ${i}$2`) : path;
     if (taken.has(p.toLowerCase())) continue;
     const [there] = await sql`select md5(data) as h from attachments where vault_id = ${to} and lower(path) = lower(${p})`;
-    if (!there) return p;
+    if (!there) return { at: p, copy: true };
     const [mine] = await sql`select md5(data) as h from attachments where vault_id = ${from} and path = ${src}`;
-    if (there.h === mine?.h) return null; // already there
+    if (there.h === mine?.h) return { at: p, copy: false }; // already there
   }
 }
 
@@ -133,11 +135,14 @@ export async function planSend(user: User, r: SendRequest): Promise<SendPlan> {
   // Files: everything under a sent folder, and whatever the notes embed.
   const takenFiles = new Set<string>();
   const files = new Map<string, PlannedFile | null>();
+  /** Where each file is in the other collection afterwards, copied or already there. */
+  const landsAt = new Map<string, string>();
   const addFile = async (path: string, size: number, dest: string) => {
     if (files.has(path)) return;
-    const at = await freeFilePath(from.id, path, to.id, dest, takenFiles);
-    if (at) takenFiles.add(at.toLowerCase());
-    files.set(path, at ? { path, to: at, size } : null);
+    const { at, copy } = await freeFilePath(from.id, path, to.id, dest, takenFiles);
+    if (copy) takenFiles.add(at.toLowerCase());
+    files.set(path, copy ? { path, to: at, size } : null);
+    landsAt.set(path, at);
   };
   if (folder) {
     const like = folder.toLowerCase().replace(/[%_\\]/g, "\\$&") + "/%";
@@ -151,9 +156,20 @@ export async function planSend(user: User, r: SendRequest): Promise<SendPlan> {
       const f = await attachmentFor(from.id, l.target);
       if (!f) continue;
       await addFile(f.path, f.size, f.path); // kept where it was, so other notes find it too
-      const moved = files.get(f.path);
-      // Renamed to avoid a different file of the same name: point the embed at the new name.
-      if (moved && moved.to !== f.path) n.content = rewriteWikiLinks(n.content, (t) => t === normaliseTarget(l.target), moved.to);
+      const at = landsAt.get(f.path)!;
+      // Renamed to avoid a different file of the same name (or found already there under another
+      // name): point the embed at where it is.
+      if (at !== f.path) n.content = rewriteWikiLinks(n.content, (t) => t === normaliseTarget(l.target), at);
+    }
+  }
+  // A folder lands under a new path, so links between its notes that spell out the path
+  // ([[Work/Projects/Plan]]) follow them; links by name alone still find them by title.
+  for (const n of plan.notes) {
+    for (const m of plan.notes) {
+      const old = m.path.replace(/\.md$/i, "");
+      const now = m.to.replace(/\.md$/i, "");
+      if (old.toLowerCase() === now.toLowerCase() || !old.includes("/")) continue;
+      n.content = rewriteWikiLinks(n.content, (t) => t === normaliseTarget(old), now);
     }
   }
 
@@ -196,7 +212,11 @@ export async function send(user: User, r: SendRequest): Promise<SendReport> {
   if (r.move) for (const n of (await planSend(user, r)).notes) kick({ noteId: n.id }, "note deleted");
   const p = await planSend(user, r);
   if (!p.notes.length) throw new HttpError(400, "There are no notes to send");
-  await assertRoom(p.notes.reduce((s, n) => s + Buffer.byteLength(n.content), 0) + p.files.reduce((s, f) => s + f.size, 0));
+  // A move carries each note's history too (note_revisions), so that counts towards the room.
+  const history = p.move
+    ? Number((await sql`select coalesce(sum(octet_length(content)), 0)::bigint as b from note_revisions where note_id in ${sql(p.notes.map((n) => n.id))}`)[0]!.b)
+    : 0;
+  await assertRoom(p.notes.reduce((s, n) => s + Buffer.byteLength(n.content), 0) + p.files.reduce((s, f) => s + f.size, 0) + history);
   const report: SendReport = { from: p.from.id, to: p.to.id, move: p.move, created: [], files: [], trashIds: [] };
 
   for (const f of p.files) {

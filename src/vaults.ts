@@ -16,6 +16,8 @@ export interface Vault {
   member_count: number;
   /** "owner/name" when the vault is a copy of a GitHub repo (F14). */
   git_repo?: string | null;
+  /** The person's home collection (F20). */
+  home?: boolean;
 }
 
 export async function listVaults(userId: number): Promise<Vault[]> {
@@ -25,7 +27,28 @@ export async function listVaults(userId: number): Promise<Vault[]> {
       (select count(*)::int from vault_members mm where mm.vault_id = v.id) as member_count,
       (select g.repo from vault_git g where g.vault_id = v.id) as git_repo
     from vaults v join vault_members m on m.vault_id = v.id and m.user_id = ${userId}
-    order by v.name`;
+    order by v.name`.then(async (list) => {
+    const home = await homeOf(userId);
+    return list.map((v) => ({ ...v, home: v.id === home }));
+  });
+}
+
+/** Make a collection the person's home (F20). They must be a member. */
+export async function setHome(user: User, vaultId: number): Promise<void> {
+  await requireRole(vaultId, user, "viewer");
+  await sql`update users set home_vault_id = ${vaultId} where id = ${user.id}`;
+}
+
+/** The person's home collection: the one they chose, while they still belong to it, or else the
+ *  first they own (then the first they joined), so everyone with a collection has a home. */
+export async function homeOf(userId: number): Promise<number | null> {
+  const [r] = await sql`
+    select m.vault_id as id from vault_members m join vaults v on v.id = m.vault_id
+    left join users u on u.id = m.user_id
+    where m.user_id = ${userId}
+    order by (m.vault_id = u.home_vault_id) is true desc, (m.role = 'owner') desc, v.created_at, v.id
+    limit 1`;
+  return r ? Number(r.id) : null;
 }
 
 export async function createVault(user: User, name: string): Promise<Vault> {

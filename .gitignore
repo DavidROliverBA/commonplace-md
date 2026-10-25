@@ -11,3 +11,7 @@ laptop/.env
 laptop/backups/
 laptop/images/
 laptop/*.tar.gz
+# iCloud Drive sync-conflict copies (the repo lives in iCloud-synced ~/Documents): "theme 2.ts"
+* [0-9].ts
+* [0-9].tsx
+* [0-9].css

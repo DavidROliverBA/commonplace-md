@@ -2,7 +2,7 @@
 
 import { describe, expect, test } from "bun:test";
 import { noteWhen } from "../src/graph";
-import { activeFilters, addMonths, canShowMore, daySpan, type GraphData, graphUrl, NO_FILTERS, neighbourhood, outside, perMonth, rangeFrom, rangeWords, scopeFrom, shown } from "../web/lib/graph";
+import { activeFilters, addMonths, MAX_BARS, canShowMore, daySpan, type GraphData, graphUrl, NO_FILTERS, neighbourhood, outside, perMonth, rangeFrom, rangeWords, scopeFrom, shown } from "../web/lib/graph";
 
 const node = (id: number, title: string, extra: Partial<GraphData["nodes"][number]> = {}) => ({ id, title, path: `${title}.md`, type: null, tags: [], daily: false, when: "2026-10-01", whenFrom: "made" as const, ...extra });
 // Kickoff (Meeting) —attendees→ Sam (Person) —text→ Garden; Diary (daily) → Kickoff; Lonely alone.
@@ -69,6 +69,8 @@ describe("the timeline (F21)", () => {
   test("a note's date: the daily note's day, then date properties, then the type's, then when it was made", () => {
     expect(noteWhen({ path: "Daily/2025-03-04.md", frontmatter: { date: "2020-01-01" }, made }, null)).toEqual({ when: "2025-03-04", whenFrom: "daily" });
     expect(noteWhen({ path: "Kickoff.md", frontmatter: { Date: "2025-05-06T09:30" }, made }, null)).toEqual({ when: "2025-05-06", whenFrom: "property" });
+    // Impossible days and placeholders don't count: the note falls back to when it was made.
+    for (const date of ["2025-13-01", "2025-02-30", "0001-01-01"]) expect(noteWhen({ path: "Odd.md", frontmatter: { date }, made }, null).whenFrom).toBe("made");
     expect(noteWhen({ path: "Old.md", frontmatter: { created: "2019-12-31" }, made }, null)).toEqual({ when: "2019-12-31", whenFrom: "property" });
     expect(noteWhen({ path: "Dune.md", frontmatter: { finished: "2024-08-01" }, made }, "finished")).toEqual({ when: "2024-08-01", whenFrom: "property" });
     // A value that isn't a day, or a property the type doesn't place notes by, falls through.
@@ -84,11 +86,18 @@ describe("the timeline (F21)", () => {
     const span = daySpan(ns)!;
     expect(span).toEqual({ from: "2025-01-15", to: "2025-04-02" });
     expect(perMonth(ns, span)).toEqual([
-      { month: "2025-01", count: 2 },
-      { month: "2025-02", count: 0 },
-      { month: "2025-03", count: 0 },
-      { month: "2025-04", count: 1 },
+      { month: "2025-01", months: 1, count: 2 },
+      { month: "2025-02", months: 1, count: 0 },
+      { month: "2025-03", months: 1, count: 0 },
+      { month: "2025-04", months: 1, count: 1 },
     ]);
+    // A long span groups months, never more than MAX_BARS bars: a thousand years is 200 bars of five years.
+    const far = [{ when: "1025-06-01" }, { when: "2025-06-01" }, { when: "2025-07-01" }];
+    const bars = perMonth(far, daySpan(far)!);
+    expect(bars.length).toBeLessThanOrEqual(MAX_BARS);
+    expect(bars.reduce((n, b) => n + b.count, 0)).toBe(3);
+    expect(bars[0]).toMatchObject({ month: "1025-06", count: 1 });
+    expect(bars[0]!.months % 12).toBe(0);
     expect([...outside(ns, { from: "2025-01-16", to: "2025-03-31" })].sort()).toEqual([1, 3]);
     expect(outside(ns, null).size).toBe(0);
     expect(daySpan([])).toBeNull();

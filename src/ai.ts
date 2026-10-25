@@ -73,6 +73,15 @@ function searchLinks(messages: Msg[]): Set<string> {
   return out;
 }
 
+/** Whether a web call sends only what the person typed themselves: an address or a search they
+ *  wrote in one of their messages. Anything else could carry note text the model read (a clipped
+ *  page in the collection can try to steer it), so it asks first, the first time too. */
+function fromPerson(messages: Msg[], name: string, input: Record<string, unknown>): boolean {
+  const sent = String(name === "read_web_page" ? (input.url ?? "") : (input.query ?? "")).trim().toLowerCase();
+  if (!sent) return false;
+  return messages.some((m) => m.role === "user" && m.text.toLowerCase().includes(sent));
+}
+
 const MsgSchema: z.ZodType<Msg> = z.union([
   z.object({ role: z.literal("user"), text: z.string().max(100_000) }),
   z.object({
@@ -304,8 +313,11 @@ async function chat(user: User, req: ChatRequest, { assistant, role, vault }: Pr
     for (const c of reply.calls) {
       const tool = serverTools.find((t) => t.name === c.name);
       if (webNames.has(c.name)) {
+        // Runs straight away only when what it sends came from the person or from a search's
+        // results; otherwise it asks, the first web call of a conversation included.
         const fromSearch = c.name === "read_web_page" && searchLinks(messages).has(String(c.input.url));
-        if ((webBefore && !fromSearch) || usedAnotherVault(messages, vault.id, mine)) pending.push({ id: c.id, name: c.name, input: c.input, kind: "approve", preview: { summary: describeWebCall(c.name, c.input), noteId: null, path: "", before: null, after: null } });
+        const safe = fromSearch || fromPerson(messages, c.name, c.input);
+        if (!safe || usedAnotherVault(messages, vault.id, mine)) pending.push({ id: c.id, name: c.name, input: c.input, kind: "approve", preview: { summary: describeWebCall(c.name, c.input), noteId: null, path: "", before: null, after: null } });
         else results.push(await run(c));
         continue;
       }

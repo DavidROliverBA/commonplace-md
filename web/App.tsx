@@ -148,12 +148,12 @@ function Workspace({ session, reloadSession }: { session: Session; reloadSession
     void loadAssistants().catch(() => {}); // so @name offers them at the first keystroke
   }, []);
 
-  // "/" → the last vault used, else the first.
+  // "/" → the last collection used, else your home one, else the first.
   useEffect(() => {
     if (!vaults) return;
     if (route.page === "home" || (vaultId && !vault)) {
       const last = Number(localStorage.getItem("cp:vault"));
-      const target = vaults.find((v) => v.id === last) ?? vaults[0];
+      const target = vaults.find((v) => v.id === last) ?? vaults.find((v) => v.home) ?? vaults[0];
       if (target) navigate(`/v/${target.id}`, true);
     }
   }, [vaults, route.page, vaultId]);

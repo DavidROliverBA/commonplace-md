@@ -11,7 +11,7 @@ The first account made on a new server becomes the **admin**, and it gets a coll
 
 Everything on a server is one **library**, such as *David's Library* or *Team Library*. Its name sits at the top of the file panel. At first it's named after the first admin, and an admin can rename it in Settings → Admin.
 
-A library holds **collections**. A collection is a set of notes and the folders they're in. You might have one for home and one for work, and each has its own members, so sharing one collection doesn't share the others. Your first collection is called *Personal*. Pick a collection from the menu under the library's name, or make a new one there. (Other Markdown editors call a collection a *vault*. It's the same thing: a folder of Markdown files.)
+A library holds **collections**. A collection is a set of notes and the folders they're in. You might have one for home and one for work, and each has its own members, so sharing one collection doesn't share the others. Your first collection is called *Personal*. Pick a collection from the menu under the library's name, or make a new one there. [Your library and collections](collections.md) has more, including Setup and starter types. (Other Markdown editors call a collection a *vault*. It's the same thing: a folder of Markdown files.)
 
 ![The collection home: the file panel on the left and recent notes on the right](images/vault-home.webp)
 

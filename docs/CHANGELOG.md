@@ -4,6 +4,59 @@ What's been finished, newest first, with the date and the release or commit. Wha
 [BACKLOG.md](BACKLOG.md); finished designs are in [design/](design/). Releases on GitHub carry the
 same notes.
 
+- **2026-10-25** — N15, a review of v0.0.45 to v0.0.54 (release v0.0.55). A code review and a
+  security review were run over the range. The security review found nothing that met its bar.
+  Everything both reviews raised is fixed, each with a test:
+  - **GitHub, held notes** (`src/git.ts`): a held note, or one still being typed, could go back to
+    `main`'s version on the PR branch when its earlier push predated recorded blob shas. Push
+    now reads those from the branch.
+  - **GitHub, publishing to an existing branch** (`src/gitAuto.ts`): choosing a branch that lacks
+    some of the collection's files is now refused before anything changes. Before, following it
+    sent those notes to Trash.
+  - **Reading web pages** (`src/web.ts`): reading a hostile page (thousands of unclosed tags) took
+    time quadratic in its size, so about six minutes for 1.5 MB, blocking the one server. It's
+    now linear: under a millisecond for the same page.
+  - **The assistant's first web request** (`src/ai.ts`): it no longer goes out without asking
+    unless it sends only what the person typed, or opens a link a search returned. A first
+    request could otherwise carry note text out if a clipped page steered it.
+  - **Library name** (`/api/session`): no longer shown before sign-in, since by default it
+    carries the first admin's name.
+  - **Copy or move between collections** (`src/between.ts`):
+    - a move counts the notes' history against the storage guard;
+    - an identical picture already there under a renamed name is used, with the embed
+      pointing at it, instead of at a different file of the original name;
+    - a folder sent into another folder keeps links between its notes that spell out the path;
+    - the route uses the shared `vaultCtx` check.
+  - **The timeline** (`src/graph.ts`, `web/lib/graph.ts`): an impossible or placeholder date no
+    longer counts, and a long span groups months so there are never more than 240 bars. Before,
+    one `0001-01-01` drew 24,000 of them.
+  - **The graph's Show more:** the graph builds each note's neighbours once per set of links,
+    not on every render.
+  - **Six iCloud sync-conflict copies** (`theme 2.ts` and others) are deleted, and
+    `.gitignore` keeps future ones out.
+- **2026-10-25** — Collection setup, the slim F20 (release v0.0.54;
+  `web/components/CollectionSetup.tsx`, help page `collections.md`).
+  - **Setup** is at the top of Settings → This collection, and a new collection opens there. It
+    shows where the collection is kept (this library, or this library with a GitHub copy), who's
+    in it (with Invite for owners), and whether it's your home.
+  - **Starter-type sets:** Personal, Household, Programme, Department and Reference. Each adds the
+    types the collection hasn't got, plus any type their links need. There are 15 new starter
+    types (Home, Appointment, Document, Decision, Risk, Action, Stakeholder, Milestone, Team,
+    Process, Policy, Service, Article, Topic, Source), with new icons (home, flag, alert).
+    `STARTER_SETS` in `src/types.ts`, unit-tested. `addStarters` in `web/lib/types.ts` is shared
+    with the New type dialog.
+  - **A home collection** for each person (`users.home_vault_id`, `PUT /api/me/home`). It's the
+    one chosen, or else the first you own. Share from iPhone defaults to a *Home collection*
+    token (no fixed collection) that follows your home when it changes. The app opens there when
+    there's no last-used collection.
+  - **The collection menu** puts home first, marks it "· home", and groups collections into "In
+    this library" and "From GitHub" when you have both.
+  - **Tests:** e2e (home, a home token following a change, refusing a collection you're not in)
+    and a browser test (adding a set, making a collection home).
+- **2026-10-25** — `package.json`'s version is 0.0.53, the release that's out. It had stayed at
+  0.0.45, so the MCP server and the standalone file reported the wrong version.
+  `test/version.test.ts` now fails when the newest release in this changelog and `package.json`
+  differ.
 - **2026-10-25** — Your library and its collections (release v0.0.53). A server is now a
   **library** and vaults are **collections**, everywhere people read: the app, the server's
   messages, the AI's and MCP's descriptions, the help, the README and the docs. The library's name

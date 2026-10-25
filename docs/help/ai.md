@@ -42,7 +42,7 @@ An assistant can also search the web and read pages, if you switch it on in two 
 
 Reading a page needs nothing more. To let the assistant **search**, add a Brave Search API key of your own under Settings → **AI assistants** → **Web search**. Its searches go to Brave under your key.
 
-A web page could try to trick the assistant into sending your notes somewhere. So after its first web request in a conversation, it asks you before each further search or page, and before any change, even to the open note. The card shows exactly what would go out: **Allow** or **Don't**. Opening a link that a search returned doesn't ask, because the address came from Brave, not from the assistant.
+A web page, or a page clipped into your notes, could try to trick the assistant into sending your notes somewhere. So the assistant asks you before any search or page whose words you didn't type yourself, the first one included. The card shows exactly what would go out: **Allow** or **Don't**. A search you asked for in your own words ("search for boiler service intervals") or an address you pasted runs straight away, and so does opening a link that a search returned, because the address came from Brave, not from the assistant. Once it has read anything from the web, it also asks before any change, even to the open note.
 
 ## Connecting Claude
 

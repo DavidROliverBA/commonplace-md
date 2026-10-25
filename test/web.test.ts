@@ -26,4 +26,21 @@ describe("reading a web page for the assistant", () => {
     const { text } = pageText("<html><body><header><nav>Menu</nav></header><p>One</p><p>Two</p></body></html>");
     expect(text).toBe("One\nTwo");
   });
+
+  test("a hostile page full of unclosed tags is read in linear time, not quadratic", () => {
+    // 1.5 MB, the most readPage takes: openings that never close, each of which used to make a
+    // regex scan to the end of the page, blocking the one server for minutes.
+    for (const bit of ["<svg ", "<form ", "<!-- ", "<article ", "<h1 ", "<title ", "< "]) {
+      const html = `<p>Start</p>${bit.repeat(Math.floor(1_500_000 / bit.length))}`;
+      const t = performance.now();
+      const { text } = pageText(html);
+      expect(performance.now() - t).toBeLessThan(1500);
+      expect(text.startsWith("Start") || text === "").toBe(true);
+    }
+  });
+
+  test("an element that never closes takes the rest of the page; comments go", () => {
+    expect(pageText("<p>Keep</p><!-- hidden --><p>Also</p><script>never ends").text).toBe("Keep\nAlso");
+    expect(pageText("<main><p>Main part</p></main><p>Outside</p>").text).toBe("Main part");
+  });
 });

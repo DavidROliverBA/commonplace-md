@@ -8,6 +8,7 @@ import { useSyncExternalStore } from "react";
 import { parseFrontmatter } from "../../src/markdown";
 import home from "../../docs/help/index.md" with { type: "text" };
 import gettingStarted from "../../docs/help/getting-started.md" with { type: "text" };
+import collections from "../../docs/help/collections.md" with { type: "text" };
 import writing from "../../docs/help/writing.md" with { type: "text" };
 import links from "../../docs/help/links.md" with { type: "text" };
 import graph from "../../docs/help/graph.md" with { type: "text" };
@@ -41,6 +42,7 @@ export const ALL_HELP_PAGES: HelpPage[] = (
   [
   ["index", home],
   ["getting-started", gettingStarted],
+  ["collections", collections],
   ["writing", writing],
   ["links", links],
   ["graph", graph],

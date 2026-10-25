@@ -2,10 +2,8 @@
 // Adding a starter also adds the starters its links need (a Meeting's attendees are People).
 
 import { useEffect, useState } from "react";
-import { normalisePath } from "../../src/markdown";
-import { STARTERS, starterNeeds, starterNote, TYPES_FOLDER } from "../../src/types";
-import { api, type Note } from "../lib/api";
-import { createType, loadTypes, typesState, useTypes } from "../lib/types";
+import { STARTERS } from "../../src/types";
+import { addStarters, createType, loadTypes, typesState, useTypes } from "../lib/types";
 import { Icon } from "../ui/Icon";
 import { Modal } from "../ui/Modal";
 import { toast, toastError } from "../ui/overlays";
@@ -24,16 +22,9 @@ export function NewTypeDialog({ vaultId, onClose, onOpen }: { vaultId: number; o
   async function addStarter(starterName: string) {
     setBusy(true);
     try {
-      const s = STARTERS.find((x) => x.name === starterName)!;
-      const needed = starterNeeds(s).filter((n) => !has(n));
-      let first: Note | null = null;
-      for (const n of [s.name, ...needed]) {
-        const st = STARTERS.find((x) => x.name === n)!;
-        const made = await api<Note>(`/vaults/${vaultId}/notes`, { body: { path: normalisePath(`${TYPES_FOLDER}/${st.name}`), content: starterNote(st) } });
-        first ??= made;
-      }
-      await loadTypes(vaultId);
-      toast(needed.length ? `Added ${s.name}, and ${needed.join(" and ")} for its links` : `Added the ${s.name} type`);
+      const added = await addStarters(vaultId, [starterName]);
+      const extra = added.filter((n) => n !== starterName);
+      toast(extra.length ? `Added ${starterName}, and ${extra.join(" and ")} for its links` : `Added the ${starterName} type`);
     } catch (e) {
       toastError(e);
     } finally {

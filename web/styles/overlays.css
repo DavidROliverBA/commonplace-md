@@ -593,3 +593,93 @@
   font-weight: 700;
   flex: 0 0 auto;
 }
+
+/* Settings → This collection → Setup (F20, web/components/CollectionSetup.tsx). */
+.setup-facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  font-size: var(--text-ui-sm);
+  align-items: center;
+}
+.setup-facts dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+.setup-facts dd {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.setup h4 {
+  margin: 0 0 4px;
+  font-size: var(--text-ui-sm);
+}
+.starter-sets {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.starter-sets li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 6px 12px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.starter-set-head {
+  font-size: var(--text-ui-sm);
+}
+.starter-set-types {
+  grid-column: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.starter-sets li > button {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+.setup-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: var(--text-small);
+  background: var(--bg2);
+}
+/* The colour goes on the icon: as text, some type colours are too faint (WCAG AA). */
+.setup-type .icon {
+  color: var(--type-c);
+}
+.setup-type.added {
+  background: color-mix(in srgb, var(--type-c) 14%, transparent);
+}
+@media (max-width: 820px) {
+  .setup-facts {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+  .setup-facts dd {
+    margin-bottom: 8px;
+  }
+  .starter-sets li {
+    grid-template-columns: 1fr;
+  }
+  .starter-sets li > button {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}

@@ -473,6 +473,8 @@ describe("admin", () => {
 
   test("the library's name: the first admin's by default, an admin renames it, empty goes back", async () => {
     expect((await alice.ok("/session")).library).toBe("Alice's Library");
+    // Not before sign-in: by default it carries the first admin's name.
+    expect((await (await fetch(`${BASE}/api/session`)).json()).library).toBe("");
     expect((await bob.req("/admin/library", { method: "PUT", body: { name: "Bob's" } })).status).toBe(403);
     expect(await alice.ok("/admin/library", { method: "PUT", body: { name: "  Team Library " } })).toEqual({ library: "Team Library" });
     expect((await bob.ok("/session")).library).toBe("Team Library");
@@ -1129,6 +1131,21 @@ describe("capture from the iPhone", () => {
 
   test("a viewer can't make a token for a vault", async () => {
     expect((await bob.req("/me/tokens", { body: { vaultId: cv } })).status).toBe(403);
+  });
+
+  test("home (F20): one collection is marked home; a token for home follows it when it changes", async () => {
+    const home = () => alice.ok("/vaults").then((vs: any[]) => vs.filter((v) => v.home).map((v) => v.id));
+    expect((await home()).length).toBe(1);
+    const made = await alice.ok("/me/tokens", { body: { name: "Home phone" } });
+    expect(made.row).toMatchObject({ vault_id: null, vault_name: null });
+    await alice.ok("/me/home", { method: "PUT", body: { vaultId: cv } });
+    expect(await home()).toEqual([cv]);
+    expect((await share("to home", { authorization: `Bearer ${made.token}` }, made.token)).status).toBe(200);
+    expect(await inbox()).toContain("to home");
+    // Not a member: refused, and the home stays.
+    const bobs = (await bob.ok("/vaults", { body: { name: "Bob only" } })).id;
+    expect((await alice.req("/me/home", { method: "PUT", body: { vaultId: bobs } })).status).toBe(404);
+    expect(await home()).toEqual([cv]);
   });
 });
 
@@ -1796,7 +1813,7 @@ describe("bring your own AI", () => {
     expect((await bob.ok("/me/web-search")).connection).toBeNull();
   });
 
-  test("it searches and reads a result at once; after that a change, even to the open note, asks first", async () => {
+  test("a search the person asked for in their own words, and a result's link, run at once; after that a change, even to the open note, asks first", async () => {
     braveSeen.length = 0;
     script.push(
       { calls: [{ name: "web_search", input: { query: "boiler service interval" } }] },
@@ -1804,7 +1821,7 @@ describe("bring your own AI", () => {
       { calls: [{ name: "append_to_note", input: { note: "Summary", text: "- Service the boiler every 12 months" } }] },
     );
     const before = await content(summary);
-    const r = await chat(alice, { assistantId: claude, vaultId: av, noteId: summary, messages: [{ role: "user", text: "How often should the boiler be serviced?" }], web: true });
+    const r = await chat(alice, { assistantId: claude, vaultId: av, noteId: summary, messages: [{ role: "user", text: "How often should the boiler be serviced? Search for boiler service interval." }], web: true });
     const lines = r.events.filter((e) => e.type === "tool");
     expect(lines.map((e) => [e.name, e.ok])).toEqual([["web_search", true], ["read_web_page", true]]);
     expect(lines[0].summary).toBe("Searched the web for “boiler service interval”: 1 results");
@@ -1820,7 +1837,7 @@ describe("bring your own AI", () => {
   test("after the first web request, the next one waits for the person, showing exactly what goes out", async () => {
     braveSeen.length = 0;
     script.push({ calls: [{ name: "read_web_page", input: { url: "http://localhost:3396/other.html" } }] }, { calls: [{ name: "web_search", input: { query: "Service due in March" } }] });
-    const r = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "Read that page" }], web: true });
+    const r = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "Read http://localhost:3396/other.html" }], web: true });
     expect(r.events.find((e) => e.type === "tool")).toMatchObject({ name: "read_web_page", ok: true });
     expect(r.end.pending).toHaveLength(1);
     expect(r.end.pending[0]).toMatchObject({ name: "web_search", kind: "approve", preview: { summary: "Search the web for “Service due in March”" } });
@@ -1831,10 +1848,21 @@ describe("bring your own AI", () => {
     expect(braveSeen.map((b) => b.q)).toEqual(["Service due in March"]);
   });
 
+  test("even the first web request asks when it sends something the person didn't type (it could carry note text)", async () => {
+    braveSeen.length = 0;
+    script.push({ calls: [{ name: "web_search", input: { query: "Kitchen budget 7500 quartz" } }] }, { calls: [{ name: "read_web_page", input: { url: "http://localhost:3396/other.html?q=7500" } }] });
+    const r = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "What should worktops cost?" }], web: true });
+    expect(r.events.filter((e) => e.type === "tool")).toHaveLength(0);
+    expect(r.end.pending.map((x: any) => [x.name, x.kind])).toEqual([["web_search", "approve"]]);
+    expect(r.end.pending[0].preview.summary).toBe("Search the web for “Kitchen budget 7500 quartz”");
+    expect(braveSeen).toHaveLength(0);
+    script.length = 0;
+  });
+
   test("with the web taken away from the assistant, a web call is refused even if the model asks", async () => {
     await alice.ok(`/me/assistants/${claude}`, { method: "PATCH", body: { web: false } });
     script.push({ calls: [{ name: "read_web_page", input: { url: PAGE } }] }, { text: "ok" });
-    const off = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: "read it" }], web: true });
+    const off = await chat(alice, { assistantId: claude, vaultId: av, messages: [{ role: "user", text: `read ${PAGE}` }], web: true });
     expect(off.events.find((e) => e.type === "tool")).toMatchObject({ name: "read_web_page", ok: false });
     await alice.ok(`/me/assistants/${claude}`, { method: "PATCH", body: { web: true } });
   });
@@ -2053,6 +2081,9 @@ describe("sending to GitHub automatically (F19)", () => {
     await hold("Garden.md", true);
     await write("Garden.md", "# Garden\n\nPlant bulbs in October, not yet.\n");
     await write("Boiler.md", "# Boiler\n\nServiced in May by Sam.\n\n- filter\n- pressure\n- flue\n");
+    // As pushes before v0.0.45 left them: no blob sha recorded. The held note must still keep
+    // its pushed version, read from the branch, not go back to main's.
+    await testDb`update git_pushed set sha = null where vault_id = ${v}`;
     await due();
     await until(async () => gh.files(await branch())["docs/Boiler.md"]!.includes("flue"));
     expect(gh.files(await branch())["docs/Garden.md"]).toBe("# Garden\n\nPlant bulbs in October.\n");
@@ -2157,6 +2188,17 @@ describe("sending to GitHub automatically (F19)", () => {
     await auto({ mode: "ask" });
   });
 
+  test("publishing to an existing branch without this collection's notes is refused, and nothing changes", async () => {
+    gh.commitTo("gh-pages", { "index.html": "<h1>Site</h1>" });
+    const before = (await list()).length;
+    const was = (await status()).baseBranch;
+    const r = await alice.req(`/vaults/${v}/git/auto`, { method: "PUT", body: { mode: "publish", every: "week", day: 5, at: "17:00", branch: "gh-pages" } });
+    expect(r.status).toBe(409);
+    expect(r.data.error).toContain("would send those notes to Trash");
+    expect((await list()).length).toBe(before);
+    expect(await status()).toMatchObject({ baseBranch: was, auto: { mode: "ask" } });
+  });
+
   test("the token only ever travels in the Authorization header", () => {
     expect(gh.seen.every((r) => !/github_pat_/.test(r.url) && r.auth?.startsWith("Bearer github_pat_"))).toBe(true);
   });
@@ -2207,6 +2249,21 @@ describe("copying and moving notes between vaults", () => {
     const r = await alice.ok(`/vaults/${home}/send`, { body: { to: other, notes: [plan] } });
     expect(r.files).toEqual(["attachments/plan 1.png"]);
     expect(await text(other, r.created.find((c: any) => c.from).id)).toContain("![[attachments/plan 1.png]]");
+    // Again: the same picture is already there under its new name, so nothing is copied and the
+    // embed still points at it, not at the different plan.png.
+    const r2 = await alice.ok(`/vaults/${home}/send`, { body: { to: other, notes: [plan] } });
+    expect(r2.files).toEqual([]);
+    expect(await text(other, r2.created.find((c: any) => c.from).id)).toContain("![[attachments/plan 1.png]]");
+  });
+
+  test("a folder sent into another folder keeps the links between its notes that spell out the path", async () => {
+    await alice.ok(`/vaults/${home}/notes`, { body: { path: "Plans/Big/Plan B.md", content: "# Plan B\n" } });
+    const a = (await alice.ok(`/vaults/${home}/notes`, { body: { path: "Plans/Big/Plan A.md", content: "# Plan A\n\nElse [[Plans/Big/Plan B|the other one]], or [[Plan B]].\n" } })).id;
+    const r = await alice.ok(`/vaults/${home}/send`, { body: { to: work, folder: "Plans/Big", into: "Archive" } });
+    const made = r.created.find((c: any) => c.from === "Plans/Big/Plan A.md");
+    expect(made.path).toBe("Archive/Big/Plan A.md");
+    expect(await text(work, made.id)).toBe("# Plan A\n\nElse [[Archive/Big/Plan B|the other one]], or [[Plan B]].\n");
+    expect(await text(home, a)).toContain("[[Plans/Big/Plan B|the other one]]"); // the original is untouched
   });
 
   test("moving a folder carries the notes' history, sends the originals to Trash, and Undo puts it back", async () => {

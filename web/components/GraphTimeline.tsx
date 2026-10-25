@@ -85,17 +85,17 @@ export function GraphTimeline(p: Props) {
     <section className="graph-timeline" aria-label="Timeline">
       <div className="timeline-bars" aria-hidden="true">
         {months.map((m) => {
-          const inRange = `${m.month}-31` >= p.range.from && `${m.month}-01` <= p.range.to;
+          const inRange = dayFromNumber(dayNumber(addMonths(`${m.month}-01`, m.months)) - 1) >= p.range.from && `${m.month}-01` <= p.range.to;
           // Each month over its own days, on the handles' scale.
           const first = clamp(`${m.month}-01`);
-          const next = Math.min(dayNumber(addMonths(`${m.month}-01`, 1)), hi);
+          const next = Math.min(dayNumber(addMonths(`${m.month}-01`, m.months)), hi);
           return (
             <span
               key={m.month}
               className={`timeline-bar${inRange ? " in" : ""}`}
               style={{ left: `${at(first)}%`, width: `${((next - dayNumber(first)) / (hi - lo)) * 100}%`, height: `${m.count ? Math.max(8, (m.count / most) * 100) : 0}%` }}
-              title={`${monthName(m.month)}: ${m.count} note${m.count === 1 ? "" : "s"}`}
-              onClick={() => (p.setPlaying(false), p.setRange({ from: clamp(`${m.month}-01`), to: clamp(dayFromNumber(dayNumber(addMonths(`${m.month}-01`, 1)) - 1)) }))}
+              title={`${m.months === 1 ? monthName(m.month) : `${monthName(m.month)} on, ${m.months} months`}: ${m.count} note${m.count === 1 ? "" : "s"}`}
+              onClick={() => (p.setPlaying(false), p.setRange({ from: clamp(`${m.month}-01`), to: clamp(dayFromNumber(dayNumber(addMonths(`${m.month}-01`, m.months)) - 1)) }))}
             />
           );
         })}

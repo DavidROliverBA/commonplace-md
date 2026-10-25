@@ -40,17 +40,16 @@ export function ShareFromPhone() {
     api<Vault[]>("/vaults").then((vs) => {
       const writable = vs.filter((v) => v.role !== "viewer");
       setVaults(writable);
-      // The vault you're in, if you can write to it; else the first.
-      const here = Number(/^\/v\/(\d+)/.exec(location.pathname)?.[1]);
-      setVaultId((writable.find((v) => v.id === here) ?? writable[0])?.id ?? null);
+      // Your home collection by default (0), which follows you if you change home later (F20).
+      setVaultId(writable.length ? 0 : null);
     }, toastError);
   }, []);
 
   async function create() {
-    if (!vaultId) return;
+    if (vaultId === null) return;
     setBusy(true);
     try {
-      const made = await api<{ token: string; row: Token }>("/me/tokens", { body: { kind: "capture", vaultId, name, notePath: note } });
+      const made = await api<{ token: string; row: Token }>("/me/tokens", { body: { kind: "capture", vaultId: vaultId || undefined, name, notePath: note } });
       setFresh(made);
       await load();
     } catch (e) {
@@ -95,7 +94,7 @@ export function ShareFromPhone() {
               <div>
                 <b>{t.name}</b>{" "}
                 <span className="muted">
-                  → {t.vault_name} / {noteName(t.note_path)} · {t.last_used_at ? `last used ${relativeTime(t.last_used_at)}` : "not used yet"}
+                  → {t.vault_name ?? "Home collection"} / {noteName(t.note_path)} · {t.last_used_at ? `last used ${relativeTime(t.last_used_at)}` : "not used yet"}
                 </span>
               </div>
               <button className="danger-link" onClick={() => void revoke(t)}>
@@ -162,6 +161,7 @@ export function ShareFromPhone() {
           }}
         >
           <select value={vaultId ?? ""} onChange={(e) => setVaultId(Number(e.target.value))} aria-label="Collection">
+            <option value={0}>Home collection{vaults.find((v) => v.home) ? ` (now ${vaults.find((v) => v.home)!.name})` : ""}</option>
             {vaults.map((v) => (
               <option key={v.id} value={v.id}>
                 {v.name}

@@ -19,8 +19,11 @@ const LONG_TEXT = 1_000; // longer than a note-to-self: likely a whole page
 /** The capture token's owner and target; still an editor there (roles change after tokens are made). */
 async function authenticate(req: Request) {
   const t = await authenticateToken(req, "capture");
-  await vaults.requireRole(t.vaultId!, t.user, "editor");
-  return { user: t.user, vaultId: t.vaultId!, notePath: t.notePath };
+  // A token for "home" follows the person's home collection (F20).
+  const vaultId = t.vaultId ?? (await vaults.homeOf(t.user.id));
+  if (!vaultId) throw new HttpError(404, "There's no home collection to save to: make one in Commonplace first");
+  await vaults.requireRole(vaultId, t.user, "editor");
+  return { user: t.user, vaultId, notePath: t.notePath };
 }
 
 export interface Shared {

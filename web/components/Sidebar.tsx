@@ -210,6 +210,26 @@ function TypesSection({ vaultId, canWrite, onNewType, onNavigate, sort, setSort 
   );
 }
 
+/** The collection menu (F20): home first, then by name; grouped by where each is kept once there's
+ *  more than one place. */
+function switcherGroups(vaults: Vault[]): { label: string | null; vaults: Vault[] }[] {
+  const sorted = [...vaults].sort((a, b) => Number(!!b.home) - Number(!!a.home) || a.name.localeCompare(b.name));
+  const here = sorted.filter((v) => !v.git_repo);
+  const github = sorted.filter((v) => v.git_repo);
+  if (!here.length || !github.length) return [{ label: null, vaults: sorted }];
+  return [
+    { label: "In this library", vaults: here },
+    { label: "From GitHub", vaults: github },
+  ];
+}
+const vaultOption = (v: Vault) => (
+  <option key={v.id} value={v.id}>
+    {v.name}
+    {v.home ? " · home" : ""}
+    {v.member_count > 1 ? ` (${v.member_count} members)` : ""}
+  </option>
+);
+
 export function Sidebar(p: Props) {
   const [open, setOpen] = useState<Set<string>>(() => loadOpen(p.vault.id));
   const [sort, setSortState] = useState<Sort>(() => (localStorage.getItem("cp:sort") as Sort) || "name");
@@ -411,6 +431,8 @@ export function Sidebar(p: Props) {
                     .then(async (v) => {
                       await p.reloadVaults();
                       navigate(`/v/${v.id}`);
+                      // Straight to its setup, where starter types for its kind are a click away (F20).
+                      openSettings("vault");
                       toast(`Created “${v.name}”`);
                     })
                     .catch(toastError);
@@ -421,12 +443,15 @@ export function Sidebar(p: Props) {
           }}
           aria-label="Collection"
         >
-          {p.vaults.map((v) => (
-            <option key={v.id} value={v.id}>
-              {v.name}
-              {v.member_count > 1 ? ` (${v.member_count} members)` : ""}
-            </option>
-          ))}
+          {switcherGroups(p.vaults).map((g) =>
+            g.label ? (
+              <optgroup key={g.label} label={g.label}>
+                {g.vaults.map(vaultOption)}
+              </optgroup>
+            ) : (
+              g.vaults.map(vaultOption)
+            ),
+          )}
           <option value="new">+ New collection…</option>
           <option value="github">+ New collection from GitHub…</option>
         </select>

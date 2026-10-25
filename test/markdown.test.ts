@@ -312,6 +312,17 @@ describe("starter types", () => {
     expect(starterNeeds(by("Person"))).toEqual(["Organisation"]);
     expect(starterNeeds(by("Book"))).toEqual([]);
   });
+
+  test("the sets (F20) name real starters, every starter's icon can be picked, and links point at starters", () => {
+    const { STARTER_SETS, TYPE_ICONS } = require("../src/types");
+    for (const set of STARTER_SETS) for (const t of set.types) expect(STARTERS.some((s: any) => s.name === t)).toBe(true);
+    expect(new Set(STARTERS.map((s: any) => s.name)).size).toBe(STARTERS.length);
+    for (const s of STARTERS) {
+      expect(TYPE_ICONS).toContain(s.shape.icon);
+      for (const p of s.shape.properties) if (p.kind === "relation") expect(STARTERS.some((x: any) => x.name === p.type)).toBe(true);
+    }
+    expect(starterNeeds(STARTERS.find((s: any) => s.name === "Risk"))).toEqual(["Person", "Project"]);
+  });
 });
 
 describe("tables as data (F8)", () => {
